@@ -1,0 +1,25 @@
+[
+  {
+    "id": "duna-x57",
+    "nome": "Duna X-57",
+    "descricao": "Um planeta árido e hostil, com tempestades frequentes e escassez de água.",
+    "aguaInicial": 300,
+    "energiaInicial": 500,
+    "populacaoInicial": 200,
+    "mineraisIniciais": 200,
+    "comidaInicial": 100,
+    "saude": 100,
+    "eventosProvaveis": [
+      {
+        "nome": "Tempestade de areia",
+        "chance": 25,
+        "efeito": "quebra_estruturas"
+      },
+      {
+        "nome": "Descoberta de ruínas antigas",
+        "chance": 10,
+        "efeito": "ganha_pesquisa"
+      }
+    ]
+  }
+]
