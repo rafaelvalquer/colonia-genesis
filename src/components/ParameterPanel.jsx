@@ -176,32 +176,37 @@ function ParameterPanel({ onChange, populacao = 100 }) {
           Alocação de Colonos (100%)
         </legend>
         <div className="flex flex-col gap-6">
-          {setoresOrdem.map((campo) => (
-            <div
-              key={campo}
-              className="flex flex-col md:flex-row md:items-center md:gap-6"
-            >
-              <div className="md:w-48 capitalize font-medium">{campo}</div>
-              <Slider
-                className="flex-grow"
-                value={tempAlocacao[campo]}
-                min={0}
-                max={100}
-                step={1}
-                onChange={(_, value) => handleSliderChange(campo, value)}
-                onChangeCommitted={(_, value) =>
-                  handleSliderChangeCommitted(campo, value)
-                }
-                aria-labelledby={`${campo}-slider`}
-              />
-              <div className="md:w-32 text-right font-semibold">
-                {tempAlocacao[campo]}% —{" "}
-                {Math.round((tempAlocacao[campo] / 100) * populacao)} colonos
+          {setoresOrdem.map((campo, index) => (
+            <React.Fragment key={campo}>
+              <div className="flex flex-col md:flex-row md:items-center md:gap-6">
+                <div className="md:w-48 capitalize font-medium">{campo}</div>
+                <Slider
+                  className="flex-grow"
+                  value={tempAlocacao[campo]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onChange={(_, value) => handleSliderChange(campo, value)}
+                  onChangeCommitted={(_, value) =>
+                    handleSliderChangeCommitted(campo, value)
+                  }
+                  aria-labelledby={`${campo}-slider`}
+                />
+                <div className="md:w-32 text-right font-semibold">
+                  {tempAlocacao[campo]}% —{" "}
+                  {Math.round((tempAlocacao[campo] / 100) * populacao)} colonos
+                </div>
               </div>
-            </div>
+
+              {/* Linha preta abaixo de cada setor, menos o último */}
+              {index < setoresOrdem.length - 1 && (
+                <hr className="border-t border-black" />
+              )}
+            </React.Fragment>
           ))}
         </div>
       </fieldset>
+
 
       <button
         onClick={handleSubmit}

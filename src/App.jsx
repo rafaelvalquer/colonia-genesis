@@ -22,8 +22,8 @@ function App() {
 
   const handleParametrosChange = (parametrosSelecionados) => {
     console.log("estadoAtual:", estadoAtual);
-    console.log("cenarioSelecionado:", cenarioSelecionado);
     console.log("Parâmetros aplicados:", parametrosSelecionados);
+    console.log("cenarioSelecionado:", cenarioSelecionado);
 
     const resultado = runSimulationTurn(
       estadoAtual,

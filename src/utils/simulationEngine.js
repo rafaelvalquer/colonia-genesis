@@ -15,13 +15,49 @@ export function runSimulationTurn(currentState, parametros, scenario) {
 
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
 
+  const quantidadePorSetor = Object.fromEntries(
+  Object.entries(alocacaoColonos).map(([setor, porcentagem]) => [
+    setor,
+    Math.ceil((porcentagem / 100) * populacao),
+  ])
+);
+
+
   // -------------------
   // 1. Produções básicas com base nos pontos
   // -------------------
 
   const pontos = distribuicao;
 
-  const comidaProduzida = (pontos.agricultura || 0) * (consumoAgua / 20);
+  //Comida
+  
+  var comidaProduzida = ((quantidadePorSetor.fazenda * 2) * consumoAgua);
+
+  if (pontos.agricultura == 1){
+    comidaProduzida = comidaProduzida * 2;
+  }
+
+  comidaProduzida = comidaProduzida- populacao
+  console.log("comidaProduzida = " + comidaProduzida)
+
+  //Defesa
+
+  var defesa = (quantidadePorSetor.defesa);
+  
+  if (pontos.defesa == 1){
+    defesa = defesa * 2;
+  }
+  console.log("defesa = " + defesa)
+
+  //Minas
+
+  var mineraisProduzidos = quantidadePorSetor.fazenda * 3;
+
+  if (pontos.minas == 1){
+    mineraisProduzidos = mineraisProduzidos * 2;
+  }
+
+  
   comida += comidaProduzida;
   log.push(`Produzido ${comidaProduzida.toFixed(1)} de comida.`);
 
