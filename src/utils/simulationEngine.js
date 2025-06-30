@@ -16,12 +16,11 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
 
   const quantidadePorSetor = Object.fromEntries(
-  Object.entries(alocacaoColonos).map(([setor, porcentagem]) => [
-    setor,
-    Math.ceil((porcentagem / 100) * populacao),
-  ])
-);
-
+    Object.entries(alocacaoColonos).map(([setor, porcentagem]) => [
+      setor,
+      Math.ceil((porcentagem / 100) * populacao),
+    ])
+  );
 
   // -------------------
   // 1. Produções básicas com base nos pontos
@@ -30,48 +29,46 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   const pontos = distribuicao;
 
   //Comida
-  
-  var comidaProduzida = ((quantidadePorSetor.fazenda * 2) * consumoAgua);
 
-  if (pontos.agricultura == 1){
+  var comidaProduzida = quantidadePorSetor.fazenda * 2 * consumoAgua;
+
+  if (pontos.agricultura == 1) {
     comidaProduzida = comidaProduzida * 2;
   }
 
-  comidaProduzida = comidaProduzida- populacao
-  console.log("comidaProduzida = " + comidaProduzida)
+  comidaProduzida = comidaProduzida - populacao;
+  console.log("comidaProduzida = " + comidaProduzida);
 
   //Defesa
 
-  var defesa = (quantidadePorSetor.defesa);
-  
-  if (pontos.defesa == 1){
+  var defesa = quantidadePorSetor.defesa;
+
+  if (pontos.defesa == 1) {
     defesa = defesa * 2;
   }
-  console.log("defesa = " + defesa)
+  console.log("defesa = " + defesa);
 
   //Minas
 
   var mineraisProduzidos = quantidadePorSetor.fazenda * 10;
 
-  if (pontos.minas == 1){
+  if (pontos.minas == 1) {
     mineraisProduzidos = mineraisProduzidos * 2;
   }
+
+  console.log("Produção de Minas = " + mineraisProduzidos);
 
   //Laboratorio
 
   //Construção
 
-    const reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
-    integridadeEstrutural += reparo;
-    log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
-  }
+  const reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
+  integridadeEstrutural += reparo;
+  log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
 
-
-  
   comida += comidaProduzida;
   log.push(`Produzido ${comidaProduzida.toFixed(1)} de comida.`);
 
-  const mineraisProduzidos = (pontos.minas || 0) * 10;
   minerais += mineraisProduzidos;
   log.push(`Extraído ${mineraisProduzidos} de minerais.`);
 
@@ -163,4 +160,4 @@ export function runSimulationTurn(currentState, parametros, scenario) {
     eventosOcorridos,
     log,
   };
-
+}
