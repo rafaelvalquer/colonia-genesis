@@ -51,11 +51,21 @@ export function runSimulationTurn(currentState, parametros, scenario) {
 
   //Minas
 
-  var mineraisProduzidos = quantidadePorSetor.fazenda * 3;
+  var mineraisProduzidos = quantidadePorSetor.fazenda * 10;
 
   if (pontos.minas == 1){
     mineraisProduzidos = mineraisProduzidos * 2;
   }
+
+  //Laboratorio
+
+  //Construção
+
+    const reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
+    integridadeEstrutural += reparo;
+    log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
+  }
+
 
   
   comida += comidaProduzida;
@@ -153,4 +163,4 @@ export function runSimulationTurn(currentState, parametros, scenario) {
     eventosOcorridos,
     log,
   };
-}
+
