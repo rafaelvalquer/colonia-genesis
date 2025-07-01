@@ -41,7 +41,10 @@ function App() {
 
   return (
     <div className="app">
-      <h1>Colônia Gênesis</h1>
+      <h1 className="text-red-500 text-4xl font-bold">Testando Tailwind</h1>
+      <h1 className="text-3xl text-slate-100 font-bold text-center">
+        Colônia Gênesis
+      </h1>
       <StatusPanel estado={estadoAtual} />
       <ParameterPanel
         onChange={handleParametrosChange}

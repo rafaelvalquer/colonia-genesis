@@ -22,6 +22,9 @@ export function runSimulationTurn(currentState, parametros, scenario) {
     ])
   );
 
+  console.log(quantidadePorSetor);
+
+  console.log(alocacaoColonos);
   // -------------------
   // 1. Produções básicas com base nos pontos
   // -------------------
@@ -37,20 +40,21 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   }
 
   comidaProduzida = comidaProduzida - populacao;
+  comida = comida + comidaProduzida;
   console.log("comidaProduzida = " + comidaProduzida);
 
   //Defesa
 
-  var defesa = quantidadePorSetor.defesa;
+  var defesaBase = alocacaoColonos.defesa;
 
   if (pontos.defesa == 1) {
-    defesa = defesa * 2;
+    defesaBase = defesaBase + 15; // Aumenta a defesaBase em 15%
   }
-  console.log("defesa = " + defesa);
+  console.log("defesaBase = " + defesaBase);
 
   //Minas
 
-  var mineraisProduzidos = quantidadePorSetor.fazenda * 10;
+  var mineraisProduzidos = quantidadePorSetor.minas * 10;
 
   if (pontos.minas == 1) {
     mineraisProduzidos = mineraisProduzidos * 2;
@@ -62,34 +66,131 @@ export function runSimulationTurn(currentState, parametros, scenario) {
 
   //Construção
 
-  const reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
+  var reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
   integridadeEstrutural += reparo;
 
-  console.log("Reparo em % = " + mineraisProduzidos);
+  console.log("Reparo em % = " + reparo);
   log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
 
   //Saude
 
-  comida += comidaProduzida;
-  log.push(`Produzido ${comidaProduzida.toFixed(1)} de comida.`);
+  var ganhoSaude = Math.floor(quantidadePorSetor.saude / 10); // cada 10% = +1
 
-  minerais += mineraisProduzidos;
-  log.push(`Extraído ${mineraisProduzidos} de minerais.`);
+  // Dobrar se ponto de saúde ativo
+  if (pontos.saude === 1) {
+    ganhoSaude *= 2;
+  }
 
-  const energiaGerada = (pontos.energia || 0) * 50;
-  energia += energiaGerada;
-  log.push(`Gerado ${energiaGerada} de energia.`);
+  // Penalidades
+  if (agua <= 0) {
+    ganhoSaude -= 2;
+    log.push("Falta de água reduziu o ganho de saúde.");
+  }
 
-  const ganhoSaude = (pontos.saude || 0) * 5;
+  if (energia <= 0) {
+    ganhoSaude -= 2;
+    log.push("Falta de energia reduziu o ganho de saúde.");
+  }
+
+  // Sustentabilidade
+  if (sustentabilidade <= 25) {
+    ganhoSaude -= 2;
+    log.push("Baixa sustentabilidade (<= 25) reduziu muito a saúde.");
+  } else if (sustentabilidade <= 50) {
+    ganhoSaude -= 1;
+    log.push("Sustentabilidade moderada (<= 50) reduziu um pouco a saúde.");
+  }
+
+  // Impedir que saúde seja negativa
+  ganhoSaude = Math.max(0, ganhoSaude);
+
+  // Aplicar à saúde atual
   saude = Math.min(100, saude + ganhoSaude);
   log.push(`Saúde melhorada em ${ganhoSaude}.`);
 
-  const ganhoSustentabilidade = (pontos.laboratorio || 0) * 3;
+  // Sustentabilidade
+
+  var ganhoSustentabilidade = 1;
+
+  // Penalidades
+  if (agua <= 0) {
+    ganhoSustentabilidade -= 2;
+    log.push("Falta de água reduziu o ganho de Sustentabilidade.");
+  } else {
+    ganhoSustentabilidade += 1;
+  }
+
+  if (energia <= 0) {
+    ganhoSustentabilidade -= 2;
+    log.push("Falta de energia reduziu o ganho de Sustentabilidade.");
+  } else {
+    ganhoSustentabilidade += 1;
+  }
+
+  if (comida <= 0) {
+    ganhoSustentabilidade -= 2;
+    log.push("Falta de comida reduziu o ganho de Sustentabilidade.");
+  } else {
+    ganhoSustentabilidade += 1;
+  }
+
+  if (saude <= 0) {
+    ganhoSustentabilidade -= 2;
+    log.push("Saúde precária reduziu o ganho de Sustentabilidade.");
+  } else {
+    ganhoSustentabilidade += 1;
+  }
+
+  // -------------------
+  // Sustentabilidade impacta a eficiência da colônia
+  // -------------------
+
+  if (sustentabilidade <= 25) {
+    comidaProduzida *= 0.9; // -10%
+    defesaBase *= 0.9;
+    mineraisProduzidos *= 0.9;
+    reparo *= 0.9;
+    agua *= 0.9;
+    energia *= 0.9;
+    saude *= 0.9;
+
+    log.push("Baixa sustentabilidade (<= 25): Eficiência reduzida em 10%");
+  } else if (sustentabilidade <= 50) {
+    comidaProduzida *= 0.95; // -5%
+    defesaBase *= 0.95;
+    mineraisProduzidos *= 0.95;
+    reparo *= 0.95;
+    agua *= 0.95;
+    energia *= 0.95;
+    saude *= 0.95;
+
+    log.push("Sustentabilidade moderada (<= 50): Eficiência reduzida em 5%");
+  } else if (sustentabilidade < 100) {
+    comidaProduzida *= 1.05; // +5%
+    defesaBase *= 1.05;
+    mineraisProduzidos *= 1.05;
+    reparo *= 1.05;
+    agua *= 1.05;
+    energia *= 1.05;
+    saude *= 1.05;
+
+    log.push("Boa sustentabilidade (51 a 99): Eficiência aumentada em 5%");
+  } else if (sustentabilidade === 100) {
+    comidaProduzida *= 1.1; // +10%
+    defesaBase *= 1.1;
+    mineraisProduzidos *= 1.1;
+    reparo *= 1.1;
+    agua *= 1.1;
+    energia *= 1.1;
+    saude *= 1.1;
+
+    log.push("Sustentabilidade máxima (100): Eficiência aumentada em 10%");
+  }
+
   sustentabilidade = Math.min(100, sustentabilidade + ganhoSustentabilidade);
   log.push(`Sustentabilidade aumentada em ${ganhoSustentabilidade}.`);
 
-  const defesaConstrucoes = (pontos.construcao || 0) * 5;
-  const defesaBase = (pontos.defesa || 0) * 5;
+  ////////////////////////
 
   // -------------------
   // 2. Eventos aleatórios
@@ -107,9 +208,17 @@ export function runSimulationTurn(currentState, parametros, scenario) {
       log.push(`Evento: ${evento.nome}`);
 
       if (evento.efeito === "quebra_estruturas") {
-        const dano = 10 - defesaConstrucoes;
-        integridadeEstrutural -= dano;
-        log.push(`Estrutura danificada em ${dano} pontos.`);
+        let dano = 10 - quantidadePorSetor.defesa;
+
+        // Impede dano negativo
+        dano = Math.max(0, dano);
+
+        if (dano === 0) {
+          log.push("Evento contido! Nenhum dano à estrutura.");
+        } else {
+          integridadeEstrutural -= dano;
+          log.push(`Estrutura danificada em ${dano} pontos.`);
+        }
       }
 
       if (evento.efeito === "ganha_pesquisa") {
@@ -120,17 +229,7 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   });
 
   // -------------------
-  // 3. Alocação de colonos influencia reparos
-  // -------------------
-
-  if (alocacaoColonos?.construcao) {
-    const reparo = Math.floor(alocacaoColonos.construcao / 10); // cada 10% = +1
-    integridadeEstrutural += reparo;
-    log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
-  }
-
-  // -------------------
-  // 4. Ajustes finais
+  // 3. Ajustes finais
   // -------------------
 
   integridadeEstrutural = Math.min(100, Math.max(0, integridadeEstrutural));
