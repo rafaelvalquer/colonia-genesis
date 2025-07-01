@@ -64,7 +64,11 @@ export function runSimulationTurn(currentState, parametros, scenario) {
 
   const reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
   integridadeEstrutural += reparo;
+
+  console.log("Reparo em % = " + mineraisProduzidos);
   log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
+
+  //Saude
 
   comida += comidaProduzida;
   log.push(`Produzido ${comidaProduzida.toFixed(1)} de comida.`);
