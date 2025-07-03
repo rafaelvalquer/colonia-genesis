@@ -3,6 +3,7 @@ import ParameterPanel from "./components/ParameterPanel";
 import StatusPanel from "./components/StatusPanel";
 import { runSimulationTurn } from "./utils/simulationEngine";
 import scenarioList from "./data/scenarios.json";
+import buildings from "./data/buildings.json";
 
 function App() {
   // Pegando o primeiro cenário por enquanto
@@ -18,6 +19,11 @@ function App() {
     minerais: cenarioSelecionado.mineraisIniciais,
     saude: cenarioSelecionado.saude,
     sustentabilidade: 50,
+    construcoes: {
+      fazenda: 0,
+      sistemaDeIrrigacao: 0,
+      // depois: defesa, minas...
+    },
   });
 
   const handleParametrosChange = (parametrosSelecionados) => {
@@ -39,14 +45,42 @@ function App() {
     setEstadoAtual(resultado.novoEstado);
   };
 
+  const handleConstruir = (tipo) => {
+    const construcao = buildings[tipo];
+    if (!construcao) return;
+
+    const { custo, efeitos } = construcao;
+
+    const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
+      return estadoAtual[recurso] >= valor;
+    });
+
+    if (!temRecursos) {
+      alert("Recursos insuficientes para construir.");
+      return;
+    }
+
+    const novoEstado = { ...estadoAtual };
+
+    // Subtrai os recursos
+    Object.entries(custo).forEach(([recurso, valor]) => {
+      novoEstado[recurso] -= valor;
+    });
+
+    // Aplica efeitos da construção
+    novoEstado.construcoes[tipo] += 1;
+    if (efeitos?.bonusComida) {
+      novoEstado.comida += efeitos.bonusComida;
+    }
+
+    setEstadoAtual(novoEstado);
+  };
+
   return (
     <div className="flex h-screen bg-slate-900 text-white">
-
       {/* Conteúdo principal */}
       <main className="flex-1 overflow-y-auto p-6">
-        <h1 className="text-3xl font-bold text-center mb-6">
-          Colônia Gênesis
-        </h1>
+        <h1 className="text-3xl font-bold text-center mb-6">Colônia Gênesis</h1>
 
         {/* Painel de status */}
         <section
@@ -61,6 +95,8 @@ function App() {
           <ParameterPanel
             onChange={handleParametrosChange}
             populacao={estadoAtual.populacao}
+            estadoAtual={estadoAtual}
+            onConstruir={handleConstruir}
           />
         </section>
       </main>

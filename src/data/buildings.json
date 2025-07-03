@@ -1,0 +1,32 @@
+{
+  "fazenda": {
+    "nome": "Fazenda",
+    "categoria": "fazenda",
+    "descricao": "Produz comida básica para sustentar sua colônia.",
+    "imagem": "/images/fazenda.png",
+    "tempo": 1,
+    "custo": {
+      "minerais": 20,
+      "energia": 10,
+      "agua": 5
+    },
+    "efeitos": {
+      "bonusComida": 5
+    }
+  },
+  "sistemaDeIrrigacao": {
+    "nome": "Sistema de Irrigação",
+    "categoria": "fazenda",
+    "descricao": "Melhora a produção de comida com menos água.",
+    "imagem": "/images/irrigacao.png",
+    "tempo": 2,
+    "custo": {
+      "minerais": 30,
+      "energia": 20,
+      "agua": 5
+    },
+    "efeitos": {
+      "bonusComida": 10
+    }
+  }
+}

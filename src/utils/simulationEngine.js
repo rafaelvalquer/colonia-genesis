@@ -145,7 +145,7 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   // Sustentabilidade impacta a eficiência da colônia
   // -------------------
 
-if (sustentabilidade <= 25) {
+  if (sustentabilidade <= 25) {
     comidaProduzida = Math.floor(comidaProduzida * 0.9); // -10%
     defesaBase = Math.floor(defesaBase * 0.9);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.9);
@@ -155,7 +155,7 @@ if (sustentabilidade <= 25) {
     saude = Math.floor(saude * 0.9);
 
     log.push("Baixa sustentabilidade (<= 25): Eficiência reduzida em 10%");
-} else if (sustentabilidade <= 50) {
+  } else if (sustentabilidade <= 50) {
     comidaProduzida = Math.floor(comidaProduzida * 0.95); // -5%
     defesaBase = Math.floor(defesaBase * 0.95);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.95);
@@ -165,7 +165,7 @@ if (sustentabilidade <= 25) {
     saude = Math.floor(saude * 0.95);
 
     log.push("Sustentabilidade moderada (<= 50): Eficiência reduzida em 5%");
-} else if (sustentabilidade < 100) {
+  } else if (sustentabilidade < 100) {
     comidaProduzida = Math.floor(comidaProduzida * 1.05); // +5%
     defesaBase = Math.floor(defesaBase * 1.05);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.05);
@@ -175,7 +175,7 @@ if (sustentabilidade <= 25) {
     saude = Math.floor(saude * 1.05);
 
     log.push("Boa sustentabilidade (51 a 99): Eficiência aumentada em 5%");
-} else if (sustentabilidade === 100) {
+  } else if (sustentabilidade === 100) {
     comidaProduzida = Math.floor(comidaProduzida * 1.1); // +10%
     defesaBase = Math.floor(defesaBase * 1.1);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.1);
@@ -185,8 +185,7 @@ if (sustentabilidade <= 25) {
     saude = Math.floor(saude * 1.1);
 
     log.push("Sustentabilidade máxima (100): Eficiência aumentada em 10%");
-}
-
+  }
 
   sustentabilidade = Math.min(100, sustentabilidade + ganhoSustentabilidade);
   log.push(`Sustentabilidade aumentada em ${ganhoSustentabilidade}.`);
@@ -196,10 +195,10 @@ if (sustentabilidade <= 25) {
   var energiaGerada = quantidadePorSetor.energia * 3;
 
   if (pontos.energia == 1) {
-    energiaGerada =  Math.floor(energiaGerada *= 1.15); // Aumenta a energiaGerada em 15%
+    energiaGerada = Math.floor((energiaGerada *= 1.15)); // Aumenta a energiaGerada em 15%
   }
 
-  energia = energia + energiaGerada
+  energia = energia + energiaGerada;
   console.log("energiaGerada = " + energiaGerada);
 
   ////////////////////////
