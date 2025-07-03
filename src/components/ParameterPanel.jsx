@@ -9,8 +9,13 @@ import {
   Tabs,
   Tab,
   Box,
+  Drawer,
+  IconButton,
 } from "@mui/material";
 
+import List from "@mui/icons-material/List";
+import ListIcon from "@mui/icons-material/List";
+import CloseIcon from "@mui/icons-material/Close";
 import { motion, AnimatePresence } from "framer-motion";
 import buildings from "../data/buildings.json";
 
@@ -56,6 +61,11 @@ function ParameterPanel({
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
   const [abaInternaCentral, setAbaInternaCentral] = useState("recursos");
+  const [drawerAberto, setDrawerAberto] = useState(false);
+  const [filaConstrucoes, setFilaConstrucoes] = useState([
+    // Exemplo inicial
+    // { id: "fazendaLv2", nome: "Fazenda", tempoRestante: 3 }
+  ]);
 
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
@@ -147,6 +157,21 @@ function ParameterPanel({
       agua: consumoAguaOpcoes[aguaIndex].value,
       alocacaoColonos,
     });
+  };
+
+  const handleConstruir = (id) => {
+    const item = buildings[id];
+    if (!item) return;
+
+    setFilaConstrucoes((fila) => [
+      ...fila,
+      {
+        id,
+        nome: item.nome,
+        tempoRestante: item.tempo,
+      },
+    ]);
+    onConstruir(id); // já existente
   };
 
   return (
@@ -413,9 +438,19 @@ function ParameterPanel({
               >
                 {abaConstrucao === "fazenda" && (
                   <>
-                    <h3 className="text-xl font-bold mb-4">
-                      Construções - Setor Agrícola
-                    </h3>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Construções - Setor Agrícola
+                      </h3>
+
+                      <button
+                        onClick={() => setDrawerAberto(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        <List fontSize="small" />
+                        Ver Fila
+                      </button>
+                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(buildings)
@@ -431,11 +466,16 @@ function ParameterPanel({
                               className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
                             >
                               {item.imagem && (
-                                <img
-                                  src={item.imagem}
-                                  alt={`Imagem de ${item.nome}`}
-                                  className="w-full h-40 object-cover rounded mb-3"
-                                />
+                                <div className="relative mb-3">
+                                  <img
+                                    src={item.imagem}
+                                    alt={`Imagem de ${item.nome}`}
+                                    className="w-full h-40 object-cover rounded"
+                                  />
+                                  <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                                    x{estadoAtual.construcoes?.[key] || 0}
+                                  </div>
+                                </div>
                               )}
 
                               <h4 className="text-lg font-bold mb-1">
@@ -466,7 +506,7 @@ function ParameterPanel({
                               )}
 
                               <button
-                                onClick={() => onConstruir(key)}
+                                onClick={() => handleConstruir(key)}
                                 disabled={!temRecursos}
                                 className={`mt-auto px-4 py-2 rounded font-semibold ${
                                   temRecursos
@@ -576,6 +616,40 @@ function ParameterPanel({
         >
           Aplicar Parâmetros
         </button>
+        <Drawer
+          anchor="right"
+          open={drawerAberto}
+          onClose={() => setDrawerAberto(false)}
+        >
+          <div className="w-80 p-4 bg-white h-full flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">Fila de Construção</h2>
+              <IconButton onClick={() => setDrawerAberto(false)}>
+                <CloseIcon />
+              </IconButton>
+            </div>
+
+            {filaConstrucoes.length === 0 ? (
+              <p className="text-gray-500">Nenhuma construção em andamento.</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {filaConstrucoes.map((item, index) => (
+                  <li
+                    key={index}
+                    className="border p-2 rounded shadow flex justify-between items-center"
+                  >
+                    <div>
+                      <p className="font-semibold">{item.nome}</p>
+                      <p className="text-sm text-gray-600">
+                        ⏱️ {item.tempoRestante} turno(s) restante(s)
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Drawer>
       </div>
     </div>
   );

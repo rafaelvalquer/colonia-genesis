@@ -4,7 +4,7 @@
     "categoria": "fazenda",
     "descricao": "Produz comida básica para sustentar sua colônia.",
     "imagem": "/images/fazenda.png",
-    "tempo": 1,
+    "tempo": 2,
     "custo": {
       "minerais": 20,
       "energia": 10,
@@ -19,7 +19,7 @@
     "categoria": "fazenda",
     "descricao": "Melhora a produção de comida com menos água.",
     "imagem": "/images/irrigacao.png",
-    "tempo": 2,
+    "tempo": 3,
     "custo": {
       "minerais": 30,
       "energia": 20,
