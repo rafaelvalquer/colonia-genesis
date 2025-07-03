@@ -145,50 +145,62 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   // Sustentabilidade impacta a eficiência da colônia
   // -------------------
 
-  if (sustentabilidade <= 25) {
-    comidaProduzida *= 0.9; // -10%
-    defesaBase *= 0.9;
-    mineraisProduzidos *= 0.9;
-    reparo *= 0.9;
-    agua *= 0.9;
-    energia *= 0.9;
-    saude *= 0.9;
+if (sustentabilidade <= 25) {
+    comidaProduzida = Math.floor(comidaProduzida * 0.9); // -10%
+    defesaBase = Math.floor(defesaBase * 0.9);
+    mineraisProduzidos = Math.floor(mineraisProduzidos * 0.9);
+    reparo = Math.floor(reparo * 0.9);
+    agua = Math.floor(agua * 0.9);
+    energia = Math.floor(energia * 0.9);
+    saude = Math.floor(saude * 0.9);
 
     log.push("Baixa sustentabilidade (<= 25): Eficiência reduzida em 10%");
-  } else if (sustentabilidade <= 50) {
-    comidaProduzida *= 0.95; // -5%
-    defesaBase *= 0.95;
-    mineraisProduzidos *= 0.95;
-    reparo *= 0.95;
-    agua *= 0.95;
-    energia *= 0.95;
-    saude *= 0.95;
+} else if (sustentabilidade <= 50) {
+    comidaProduzida = Math.floor(comidaProduzida * 0.95); // -5%
+    defesaBase = Math.floor(defesaBase * 0.95);
+    mineraisProduzidos = Math.floor(mineraisProduzidos * 0.95);
+    reparo = Math.floor(reparo * 0.95);
+    agua = Math.floor(agua * 0.95);
+    energia = Math.floor(energia * 0.95);
+    saude = Math.floor(saude * 0.95);
 
     log.push("Sustentabilidade moderada (<= 50): Eficiência reduzida em 5%");
-  } else if (sustentabilidade < 100) {
-    comidaProduzida *= 1.05; // +5%
-    defesaBase *= 1.05;
-    mineraisProduzidos *= 1.05;
-    reparo *= 1.05;
-    agua *= 1.05;
-    energia *= 1.05;
-    saude *= 1.05;
+} else if (sustentabilidade < 100) {
+    comidaProduzida = Math.floor(comidaProduzida * 1.05); // +5%
+    defesaBase = Math.floor(defesaBase * 1.05);
+    mineraisProduzidos = Math.floor(mineraisProduzidos * 1.05);
+    reparo = Math.floor(reparo * 1.05);
+    agua = Math.floor(agua * 1.05);
+    energia = Math.floor(energia * 1.05);
+    saude = Math.floor(saude * 1.05);
 
     log.push("Boa sustentabilidade (51 a 99): Eficiência aumentada em 5%");
-  } else if (sustentabilidade === 100) {
-    comidaProduzida *= 1.1; // +10%
-    defesaBase *= 1.1;
-    mineraisProduzidos *= 1.1;
-    reparo *= 1.1;
-    agua *= 1.1;
-    energia *= 1.1;
-    saude *= 1.1;
+} else if (sustentabilidade === 100) {
+    comidaProduzida = Math.floor(comidaProduzida * 1.1); // +10%
+    defesaBase = Math.floor(defesaBase * 1.1);
+    mineraisProduzidos = Math.floor(mineraisProduzidos * 1.1);
+    reparo = Math.floor(reparo * 1.1);
+    agua = Math.floor(agua * 1.1);
+    energia = Math.floor(energia * 1.1);
+    saude = Math.floor(saude * 1.1);
 
     log.push("Sustentabilidade máxima (100): Eficiência aumentada em 10%");
-  }
+}
+
 
   sustentabilidade = Math.min(100, sustentabilidade + ganhoSustentabilidade);
   log.push(`Sustentabilidade aumentada em ${ganhoSustentabilidade}.`);
+
+  //Energia
+
+  var energiaGerada = quantidadePorSetor.energia * 3;
+
+  if (pontos.energia == 1) {
+    energiaGerada =  Math.floor(energiaGerada *= 1.15); // Aumenta a energiaGerada em 15%
+  }
+
+  energia = energia + energiaGerada
+  console.log("energiaGerada = " + energiaGerada);
 
   ////////////////////////
 

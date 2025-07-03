@@ -40,19 +40,32 @@ function App() {
   };
 
   return (
-    <div className="app">
-      <h1 className="text-red-500 text-4xl font-bold">Testando Tailwind</h1>
-      <h1 className="text-3xl text-slate-100 font-bold text-center">
-        Colônia Gênesis
-      </h1>
-      <StatusPanel estado={estadoAtual} />
-      <ParameterPanel
-        onChange={handleParametrosChange}
-        populacao={estadoAtual.populacao}
-      />
+    <div className="flex h-screen bg-slate-900 text-white">
+
+      {/* Conteúdo principal */}
+      <main className="flex-1 overflow-y-auto p-6">
+        <h1 className="text-3xl font-bold text-center mb-6">
+          Colônia Gênesis
+        </h1>
+
+        {/* Painel de status */}
+        <section
+          id="status"
+          className="bg-slate-800 rounded-lg p-4 flex flex-wrap justify-around mb-6 shadow-lg"
+        >
+          <StatusPanel estado={estadoAtual} />
+        </section>
+
+        {/* Painel de parâmetros */}
+        <section id="distribuicao">
+          <ParameterPanel
+            onChange={handleParametrosChange}
+            populacao={estadoAtual.populacao}
+          />
+        </section>
+      </main>
     </div>
   );
 }
 
 export default App;
-//teste
