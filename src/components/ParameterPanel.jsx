@@ -57,15 +57,16 @@ function ParameterPanel({
   populacao = 100,
   estadoAtual,
   onConstruir,
+  filaConstrucoes,
+  setFilaConstrucoes,
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
   const [abaInternaCentral, setAbaInternaCentral] = useState("recursos");
   const [drawerAberto, setDrawerAberto] = useState(false);
-  const [filaConstrucoes, setFilaConstrucoes] = useState([
-    // Exemplo inicial
-    // { id: "fazendaLv2", nome: "Fazenda", tempoRestante: 3 }
-  ]);
+
+
+  console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
 
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
@@ -171,6 +172,7 @@ function ParameterPanel({
         tempoRestante: item.tempo,
       },
     ]);
+
     onConstruir(id); // já existente
   };
 
@@ -188,11 +190,10 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 ${
-                      abaSelecionada === aba.id
+                    className={`text-left w-full px-2 py-1 border-l-4 ${abaSelecionada === aba.id
                         ? "border-blue-400 text-white font-semibold"
                         : "border-transparent text-gray-400 hover:text-white"
-                    } transition-colors`}
+                      } transition-colors`}
                   >
                     {aba.label}
                   </button>
@@ -508,11 +509,10 @@ function ParameterPanel({
                               <button
                                 onClick={() => handleConstruir(key)}
                                 disabled={!temRecursos}
-                                className={`mt-auto px-4 py-2 rounded font-semibold ${
-                                  temRecursos
+                                className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
                                     ? "bg-green-600 text-white hover:bg-green-700"
                                     : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                                } transition`}
+                                  } transition`}
                               >
                                 Construir
                               </button>

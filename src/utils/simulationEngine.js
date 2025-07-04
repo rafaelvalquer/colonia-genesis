@@ -1,4 +1,4 @@
-export function runSimulationTurn(currentState, parametros, scenario) {
+export function runSimulationTurn(currentState, parametros, scenario, filaConstrucoes = []) {
   const log = [];
 
   let {
@@ -257,21 +257,64 @@ export function runSimulationTurn(currentState, parametros, scenario) {
   sustentabilidade = Math.max(0, Math.min(100, sustentabilidade));
   turno += 1;
 
-  const novoEstado = {
-    turno,
-    populacao,
-    energia,
-    agua,
-    comida,
-    minerais,
-    saude,
-    sustentabilidade,
-    integridadeEstrutural,
-  };
+// -------------------
+// 4. Atualizar fila de construções e aplicar efeitos
+// -------------------
+const construcoesFinalizadas = filaConstrucoes.filter(
+  (item) => item.tempoRestante === 1
+);
+const novaFilaConstrucoes = filaConstrucoes
+  .map((item) => ({
+    ...item,
+    tempoRestante: item.tempoRestante - 1,
+  }))
+  .filter((item) => item.tempoRestante > 0);
 
-  return {
-    novoEstado,
-    eventosOcorridos,
-    log,
-  };
+// Aplica efeitos das construções finalizadas
+const novaConstrucoes = { ...currentState.construcoes };
+
+construcoesFinalizadas.forEach((item) => {
+  log.push(`Construção de ${item.tipo} concluída!`);
+
+  // Adiciona ao total de construções
+  if (!novaConstrucoes[item.tipo]) {
+    novaConstrucoes[item.tipo] = 1;
+  } else {
+    novaConstrucoes[item.tipo] += 1;
+  }
+
+  // Se tiver efeitos definidos no JSON de prédios, aplicar aqui (exemplo: comida extra, energia etc.)
+  const efeitos = item.efeitos || {};
+  if (efeitos.bonusComida) {
+    comida += efeitos.bonusComida;
+    log.push(`A construção de ${item.tipo} gerou ${efeitos.bonusComida} de comida.`);
+  }
+
+  // Você pode adicionar aqui outros efeitos como:
+  // if (efeitos.bonusEnergia) { energia += efeitos.bonusEnergia }
+});
+
+// -------------------
+// 5. Retornar novo estado
+// -------------------
+
+const novoEstado = {
+  turno,
+  populacao,
+  energia,
+  agua,
+  comida,
+  minerais,
+  saude,
+  sustentabilidade,
+  integridadeEstrutural,
+  construcoes: novaConstrucoes,
+};
+
+return {
+  novoEstado,
+  eventosOcorridos,
+  log,
+  filaConstrucoes: novaFilaConstrucoes,
+};
 }

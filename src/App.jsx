@@ -26,15 +26,21 @@ function App() {
     },
   });
 
+  const [filaConstrucoes, setFilaConstrucoes] = useState([]);
+  const [log, setLog] = useState([]);
+
+
   const handleParametrosChange = (parametrosSelecionados) => {
     console.log("estadoAtual:", estadoAtual);
-    console.log("Parâmetros aplicados:", parametrosSelecionados);
+    console.log("parametrosSelecionados:", parametrosSelecionados);
     console.log("cenarioSelecionado:", cenarioSelecionado);
+    console.log("filaConstrucoes:", filaConstrucoes);
 
     const resultado = runSimulationTurn(
       estadoAtual,
       parametrosSelecionados,
-      cenarioSelecionado
+      cenarioSelecionado,
+      filaConstrucoes
     );
 
     console.log("Novo estado:", resultado.novoEstado);
@@ -43,6 +49,8 @@ function App() {
 
     // Atualiza o estado para o próximo turno
     setEstadoAtual(resultado.novoEstado);
+    setFilaConstrucoes(resultado.filaConstrucoes); // atualiza fila
+    setLog((old) => [...old, "Parâmetros atualizados!"]);
   };
 
   const handleConstruir = (tipo) => {
@@ -97,6 +105,8 @@ function App() {
             populacao={estadoAtual.populacao}
             estadoAtual={estadoAtual}
             onConstruir={handleConstruir}
+            filaConstrucoes={filaConstrucoes}
+            setFilaConstrucoes={setFilaConstrucoes}
           />
         </section>
       </main>
