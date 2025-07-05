@@ -36,12 +36,17 @@ function App() {
     console.log("cenarioSelecionado:", cenarioSelecionado);
     console.log("filaConstrucoes:", filaConstrucoes);
 
+        console.log("parametrosSelecionados:", parametrosSelecionados);
+
     const resultado = runSimulationTurn(
       estadoAtual,
       parametrosSelecionados,
       cenarioSelecionado,
-      filaConstrucoes
+      parametrosSelecionados.filaConstrucoes,
+      buildings
     );
+
+    console.log("Novo resultado:", JSON.stringify(resultado));
 
     console.log("Novo estado:", resultado.novoEstado);
     console.log("Log da rodada:");
@@ -49,7 +54,7 @@ function App() {
 
     // Atualiza o estado para o próximo turno
     setEstadoAtual(resultado.novoEstado);
-    setFilaConstrucoes(resultado.filaConstrucoes); // atualiza fila
+    setFilaConstrucoes(resultado.novaFila); // atualiza fila
     setLog((old) => [...old, "Parâmetros atualizados!"]);
   };
 
@@ -57,32 +62,36 @@ function App() {
     const construcao = buildings[tipo];
     if (!construcao) return;
 
-    const { custo, efeitos } = construcao;
+    const { custo, tempo, nome } = construcao;
 
-    const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
-      return estadoAtual[recurso] >= valor;
-    });
+    const temRecursos = Object.entries(custo).every(
+      ([recurso, valor]) => estadoAtual[recurso] >= valor
+    );
 
     if (!temRecursos) {
       alert("Recursos insuficientes para construir.");
       return;
     }
 
+    // Desconta os recursos, mas não aplica a construção ainda
     const novoEstado = { ...estadoAtual };
-
-    // Subtrai os recursos
     Object.entries(custo).forEach(([recurso, valor]) => {
       novoEstado[recurso] -= valor;
     });
 
-    // Aplica efeitos da construção
-    novoEstado.construcoes[tipo] += 1;
-    if (efeitos?.bonusComida) {
-      novoEstado.comida += efeitos.bonusComida;
-    }
-
     setEstadoAtual(novoEstado);
+
+    // Adiciona à fila
+    setFilaConstrucoes((fila) => [
+      ...fila,
+      {
+        id: tipo,
+        nome,
+        tempoRestante: tempo,
+      },
+    ]);
   };
+
 
   return (
     <div className="flex h-screen bg-slate-900 text-white">
@@ -106,7 +115,6 @@ function App() {
             estadoAtual={estadoAtual}
             onConstruir={handleConstruir}
             filaConstrucoes={filaConstrucoes}
-            setFilaConstrucoes={setFilaConstrucoes}
           />
         </section>
       </main>

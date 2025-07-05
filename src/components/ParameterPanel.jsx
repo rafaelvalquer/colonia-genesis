@@ -58,13 +58,11 @@ function ParameterPanel({
   estadoAtual,
   onConstruir,
   filaConstrucoes,
-  setFilaConstrucoes,
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
   const [abaInternaCentral, setAbaInternaCentral] = useState("recursos");
   const [drawerAberto, setDrawerAberto] = useState(false);
-
 
   console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
 
@@ -157,24 +155,13 @@ function ParameterPanel({
       distribuicao,
       agua: consumoAguaOpcoes[aguaIndex].value,
       alocacaoColonos,
+      filaConstrucoes,
     });
   };
 
-  const handleConstruir = (id) => {
-    const item = buildings[id];
-    if (!item) return;
-
-    setFilaConstrucoes((fila) => [
-      ...fila,
-      {
-        id,
-        nome: item.nome,
-        tempoRestante: item.tempo,
-      },
-    ]);
-
-    onConstruir(id); // já existente
-  };
+const handleConstruir = (id) => {
+  onConstruir(id); // <- apenas isso
+};
 
   return (
     <div className="flex flex-col md:flex-row gap-4">
