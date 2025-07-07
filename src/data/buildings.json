@@ -28,5 +28,185 @@
     "efeitos": {
       "bonusComida": 10
     }
+  },
+  "torreDeVigilancia": {
+    "nome": "Torre de Vigilância",
+    "categoria": "defesa",
+    "descricao": "Permite detectar ataques com antecedência, reduzindo o impacto.",
+    "imagem": "/images/torre-vigilancia.png",
+    "tempo": 2,
+    "custo": {
+      "minerais": 25,
+      "energia": 15,
+      "agua": 5
+    },
+    "efeitos": {
+      "bonusDefesa": 5
+    }
+  },
+  "muralhaReforcada": {
+    "nome": "Muralha Reforçada",
+    "categoria": "defesa",
+    "descricao": "Aumenta a proteção da colônia contra desastres e invasões.",
+    "imagem": "/images/muralha-reforcada.png",
+    "tempo": 4,
+    "custo": {
+      "minerais": 50,
+      "energia": 10,
+      "agua": 10
+    },
+    "efeitos": {
+      "bonusDefesa": 10
+    }
+  },
+  "minaDeCarvao": {
+    "nome": "Mina de Carvão",
+    "categoria": "minas",
+    "descricao": "Extrai carvão necessário para alimentar geradores e construções.",
+    "imagem": "/images/mina-carvao.png",
+    "tempo": 3,
+    "custo": {
+      "minerais": 20,
+      "energia": 10,
+      "agua": 5
+    },
+    "efeitos": {
+      "bonusMinerais": 15
+    }
+  },
+  "minaProfunda": {
+    "nome": "Mina Profunda",
+    "categoria": "minas",
+    "descricao": "Permite acesso a minerais raros em profundidades maiores.",
+    "imagem": "/images/mina-profunda.png",
+    "tempo": 5,
+    "custo": {
+      "minerais": 60,
+      "energia": 25,
+      "agua": 10
+    },
+    "efeitos": {
+      "bonusMinerais": 30
+    }
+  },
+  "centroDePesquisa": {
+    "nome": "Centro de Pesquisa",
+    "categoria": "laboratorio",
+    "descricao": "Permite avanços científicos para melhorar a eficiência da colônia.",
+    "imagem": "/images/centro-pesquisa.png",
+    "tempo": 3,
+    "custo": {
+      "minerais": 30,
+      "energia": 30,
+      "agua": 10
+    },
+    "efeitos": {
+      "bonusTecnologia": 5
+    }
+  },
+  "laboratorioAvancado": {
+    "nome": "Laboratório Avançado",
+    "categoria": "laboratorio",
+    "descricao": "Oferece pesquisas de ponta com grandes impactos tecnológicos.",
+    "imagem": "/images/laboratorio-avancado.png",
+    "tempo": 5,
+    "custo": {
+      "minerais": 60,
+      "energia": 40,
+      "agua": 20
+    },
+    "efeitos": {
+      "bonusTecnologia": 10
+    }
+  },
+  "postoMedico": {
+    "nome": "Posto Médico",
+    "categoria": "saude",
+    "descricao": "Atende emergências e reduz doenças na colônia.",
+    "imagem": "/images/posto-medico.png",
+    "tempo": 2,
+    "custo": {
+      "minerais": 25,
+      "energia": 15,
+      "agua": 10
+    },
+    "efeitos": {
+      "bonusSaude": 5
+    }
+  },
+  "hospitalCentral": {
+    "nome": "Hospital Central",
+    "categoria": "saude",
+    "descricao": "Infraestrutura de saúde completa para manter os colonos saudáveis.",
+    "imagem": "/images/hospital-central.png",
+    "tempo": 4,
+    "custo": {
+      "minerais": 60,
+      "energia": 30,
+      "agua": 20
+    },
+    "efeitos": {
+      "bonusSaude": 12
+    }
+  },
+  "geradorSolar": {
+    "nome": "Gerador Solar",
+    "categoria": "energia",
+    "descricao": "Gera energia limpa e constante durante o dia.",
+    "imagem": "/images/gerador-solar.png",
+    "tempo": 2,
+    "custo": {
+      "minerais": 30,
+      "energia": 0,
+      "agua": 5
+    },
+    "efeitos": {
+      "bonusEnergia": 15
+    }
+  },
+  "reatorGeotermico": {
+    "nome": "Reator Geotérmico",
+    "categoria": "energia",
+    "descricao": "Fonte avançada de energia usando o calor da crosta planetária.",
+    "imagem": "/images/reator-geotermico.png",
+    "tempo": 5,
+    "custo": {
+      "minerais": 70,
+      "energia": 10,
+      "agua": 10
+    },
+    "efeitos": {
+      "bonusEnergia": 30
+    }
+  },
+  "estacaoDeTratamento": {
+    "nome": "Estação de Tratamento",
+    "categoria": "agua",
+    "descricao": "Purifica água para consumo seguro da população.",
+    "imagem": "/images/estacao-tratamento.png",
+    "tempo": 3,
+    "custo": {
+      "minerais": 35,
+      "energia": 20,
+      "agua": 0
+    },
+    "efeitos": {
+      "bonusAgua": 10
+    }
+  },
+  "coletorAtmosferico": {
+    "nome": "Coletor Atmosférico",
+    "categoria": "agua",
+    "descricao": "Extrai umidade do ar para gerar água potável.",
+    "imagem": "/images/coletor-atmosferico.png",
+    "tempo": 4,
+    "custo": {
+      "minerais": 50,
+      "energia": 25,
+      "agua": 0
+    },
+    "efeitos": {
+      "bonusAgua": 15
+    }
   }
 }

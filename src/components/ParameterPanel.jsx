@@ -11,6 +11,8 @@ import {
   Box,
   Drawer,
   IconButton,
+  Typography,
+  LinearProgress,
 } from "@mui/material";
 
 import List from "@mui/icons-material/List";
@@ -52,6 +54,8 @@ const abas = [
   },
 ];
 
+
+
 function ParameterPanel({
   onChange,
   populacao = 100,
@@ -63,6 +67,7 @@ function ParameterPanel({
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
   const [abaInternaCentral, setAbaInternaCentral] = useState("recursos");
   const [drawerAberto, setDrawerAberto] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
 
@@ -151,17 +156,36 @@ function ParameterPanel({
   };
 
   const handleSubmit = () => {
-    onChange({
-      distribuicao,
-      agua: consumoAguaOpcoes[aguaIndex].value,
-      alocacaoColonos,
-      filaConstrucoes,
-    });
+    setLoading(true); // inicia carregamento
+
+    setTimeout(() => {
+      onChange({
+        distribuicao,
+        agua: consumoAguaOpcoes[aguaIndex].value,
+        alocacaoColonos,
+        filaConstrucoes,
+      });
+
+      setLoading(false); // encerra após aplicar
+    }, 500); // simula carregamento por 0.5s
   };
 
-const handleConstruir = (id) => {
-  onConstruir(id); // <- apenas isso
-};
+  const handleConstruir = (id) => {
+    onConstruir(id); // <- apenas isso
+  };
+
+  function LinearProgressWithLabel({ value }) {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ flexGrow: 1 }}>
+          <LinearProgress variant="determinate" value={value} />
+        </Box>
+        <Typography variant="body2" sx={{ color: "text.secondary", minWidth: 30 }}>
+          {`${Math.round(value)}%`}
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row gap-4">
@@ -178,8 +202,8 @@ const handleConstruir = (id) => {
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
                     className={`text-left w-full px-2 py-1 border-l-4 ${abaSelecionada === aba.id
-                        ? "border-blue-400 text-white font-semibold"
-                        : "border-transparent text-gray-400 hover:text-white"
+                      ? "border-blue-400 text-white font-semibold"
+                      : "border-transparent text-gray-400 hover:text-white"
                       } transition-colors`}
                   >
                     {aba.label}
@@ -424,11 +448,11 @@ const handleConstruir = (id) => {
                 transition={{ duration: 0.3 }}
                 className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
               >
-                {abaConstrucao === "fazenda" && (
+                {["fazenda", "defesa", "minas", "laboratorio", "saude", "energia", "agua"].includes(abaConstrucao) && (
                   <>
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-xl font-bold">
-                        Construções - Setor Agrícola
+                        Construções - Setor {abaConstrucao.charAt(0).toUpperCase() + abaConstrucao.slice(1)}
                       </h3>
 
                       <button
@@ -442,7 +466,7 @@ const handleConstruir = (id) => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(buildings)
-                        .filter(([_, item]) => item.categoria === "fazenda")
+                        .filter(([_, item]) => item.categoria === abaConstrucao)
                         .map(([key, item]) => {
                           const temRecursos = Object.entries(item.custo).every(
                             ([recurso, valor]) => estadoAtual[recurso] >= valor
@@ -466,21 +490,15 @@ const handleConstruir = (id) => {
                                 </div>
                               )}
 
-                              <h4 className="text-lg font-bold mb-1">
-                                {item.nome}
-                              </h4>
-                              <p className="text-sm text-gray-700 mb-2">
-                                {item.descricao}
-                              </p>
+                              <h4 className="text-lg font-bold mb-1">{item.nome}</h4>
+                              <p className="text-sm text-gray-700 mb-2">{item.descricao}</p>
 
                               <ul className="text-sm text-gray-600 mb-2">
-                                {Object.entries(item.custo).map(
-                                  ([recurso, val]) => (
-                                    <li key={recurso}>
-                                      💰 <strong>{recurso}</strong>: {val}
-                                    </li>
-                                  )
-                                )}
+                                {Object.entries(item.custo).map(([recurso, val]) => (
+                                  <li key={recurso}>
+                                    💰 <strong>{recurso}</strong>: {val}
+                                  </li>
+                                ))}
                               </ul>
 
                               <p className="text-sm text-gray-700 mb-2">
@@ -497,8 +515,8 @@ const handleConstruir = (id) => {
                                 onClick={() => handleConstruir(key)}
                                 disabled={!temRecursos}
                                 className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                                    ? "bg-green-600 text-white hover:bg-green-700"
-                                    : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                                  ? "bg-green-600 text-white hover:bg-green-700"
+                                  : "bg-gray-400 text-gray-700 cursor-not-allowed"
                                   } transition`}
                               >
                                 Construir
@@ -507,80 +525,6 @@ const handleConstruir = (id) => {
                           );
                         })}
                     </div>
-                  </>
-                )}
-
-                {abaConstrucao === "defesa" && (
-                  <>
-                    <h3 className="text-xl font-bold mb-2">Defesa</h3>
-                    <p className="text-gray-700 mb-4">
-                      Protege sua colônia contra ataques externos.
-                    </p>
-                    <button className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">
-                      Construir Defesa
-                    </button>
-                  </>
-                )}
-
-                {abaConstrucao === "minas" && (
-                  <>
-                    <h3 className="text-xl font-bold mb-2">Minas</h3>
-                    <p className="text-gray-700 mb-4">
-                      Extraem recursos minerais essenciais para construção.
-                    </p>
-                    <button className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition">
-                      Construir Mina
-                    </button>
-                  </>
-                )}
-
-                {abaConstrucao === "laboratorio" && (
-                  <>
-                    <h3 className="text-xl font-bold mb-2">Laboratório</h3>
-                    <p className="text-gray-700 mb-4">
-                      Permite realizar pesquisas para evoluir a colônia.
-                    </p>
-                    <button className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition">
-                      Construir Laboratório
-                    </button>
-                  </>
-                )}
-
-                {abaConstrucao === "saude" && (
-                  <>
-                    <h3 className="text-xl font-bold mb-2">Centro de Saúde</h3>
-                    <p className="text-gray-700 mb-4">
-                      Mantém a saúde dos colonos, reduzindo doenças.
-                    </p>
-                    <button className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700 transition">
-                      Construir Centro de Saúde
-                    </button>
-                  </>
-                )}
-
-                {abaConstrucao === "energia" && (
-                  <>
-                    <h3 className="text-xl font-bold mb-2">
-                      Gerador de Energia
-                    </h3>
-                    <p className="text-gray-700 mb-4">
-                      Gera energia para alimentar suas estruturas.
-                    </p>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-                      Construir Gerador
-                    </button>
-                  </>
-                )}
-
-                {abaConstrucao === "agua" && (
-                  <>
-                    <h3 className="text-xl font-bold mb-2">Estação de Água</h3>
-                    <p className="text-gray-700 mb-4">
-                      Fornece água potável para sua população.
-                    </p>
-                    <button className="bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700 transition">
-                      Construir Estação de Água
-                    </button>
                   </>
                 )}
               </motion.div>
@@ -595,6 +539,12 @@ const handleConstruir = (id) => {
               Tecnologias para evoluir sua colônia.
             </p>
           </>
+        )}
+        {loading && (
+          <div className="flex items-center gap-3 mt-6 text-white">
+            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+            <span>Simulando turno...</span>
+          </div>
         )}
 
         <button
@@ -616,25 +566,31 @@ const handleConstruir = (id) => {
               </IconButton>
             </div>
 
-            {filaConstrucoes.length === 0 ? (
-              <p className="text-gray-500">Nenhuma construção em andamento.</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {filaConstrucoes.map((item, index) => (
+            <ul className="flex flex-col gap-3">
+              {filaConstrucoes.map((item, index) => {
+                const tempoTotal = buildings[item.id]?.tempo || 1;
+                const progresso = ((tempoTotal - item.tempoRestante) / tempoTotal) * 100;
+
+                return (
                   <li
                     key={index}
-                    className="border p-2 rounded shadow flex justify-between items-center"
+                    className="border p-2 rounded shadow bg-white"
                   >
-                    <div>
-                      <p className="font-semibold">{item.nome}</p>
-                      <p className="text-sm text-gray-600">
-                        ⏱️ {item.tempoRestante} turno(s) restante(s)
-                      </p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <p className="font-semibold text-gray-800">{item.nome}</p>
+                        <p className="text-sm text-gray-600">
+                          ⏱️ {item.tempoRestante} turno(s) restante(s)
+                        </p>
+                      </div>
+
+                      <LinearProgressWithLabel value={progresso} />
                     </div>
                   </li>
-                ))}
-              </ul>
-            )}
+                );
+              })}
+            </ul>
+
           </div>
         </Drawer>
       </div>

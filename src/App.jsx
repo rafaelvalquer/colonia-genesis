@@ -22,42 +22,58 @@ function App() {
     construcoes: {
       fazenda: 0,
       sistemaDeIrrigacao: 0,
+      torreDeVigilancia: 0,
+      muralhaReforcada: 0,
+      minaDeCarvao: 0,
+      minaProfunda: 0,
+      centroDePesquisa: 0,
+      laboratorioAvancado: 0,
+      postoMedico: 0,
+      hospitalCentral: 0,
+      geradorSolar: 0,
+      reatorGeotermico: 0,
+      estacaoDeTratamento: 0,
+      coletorAtmosferico: 0,
       // depois: defesa, minas...
     },
   });
 
   const [filaConstrucoes, setFilaConstrucoes] = useState([]);
   const [log, setLog] = useState([]);
+  const [loading, setLoading] = useState(false);
 
 
   const handleParametrosChange = (parametrosSelecionados) => {
-    console.log("estadoAtual:", estadoAtual);
-    console.log("parametrosSelecionados:", parametrosSelecionados);
-    console.log("cenarioSelecionado:", cenarioSelecionado);
-    console.log("filaConstrucoes:", filaConstrucoes);
+    setLoading(true); // inicia o carregamento
 
-        console.log("parametrosSelecionados:", parametrosSelecionados);
+    setTimeout(() => {
+      const resultado = runSimulationTurn(
+        estadoAtual,
+        parametrosSelecionados,
+        cenarioSelecionado,
+        parametrosSelecionados.filaConstrucoes,
+        buildings
+      );
 
-    const resultado = runSimulationTurn(
-      estadoAtual,
-      parametrosSelecionados,
-      cenarioSelecionado,
-      parametrosSelecionados.filaConstrucoes,
-      buildings
-    );
+      console.log("Novo resultado:", JSON.stringify(resultado));
 
-    console.log("Novo resultado:", JSON.stringify(resultado));
+      console.log("estadoAtual:", estadoAtual);
+      console.log("parametrosSelecionados:", parametrosSelecionados);
+      console.log("cenarioSelecionado:", cenarioSelecionado);
+      console.log("filaConstrucoes:", filaConstrucoes);
 
-    console.log("Novo estado:", resultado.novoEstado);
-    console.log("Log da rodada:");
-    resultado.log.forEach((msg) => console.log("•", msg));
+      console.log("parametrosSelecionados:", parametrosSelecionados);
 
-    // Atualiza o estado para o próximo turno
-    setEstadoAtual(resultado.novoEstado);
-    setFilaConstrucoes(resultado.novaFila); // atualiza fila
-    setLog((old) => [...old, "Parâmetros atualizados!"]);
+
+      console.log("Novo resultado:", JSON.stringify(resultado));
+
+      setEstadoAtual(resultado.novoEstado);
+      setFilaConstrucoes(resultado.novaFila);
+      setLog((old) => [...old, "Parâmetros atualizados!"]);
+
+      setLoading(false); // encerra o carregamento
+    }, 200); // pequeno delay para permitir render do spinner
   };
-
   const handleConstruir = (tipo) => {
     const construcao = buildings[tipo];
     if (!construcao) return;
