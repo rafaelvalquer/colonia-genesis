@@ -13,6 +13,14 @@ import {
   IconButton,
   Typography,
   LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Stepper,
+  Step,
+  StepLabel,
+  MobileStepper,
+  Button as MuiButton,
 } from "@mui/material";
 
 import List from "@mui/icons-material/List";
@@ -68,6 +76,10 @@ function ParameterPanel({
   const [abaInternaCentral, setAbaInternaCentral] = useState("recursos");
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [aguaIndex, setAguaIndex] = useState(1);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [stepAtual, setStepAtual] = useState(0);
+
 
   console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
 
@@ -103,7 +115,7 @@ function ParameterPanel({
     { label: "Normal", value: 1, color: "primary" },
     { label: "Exagerado", value: 1.5, color: "error" },
   ];
-  const [aguaIndex, setAguaIndex] = useState(1);
+
 
   const [alocacaoColonos, setAlocacaoColonos] = useState({
     fazenda: 15,
@@ -114,7 +126,13 @@ function ParameterPanel({
     saude: 15,
     energia: 10,
   });
+  
   const [tempAlocacao, setTempAlocacao] = useState(alocacaoColonos);
+
+  const steps = ["Recursos", "Eventos", "Resultado Final"];
+
+  
+
 
   const handleSliderChange = (campo, novoValor) => {
     setTempAlocacao((old) => ({ ...old, [campo]: novoValor }));
@@ -186,6 +204,27 @@ function ParameterPanel({
       </Box>
     );
   }
+
+  const conteudoStep = [
+  <>
+    <h3 className="text-lg font-bold mb-2">🔄 Coleta e Consumo de Recursos</h3>
+    <p>- 💧 Água coletada: +20</p>
+    <p>- 🌾 Comida consumida: -35</p>
+    <p>- ⚡ Energia produzida: +50</p>
+  </>,
+  <>
+    <h3 className="text-lg font-bold mb-2">🌌 Eventos Prováveis</h3>
+    <p>⚠️ Tempestade solar: -10% energia</p>
+    <p>✅ Descoberta de minerais raros: +30 minerais</p>
+  </>,
+  <>
+    <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
+    <p>✅ Turno concluído com sucesso!</p>
+    <p>🎯 População satisfeita e produtiva</p>
+  </>,
+];
+
+  
 
   return (
     <div className="flex flex-col md:flex-row gap-4">
@@ -548,7 +587,10 @@ function ParameterPanel({
         )}
 
         <button
-          onClick={handleSubmit}
+          onClick={() => {
+  handleSubmit();        // mantém a função original
+  setModalAberto(true);  // abre o modal com stepper
+}}
           className="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200"
         >
           Aplicar Parâmetros
@@ -593,6 +635,58 @@ function ParameterPanel({
 
           </div>
         </Drawer>
+        <Dialog
+  open={modalAberto}
+  onClose={() => setModalAberto(false)}
+  fullWidth
+  maxWidth="sm"
+>
+  <DialogTitle className="text-xl font-bold">Simulação do Turno</DialogTitle>
+  <DialogContent>
+    <Stepper activeStep={stepAtual} alternativeLabel>
+      {steps.map((label) => (
+        <Step key={label}>
+          <StepLabel>{label}</StepLabel>
+        </Step>
+      ))}
+    </Stepper>
+
+    <div className="mt-6">{conteudoStep[stepAtual]}</div>
+
+    <MobileStepper
+      variant="dots"
+      steps={steps.length}
+      position="static"
+      activeStep={stepAtual}
+      nextButton={
+        <MuiButton
+          size="small"
+          onClick={() => {
+            if (stepAtual === steps.length - 1) {
+              setModalAberto(false); // fecha o modal no fim
+              setStepAtual(0);       // reseta para o próximo uso
+            } else {
+              setStepAtual((prev) => prev + 1);
+            }
+          }}
+        >
+          {stepAtual === steps.length - 1 ? "Fechar" : "Próximo"}
+        </MuiButton>
+      }
+      backButton={
+        <MuiButton
+          size="small"
+          onClick={() => setStepAtual((prev) => prev - 1)}
+          disabled={stepAtual === 0}
+        >
+          Voltar
+        </MuiButton>
+      }
+      className="mt-6"
+    />
+  </DialogContent>
+</Dialog>
+
       </div>
     </div>
   );
