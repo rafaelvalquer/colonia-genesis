@@ -3,7 +3,7 @@
     "id": "duna-x57",
     "nome": "Duna X-57",
     "descricao": "Um planeta árido e hostil, com tempestades frequentes e escassez de água.",
-    "aguaInicial": 300,
+    "aguaInicial": 100,
     "energiaInicial": 500,
     "populacaoInicial": 200,
     "mineraisIniciais": 200,

@@ -19,6 +19,7 @@ function App() {
     populacao: cenarioSelecionado.populacaoInicial,
     energia: cenarioSelecionado.energiaInicial,
     agua: cenarioSelecionado.aguaInicial,
+    maxAgua: 100,
     comida: cenarioSelecionado.comidaInicial,
     minerais: cenarioSelecionado.mineraisIniciais,
     saude: cenarioSelecionado.saude,

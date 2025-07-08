@@ -24,10 +24,10 @@ import {
 } from "@mui/material";
 
 import List from "@mui/icons-material/List";
-import ListIcon from "@mui/icons-material/List";
 import CloseIcon from "@mui/icons-material/Close";
 import { motion, AnimatePresence } from "framer-motion";
 import buildings from "../data/buildings.json";
+import { Badge } from "@mui/material";
 
 const MAX_PONTOS = 3;
 const setoresOrdem = [
@@ -304,11 +304,13 @@ function ParameterPanel({
                     <ul className="space-y-2">
                       <li>👥 População: {estadoAtual.populacao}</li>
                       <li>⚡ Energia: {estadoAtual.energia}</li>
-                      <li>💧 Água: {estadoAtual.agua}</li>
+                      <li>
+                        💧 Água: {estadoAtual.agua}/{estadoAtual.maxAgua}
+                      </li>
                       <li>🌾 Comida: {estadoAtual.comida}</li>
                       <li>⛏️ Minerais: {estadoAtual.minerais}</li>
-                      <li>🏥 Saúde: {estadoAtual.saude}</li>
                       <li>🧪 Ciência: {estadoAtual.ciencia}</li>
+                      <li>🏥 Saúde: {estadoAtual.saude}%</li>
                       <li>
                         🌿 Sustentabilidade: {estadoAtual.sustentabilidade}%
                       </li>
@@ -544,15 +546,20 @@ function ParameterPanel({
                           abaConstrucao.slice(1)}
                       </h3>
 
-                      <button
-                        onClick={() => setDrawerAberto(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      <Badge
+                        badgeContent={filaConstrucoes.length}
+                        color="error"
+                        showZero
                       >
-                        <List fontSize="small" />
-                        Ver Fila
-                      </button>
+                        <button
+                          onClick={() => setDrawerAberto(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          <List fontSize="small" />
+                          Ver Fila
+                        </button>
+                      </Badge>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(buildings)
                         .filter(([_, item]) => item.categoria === abaConstrucao)

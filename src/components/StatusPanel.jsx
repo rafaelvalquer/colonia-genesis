@@ -23,16 +23,20 @@ function StatusPanel({ estado }) {
     },
     { label: "População", value: estado.populacao, icon: <FaUsers /> },
     { label: "Energia", value: estado.energia, icon: <FaBolt /> },
-    { label: "Água", value: estado.agua, icon: <FaTint /> },
+    {
+      label: "Água",
+      value: `${estado.agua}/${estado.maxAgua}`,
+      icon: <FaTint />,
+    },
     { label: "Comida", value: estado.comida, icon: <FaDrumstickBite /> },
     { label: "Minerais", value: estado.minerais, icon: <FaHammer /> },
+    { label: "Ciência", value: estado.ciencia, icon: <FaFlask /> },
+    { label: "Saúde", value: `${estado.saude}%`, icon: <FaRegHeart /> },
     {
       label: "Sustentabilidade",
       value: `${estado.sustentabilidade}%`,
       icon: <FaLeaf />,
     },
-    { label: "Saúde", value: estado.saude, icon: <FaRegHeart /> },
-    { label: "Ciência", value: estado.ciencia, icon: <FaFlask /> },
   ];
 
   return (
