@@ -168,7 +168,7 @@
     "nome": "Reator Geotérmico",
     "categoria": "energia",
     "descricao": "Fonte avançada de energia usando o calor da crosta planetária.",
-    "imagem": "/images/reator-geotermico.png",
+    "imagem": "/images/reator-geotermico.jpg",
     "tempo": 5,
     "custo": {
       "minerais": 70,

@@ -62,8 +62,6 @@ const abas = [
   },
 ];
 
-
-
 function ParameterPanel({
   onChange,
   populacao = 100,
@@ -79,7 +77,6 @@ function ParameterPanel({
   const [aguaIndex, setAguaIndex] = useState(1);
   const [modalAberto, setModalAberto] = useState(false);
   const [stepAtual, setStepAtual] = useState(0);
-
 
   console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
 
@@ -116,7 +113,6 @@ function ParameterPanel({
     { label: "Exagerado", value: 1.5, color: "error" },
   ];
 
-
   const [alocacaoColonos, setAlocacaoColonos] = useState({
     fazenda: 15,
     defesa: 15,
@@ -126,13 +122,10 @@ function ParameterPanel({
     saude: 15,
     energia: 10,
   });
-  
+
   const [tempAlocacao, setTempAlocacao] = useState(alocacaoColonos);
 
   const steps = ["Recursos", "Eventos", "Resultado Final"];
-
-  
-
 
   const handleSliderChange = (campo, novoValor) => {
     setTempAlocacao((old) => ({ ...old, [campo]: novoValor }));
@@ -198,7 +191,10 @@ function ParameterPanel({
         <Box sx={{ flexGrow: 1 }}>
           <LinearProgress variant="determinate" value={value} />
         </Box>
-        <Typography variant="body2" sx={{ color: "text.secondary", minWidth: 30 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: "text.secondary", minWidth: 30 }}
+        >
           {`${Math.round(value)}%`}
         </Typography>
       </Box>
@@ -206,25 +202,25 @@ function ParameterPanel({
   }
 
   const conteudoStep = [
-  <>
-    <h3 className="text-lg font-bold mb-2">🔄 Coleta e Consumo de Recursos</h3>
-    <p>- 💧 Água coletada: +20</p>
-    <p>- 🌾 Comida consumida: -35</p>
-    <p>- ⚡ Energia produzida: +50</p>
-  </>,
-  <>
-    <h3 className="text-lg font-bold mb-2">🌌 Eventos Prováveis</h3>
-    <p>⚠️ Tempestade solar: -10% energia</p>
-    <p>✅ Descoberta de minerais raros: +30 minerais</p>
-  </>,
-  <>
-    <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
-    <p>✅ Turno concluído com sucesso!</p>
-    <p>🎯 População satisfeita e produtiva</p>
-  </>,
-];
-
-  
+    <>
+      <h3 className="text-lg font-bold mb-2">
+        🔄 Coleta e Consumo de Recursos
+      </h3>
+      <p>- 💧 Água coletada: +20</p>
+      <p>- 🌾 Comida consumida: -35</p>
+      <p>- ⚡ Energia produzida: +50</p>
+    </>,
+    <>
+      <h3 className="text-lg font-bold mb-2">🌌 Eventos Prováveis</h3>
+      <p>⚠️ Tempestade solar: -10% energia</p>
+      <p>✅ Descoberta de minerais raros: +30 minerais</p>
+    </>,
+    <>
+      <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
+      <p>✅ Turno concluído com sucesso!</p>
+      <p>🎯 População satisfeita e produtiva</p>
+    </>,
+  ];
 
   return (
     <div className="flex flex-col md:flex-row gap-4">
@@ -240,10 +236,11 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 ${abaSelecionada === aba.id
-                      ? "border-blue-400 text-white font-semibold"
-                      : "border-transparent text-gray-400 hover:text-white"
-                      } transition-colors`}
+                    className={`text-left w-full px-2 py-1 border-l-4 ${
+                      abaSelecionada === aba.id
+                        ? "border-blue-400 text-white font-semibold"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    } transition-colors`}
                   >
                     {aba.label}
                   </button>
@@ -305,11 +302,16 @@ function ParameterPanel({
                   <>
                     <h3 className="text-xl font-semibold mb-2">Recursos</h3>
                     <ul className="space-y-2">
-                      <li>🌾 Comida: {estadoAtual.comida}</li>
-                      <li>💧 Água: {estadoAtual.agua}</li>
-                      <li>⚡ Energia: {estadoAtual.energia}</li>
-                      <li>⛏️ Minerais: {estadoAtual.minerais}</li>
                       <li>👥 População: {estadoAtual.populacao}</li>
+                      <li>⚡ Energia: {estadoAtual.energia}</li>
+                      <li>💧 Água: {estadoAtual.agua}</li>
+                      <li>🌾 Comida: {estadoAtual.comida}</li>
+                      <li>⛏️ Minerais: {estadoAtual.minerais}</li>
+                      <li>🏥 Saúde: {estadoAtual.saude}</li>
+                      <li>🧪 Ciência: {estadoAtual.ciencia}</li>
+                      <li>
+                        🌿 Sustentabilidade: {estadoAtual.sustentabilidade}%
+                      </li>
                     </ul>
                   </>
                 )}
@@ -345,37 +347,59 @@ function ParameterPanel({
         )}
 
         {abaSelecionada === "distribuicao" && (
-          <>
+          <motion.div
+            key="distribuicao"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
+          >
             <h2 className="text-xl font-semibold mb-2">
               Distribuição de Pontos (Máx: {MAX_PONTOS})
             </h2>
-            <p className="mb-4 text-sm text-gray-400">
+            <p className="mb-4 text-sm text-gray-500">
               Total usado: {totalUsado} / {MAX_PONTOS}
             </p>
-            {Object.keys(distribuicao).map((campo) => (
-              <div key={campo} className="mb-2">
-                <Tooltip title={tooltips[campo]} arrow placement="right">
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={distribuicao[campo] === 1}
-                        onChange={() => handleSwitchToggle(campo)}
-                        disabled={
-                          distribuicao[campo] === 0 && totalUsado >= MAX_PONTOS
-                        }
-                      />
-                    }
-                    label={campo.charAt(0).toUpperCase() + campo.slice(1)}
-                  />
-                </Tooltip>
-              </div>
-            ))}
-          </>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.keys(distribuicao).map((campo) => (
+                <div
+                  key={campo}
+                  className="bg-slate-100 rounded-md p-3 shadow-sm"
+                >
+                  <Tooltip title={tooltips[campo]} arrow placement="right">
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={distribuicao[campo] === 1}
+                          onChange={() => handleSwitchToggle(campo)}
+                          disabled={
+                            distribuicao[campo] === 0 &&
+                            totalUsado >= MAX_PONTOS
+                          }
+                        />
+                      }
+                      label={campo.charAt(0).toUpperCase() + campo.slice(1)}
+                    />
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          </motion.div>
         )}
 
         {abaSelecionada === "agua" && (
-          <>
+          <motion.div
+            key="agua"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
+          >
             <h2 className="text-xl font-semibold mb-4">Consumo de Água</h2>
+
             <ButtonGroup variant="outlined" aria-label="Consumo de Água">
               {consumoAguaOpcoes.map((opcao, idx) => (
                 <Button
@@ -388,48 +412,64 @@ function ParameterPanel({
                 </Button>
               ))}
             </ButtonGroup>
-            <div className="mt-2 text-sm text-gray-400">
-              Consumo atual:{" "}
-              {(consumoAguaOpcoes[aguaIndex].value * 100).toFixed(0)}%
+
+            <div className="mt-4 text-sm text-gray-600 font-medium">
+              💧 Consumo atual:{" "}
+              <span className="text-blue-600 font-bold">
+                {(consumoAguaOpcoes[aguaIndex].value * 100).toFixed(0)}%
+              </span>
             </div>
-          </>
+          </motion.div>
         )}
 
         {abaSelecionada === "colonos" && (
-          <>
-            <h2 className="text-xl font-semibold mb-4">
+          <motion.div
+            key="colonos"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
+          >
+            <h2 className="text-xl font-bold mb-6 text-slate-800">
               Alocação de Colonos (100%)
             </h2>
-            <div className="flex flex-col gap-6">
-              {setoresOrdem.map((campo, index) => (
-                <div key={campo}>
-                  <div className="flex flex-col md:flex-row md:items-center md:gap-6">
-                    <div className="md:w-48 capitalize font-medium">
-                      {campo}
-                    </div>
-                    <Slider
-                      value={tempAlocacao[campo]}
-                      min={0}
-                      max={100}
-                      step={1}
-                      onChange={(_, value) => handleSliderChange(campo, value)}
-                      onChangeCommitted={(_, value) =>
-                        handleSliderChangeCommitted(campo, value)
-                      }
-                    />
-                    <div className="md:w-32 text-right font-semibold">
-                      {tempAlocacao[campo]}% —{" "}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {setoresOrdem.map((campo) => (
+                <div
+                  key={campo}
+                  className="bg-slate-100 p-4 rounded-lg shadow-inner border border-slate-200"
+                >
+                  <h4 className="text-md font-semibold mb-2 capitalize text-slate-700">
+                    {campo}
+                  </h4>
+
+                  <Slider
+                    value={tempAlocacao[campo]}
+                    min={0}
+                    max={100}
+                    step={1}
+                    onChange={(_, value) => handleSliderChange(campo, value)}
+                    onChangeCommitted={(_, value) =>
+                      handleSliderChangeCommitted(campo, value)
+                    }
+                    sx={{
+                      color: "#3b82f6", // Tailwind blue-500
+                    }}
+                  />
+
+                  <div className="text-sm text-slate-600 mt-1 flex justify-between">
+                    <span>{tempAlocacao[campo]}%</span>
+                    <span className="font-medium text-blue-600">
                       {Math.round((tempAlocacao[campo] / 100) * populacao)}{" "}
                       colonos
-                    </div>
+                    </span>
                   </div>
-                  {index < setoresOrdem.length - 1 && (
-                    <hr className="border-t border-gray-600 mt-2" />
-                  )}
                 </div>
               ))}
             </div>
-          </>
+          </motion.div>
         )}
 
         {abaSelecionada === "construcoes" && (
@@ -487,11 +527,21 @@ function ParameterPanel({
                 transition={{ duration: 0.3 }}
                 className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
               >
-                {["fazenda", "defesa", "minas", "laboratorio", "saude", "energia", "agua"].includes(abaConstrucao) && (
+                {[
+                  "fazenda",
+                  "defesa",
+                  "minas",
+                  "laboratorio",
+                  "saude",
+                  "energia",
+                  "agua",
+                ].includes(abaConstrucao) && (
                   <>
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-xl font-bold">
-                        Construções - Setor {abaConstrucao.charAt(0).toUpperCase() + abaConstrucao.slice(1)}
+                        Construções - Setor{" "}
+                        {abaConstrucao.charAt(0).toUpperCase() +
+                          abaConstrucao.slice(1)}
                       </h3>
 
                       <button
@@ -518,10 +568,15 @@ function ParameterPanel({
                             >
                               {item.imagem && (
                                 <div className="relative mb-3">
-                                  <img
+                                  <motion.img
                                     src={item.imagem}
                                     alt={`Imagem de ${item.nome}`}
                                     className="w-full h-40 object-cover rounded"
+                                    whileHover={{
+                                      scale: 1.1,
+                                      height: "180px",
+                                    }}
+                                    transition={{ duration: 0.3 }}
                                   />
                                   <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
                                     x{estadoAtual.construcoes?.[key] || 0}
@@ -529,15 +584,21 @@ function ParameterPanel({
                                 </div>
                               )}
 
-                              <h4 className="text-lg font-bold mb-1">{item.nome}</h4>
-                              <p className="text-sm text-gray-700 mb-2">{item.descricao}</p>
+                              <h4 className="text-lg font-bold mb-1">
+                                {item.nome}
+                              </h4>
+                              <p className="text-sm text-gray-700 mb-2">
+                                {item.descricao}
+                              </p>
 
                               <ul className="text-sm text-gray-600 mb-2">
-                                {Object.entries(item.custo).map(([recurso, val]) => (
-                                  <li key={recurso}>
-                                    💰 <strong>{recurso}</strong>: {val}
-                                  </li>
-                                ))}
+                                {Object.entries(item.custo).map(
+                                  ([recurso, val]) => (
+                                    <li key={recurso}>
+                                      💰 <strong>{recurso}</strong>: {val}
+                                    </li>
+                                  )
+                                )}
                               </ul>
 
                               <p className="text-sm text-gray-700 mb-2">
@@ -553,10 +614,11 @@ function ParameterPanel({
                               <button
                                 onClick={() => handleConstruir(key)}
                                 disabled={!temRecursos}
-                                className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                                  ? "bg-green-600 text-white hover:bg-green-700"
-                                  : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                                  } transition`}
+                                className={`mt-auto px-4 py-2 rounded font-semibold ${
+                                  temRecursos
+                                    ? "bg-green-600 text-white hover:bg-green-700"
+                                    : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                                } transition`}
                               >
                                 Construir
                               </button>
@@ -568,6 +630,7 @@ function ParameterPanel({
                 )}
               </motion.div>
             </AnimatePresence>
+            <></>
           </>
         )}
 
@@ -588,9 +651,9 @@ function ParameterPanel({
 
         <button
           onClick={() => {
-  handleSubmit();        // mantém a função original
-  setModalAberto(true);  // abre o modal com stepper
-}}
+            handleSubmit(); // mantém a função original
+            setModalAberto(true); // abre o modal com stepper
+          }}
           className="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200"
         >
           Aplicar Parâmetros
@@ -611,7 +674,8 @@ function ParameterPanel({
             <ul className="flex flex-col gap-3">
               {filaConstrucoes.map((item, index) => {
                 const tempoTotal = buildings[item.id]?.tempo || 1;
-                const progresso = ((tempoTotal - item.tempoRestante) / tempoTotal) * 100;
+                const progresso =
+                  ((tempoTotal - item.tempoRestante) / tempoTotal) * 100;
 
                 return (
                   <li
@@ -620,7 +684,9 @@ function ParameterPanel({
                   >
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between items-center">
-                        <p className="font-semibold text-gray-800">{item.nome}</p>
+                        <p className="font-semibold text-gray-800">
+                          {item.nome}
+                        </p>
                         <p className="text-sm text-gray-600">
                           ⏱️ {item.tempoRestante} turno(s) restante(s)
                         </p>
@@ -632,61 +698,61 @@ function ParameterPanel({
                 );
               })}
             </ul>
-
           </div>
         </Drawer>
         <Dialog
-  open={modalAberto}
-  onClose={() => setModalAberto(false)}
-  fullWidth
-  maxWidth="sm"
->
-  <DialogTitle className="text-xl font-bold">Simulação do Turno</DialogTitle>
-  <DialogContent>
-    <Stepper activeStep={stepAtual} alternativeLabel>
-      {steps.map((label) => (
-        <Step key={label}>
-          <StepLabel>{label}</StepLabel>
-        </Step>
-      ))}
-    </Stepper>
-
-    <div className="mt-6">{conteudoStep[stepAtual]}</div>
-
-    <MobileStepper
-      variant="dots"
-      steps={steps.length}
-      position="static"
-      activeStep={stepAtual}
-      nextButton={
-        <MuiButton
-          size="small"
-          onClick={() => {
-            if (stepAtual === steps.length - 1) {
-              setModalAberto(false); // fecha o modal no fim
-              setStepAtual(0);       // reseta para o próximo uso
-            } else {
-              setStepAtual((prev) => prev + 1);
-            }
-          }}
+          open={modalAberto}
+          onClose={() => setModalAberto(false)}
+          fullWidth
+          maxWidth="sm"
         >
-          {stepAtual === steps.length - 1 ? "Fechar" : "Próximo"}
-        </MuiButton>
-      }
-      backButton={
-        <MuiButton
-          size="small"
-          onClick={() => setStepAtual((prev) => prev - 1)}
-          disabled={stepAtual === 0}
-        >
-          Voltar
-        </MuiButton>
-      }
-      className="mt-6"
-    />
-  </DialogContent>
-</Dialog>
+          <DialogTitle className="text-xl font-bold">
+            Simulação do Turno
+          </DialogTitle>
+          <DialogContent>
+            <Stepper activeStep={stepAtual} alternativeLabel>
+              {steps.map((label) => (
+                <Step key={label}>
+                  <StepLabel>{label}</StepLabel>
+                </Step>
+              ))}
+            </Stepper>
 
+            <div className="mt-6">{conteudoStep[stepAtual]}</div>
+
+            <MobileStepper
+              variant="dots"
+              steps={steps.length}
+              position="static"
+              activeStep={stepAtual}
+              nextButton={
+                <MuiButton
+                  size="small"
+                  onClick={() => {
+                    if (stepAtual === steps.length - 1) {
+                      setModalAberto(false); // fecha o modal no fim
+                      setStepAtual(0); // reseta para o próximo uso
+                    } else {
+                      setStepAtual((prev) => prev + 1);
+                    }
+                  }}
+                >
+                  {stepAtual === steps.length - 1 ? "Fechar" : "Próximo"}
+                </MuiButton>
+              }
+              backButton={
+                <MuiButton
+                  size="small"
+                  onClick={() => setStepAtual((prev) => prev - 1)}
+                  disabled={stepAtual === 0}
+                >
+                  Voltar
+                </MuiButton>
+              }
+              className="mt-6"
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

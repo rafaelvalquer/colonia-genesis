@@ -1,4 +1,10 @@
-export function runSimulationTurn(currentState, parametros, scenario, filaConstrucoes = [], buildings) {
+export function runSimulationTurn(
+  currentState,
+  parametros,
+  scenario,
+  filaConstrucoes = [],
+  buildings
+) {
   const log = [];
 
   let {
@@ -10,7 +16,9 @@ export function runSimulationTurn(currentState, parametros, scenario, filaConstr
     saude,
     sustentabilidade,
     integridadeEstrutural,
+    ciencia,
     turno,
+    construcoes,
   } = currentState;
 
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
@@ -22,9 +30,6 @@ export function runSimulationTurn(currentState, parametros, scenario, filaConstr
     ])
   );
 
-  console.log(quantidadePorSetor);
-
-  console.log(alocacaoColonos);
   // -------------------
   // 1. Produções básicas com base nos pontos
   // -------------------
@@ -63,6 +68,15 @@ export function runSimulationTurn(currentState, parametros, scenario, filaConstr
   console.log("Produção de Minas = " + mineraisProduzidos);
 
   //Laboratorio
+
+  var cienciaProduzida = quantidadePorSetor.laboratorio / 2;
+
+  if (pontos.laboratorio == 1) {
+    cienciaProduzida = cienciaProduzida * 2;
+  }
+
+  ciencia = ciencia + cienciaProduzida;
+  console.log("cienciaProduzida = " + cienciaProduzida);
 
   //Construção
 
@@ -268,6 +282,7 @@ export function runSimulationTurn(currentState, parametros, scenario, filaConstr
     saude,
     sustentabilidade,
     integridadeEstrutural,
+    ciencia,
     construcoes: { ...currentState.construcoes }, // Inicializa corretamente
   };
 
@@ -288,7 +303,7 @@ export function runSimulationTurn(currentState, parametros, scenario, filaConstr
 
   construcoesFinalizadas.forEach((c) => {
     const tipo = c.id;
-    
+
     const dadosConstrucao = buildings[tipo];
     if (!dadosConstrucao) {
       log.push(`Erro: construção com id "${tipo}" não encontrada.`);
@@ -307,7 +322,6 @@ export function runSimulationTurn(currentState, parametros, scenario, filaConstr
 
     log.push(`🏗️ ${dadosConstrucao.nome} finalizada!`);
   });
-
 
   return {
     novoEstado,

@@ -4,6 +4,10 @@ import StatusPanel from "./components/StatusPanel";
 import { runSimulationTurn } from "./utils/simulationEngine";
 import scenarioList from "./data/scenarios.json";
 import buildings from "./data/buildings.json";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Slide from "@mui/material/Slide";
 
 function App() {
   // Pegando o primeiro cenário por enquanto
@@ -19,6 +23,7 @@ function App() {
     minerais: cenarioSelecionado.mineraisIniciais,
     saude: cenarioSelecionado.saude,
     sustentabilidade: 50,
+    ciencia: 0,
     construcoes: {
       fazenda: 0,
       sistemaDeIrrigacao: 0,
@@ -41,7 +46,17 @@ function App() {
   const [filaConstrucoes, setFilaConstrucoes] = useState([]);
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [snackbarQueue, setSnackbarQueue] = useState([]);
 
+  const showSnackbar = (mensagem, tipo = "info") => {
+    const id = Date.now();
+    setSnackbarQueue((prev) => [...prev, { id, mensagem, tipo }]);
+
+    // Remover automaticamente após 3 segundos
+    setTimeout(() => {
+      setSnackbarQueue((prev) => prev.filter((item) => item.id !== id));
+    }, 3000);
+  };
 
   const handleParametrosChange = (parametrosSelecionados) => {
     setLoading(true); // inicia o carregamento
@@ -64,7 +79,6 @@ function App() {
 
       console.log("parametrosSelecionados:", parametrosSelecionados);
 
-
       console.log("Novo resultado:", JSON.stringify(resultado));
 
       setEstadoAtual(resultado.novoEstado);
@@ -74,6 +88,7 @@ function App() {
       setLoading(false); // encerra o carregamento
     }, 200); // pequeno delay para permitir render do spinner
   };
+
   const handleConstruir = (tipo) => {
     const construcao = buildings[tipo];
     if (!construcao) return;
@@ -85,7 +100,7 @@ function App() {
     );
 
     if (!temRecursos) {
-      alert("Recursos insuficientes para construir.");
+      showSnackbar("❌ Recursos insuficientes para construção.", "error");
       return;
     }
 
@@ -106,8 +121,9 @@ function App() {
         tempoRestante: tempo,
       },
     ]);
-  };
 
+    showSnackbar(`✅ Construção de ${nome} iniciada!`, "success");
+  };
 
   return (
     <div className="flex h-screen bg-slate-900 text-white">
@@ -134,6 +150,41 @@ function App() {
           />
         </section>
       </main>
+      <Box
+        sx={{
+          position: "fixed",
+          bottom: 16,
+          left: 16,
+          zIndex: 1400,
+          display: "flex",
+          flexDirection: "column-reverse", // empilha de baixo pra cima
+          gap: 1,
+        }}
+      >
+        {snackbarQueue.map((snack, index) => (
+          <Slide
+            key={snack.id}
+            direction="up"
+            in={true}
+            mountOnEnter
+            unmountOnExit
+          >
+            <Snackbar
+              open={true}
+              anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+              sx={{ position: "relative" }} // importante para Slide animar
+            >
+              <Alert
+                severity={snack.tipo}
+                variant="filled"
+                sx={{ width: "100%" }}
+              >
+                {snack.mensagem}
+              </Alert>
+            </Snackbar>
+          </Slide>
+        ))}
+      </Box>
     </div>
   );
 }
