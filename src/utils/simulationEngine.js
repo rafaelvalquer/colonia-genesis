@@ -175,7 +175,6 @@ export function runSimulationTurn(
     defesaBase = Math.floor(defesaBase * 0.95);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.95);
     reparo = Math.floor(reparo * 0.95);
-    agua = Math.floor(agua * 0.95);
     energia = Math.floor(energia * 0.95);
     saude = Math.floor(saude * 0.95);
 
@@ -185,7 +184,6 @@ export function runSimulationTurn(
     defesaBase = Math.floor(defesaBase * 1.05);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.05);
     reparo = Math.floor(reparo * 1.05);
-    agua = Math.floor(agua * 1.05);
     energia = Math.floor(energia * 1.05);
     saude = Math.floor(saude * 1.05);
 
@@ -195,7 +193,6 @@ export function runSimulationTurn(
     defesaBase = Math.floor(defesaBase * 1.1);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.1);
     reparo = Math.floor(reparo * 1.1);
-    agua = Math.floor(agua * 1.1);
     energia = Math.floor(energia * 1.1);
     saude = Math.floor(saude * 1.1);
 

@@ -23,7 +23,7 @@ function App() {
     comida: cenarioSelecionado.comidaInicial,
     minerais: cenarioSelecionado.mineraisIniciais,
     saude: cenarioSelecionado.saude,
-    sustentabilidade: 50,
+    sustentabilidade: 100,
     ciencia: 0,
     construcoes: {
       fazenda: 0,
