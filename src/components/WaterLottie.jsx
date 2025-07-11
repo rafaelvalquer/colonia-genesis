@@ -7,7 +7,7 @@ const WaterLottie = ({ speed = 1 }) => { // Desestruture a prop speed
 
   useEffect(() => {
     if (lottieRef.current) {
-      console.log('Speed:', speed); // Agora deve mostrar o valor correto
+        speed = speed * 2;
       lottieRef.current.setSpeed(speed); // Velocidade da animação
     }
   }, [speed]); // Adicione speed como dependência para que o efeito seja executado quando speed mudar

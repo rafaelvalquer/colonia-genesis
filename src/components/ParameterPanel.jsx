@@ -29,6 +29,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import buildings from "../data/buildings.json";
 import { Badge } from "@mui/material";
 import WaterLottie from "./WaterLottie"; // ajuste o caminho se necessário
+import FireLottie from "./FireLottie"; // ajuste o caminho se necessário
+import PopulationLottie from "./PopulationLottie"; // ajuste o caminho se necessário
 
 const MAX_PONTOS = 3;
 const setoresOrdem = [
@@ -357,12 +359,20 @@ function ParameterPanel({
             transition={{ duration: 0.3 }}
             className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
           >
-            <h2 className="text-xl font-semibold mb-2">
-              Distribuição de Pontos (Máx: {MAX_PONTOS})
-            </h2>
+
+            {/* Linha superior - Animação e título */}
+            <div className="flex items-center mb-4">
+              <div className="mr-4 mb-4">
+                <FireLottie speed={totalUsado} />
+              </div>
+              <h2 className="text-xl font-semibold">
+                Distribuição de Pontos (Máx: {MAX_PONTOS})
+              </h2>
+            </div>
             <p className="mb-4 text-sm text-gray-500">
               Total usado: {totalUsado} / {MAX_PONTOS}
             </p>
+
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Object.keys(distribuicao).map((campo) => (
@@ -439,9 +449,18 @@ function ParameterPanel({
             transition={{ duration: 0.3 }}
             className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
           >
-            <h2 className="text-xl font-bold mb-6 text-slate-800">
+
+            {/* Linha superior - Animação e título */}
+            <div className="flex items-center mb-4">
+              <div className="mr-1 mb-4">
+                <PopulationLottie/>
+              </div>
+            <h2 className="text-xl font-bold mb-2 text-slate-800">
               Alocação de Colonos (100%)
             </h2>
+            </div>
+
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {setoresOrdem.map((campo) => (
