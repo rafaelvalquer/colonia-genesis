@@ -37,7 +37,9 @@ export function runSimulationTurn(
 
   const pontos = distribuicao;
 
-  //Comida
+  console.log("##########construcoes######## = " + JSON.stringify(construcoes));
+
+  //#region Comida
 
   var comidaProduzida = quantidadePorSetor.fazenda * 2 * consumoAgua;
 
@@ -45,11 +47,15 @@ export function runSimulationTurn(
     comidaProduzida = comidaProduzida * 2;
   }
 
+  if (construcoes.fazenda > 0) {
+    comidaProduzida = comidaProduzida + construcoes.fazenda * 5;
+  }
+
   comidaProduzida = comidaProduzida - populacao;
   comida = comida + comidaProduzida;
   console.log("comidaProduzida = " + comidaProduzida);
 
-  //Defesa
+  //#region Defesa
 
   var defesaBase = alocacaoColonos.defesa;
 

@@ -21,16 +21,18 @@ import {
   StepLabel,
   MobileStepper,
   Button as MuiButton,
+  Badge,
 } from "@mui/material";
 
 import List from "@mui/icons-material/List";
 import CloseIcon from "@mui/icons-material/Close";
 import { motion, AnimatePresence } from "framer-motion";
 import buildings from "../data/buildings.json";
-import { Badge } from "@mui/material";
 import WaterLottie from "./WaterLottie"; // ajuste o caminho se necessário
 import FireLottie from "./FireLottie"; // ajuste o caminho se necessário
 import PopulationLottie from "./PopulationLottie"; // ajuste o caminho se necessário
+import WaterAlertLottie from "./WaterAlertLottie"; // ajuste o caminho conforme sua estrutura
+import EvolutionTree from "./reactFlow/EvolutionTree"; // ajuste o caminho conforme a estrutura do seu projeto
 
 const MAX_PONTOS = 3;
 const setoresOrdem = [
@@ -51,7 +53,7 @@ const abas = [
   {
     grupo: "Parâmetros",
     itens: [
-      { id: "distribuicao", label: "Distribuição de Pontos" },
+      { id: "distribuicao", label: "Skill Points" },
       { id: "agua", label: "Consumo de Água" },
       { id: "colonos", label: "Alocação de Colonos" },
     ],
@@ -80,6 +82,10 @@ function ParameterPanel({
   const [aguaIndex, setAguaIndex] = useState(1);
   const [modalAberto, setModalAberto] = useState(false);
   const [stepAtual, setStepAtual] = useState(0);
+  const [mensagemErro, setMensagemErro] = useState("");
+  const [modalErroAgua, setModalErroAgua] = useState(false);
+  const [modalAguaAberto, setModalAguaAberto] = useState(false);
+  const [aguaNecessaria, setAguaNecessaria] = useState(0);
 
   console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
 
@@ -170,6 +176,18 @@ function ParameterPanel({
   };
 
   const handleSubmit = () => {
+    const consumo = consumoAguaOpcoes[aguaIndex].value;
+    const aguaNecessaria =
+      consumo === 0.5 ? 5 : consumo === 1 ? 10 : consumo === 1.5 ? 20 : 0;
+
+    if (estadoAtual.agua < aguaNecessaria) {
+      setAguaNecessaria(aguaNecessaria);
+      setModalAguaAberto(true);
+      return;
+    }
+
+    estadoAtual.agua -= aguaNecessaria;
+
     setLoading(true); // inicia carregamento
 
     setTimeout(() => {
@@ -181,6 +199,7 @@ function ParameterPanel({
       });
 
       setLoading(false); // encerra após aplicar
+      setModalAberto(true); // garante que só abre se passou a verificação
     }, 500); // simula carregamento por 0.5s
   };
 
@@ -239,10 +258,11 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 ${abaSelecionada === aba.id
-                      ? "border-blue-400 text-white font-semibold"
-                      : "border-transparent text-gray-400 hover:text-white"
-                      } transition-colors`}
+                    className={`text-left w-full px-2 py-1 border-l-4 ${
+                      abaSelecionada === aba.id
+                        ? "border-blue-400 text-white font-semibold"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    } transition-colors`}
                   >
                     {aba.label}
                   </button>
@@ -322,17 +342,60 @@ function ParameterPanel({
 
                 {abaInternaCentral === "construcoes" && (
                   <>
-                    <h3 className="text-xl font-semibold mb-2">Construções</h3>
-                    <ul className="space-y-2">
-                      {Object.entries(estadoAtual.construcoes).map(
-                        ([nome, qtd]) => (
-                          <li key={nome}>
-                            🏗️ {nome.charAt(0).toUpperCase() + nome.slice(1)}:{" "}
-                            {qtd}
-                          </li>
-                        )
-                      )}
-                    </ul>
+                    <h3 className="text-2xl font-semibold mb-4">Construções</h3>
+
+                    {Object.entries(
+                      Object.groupBy(
+                        Object.entries(estadoAtual.construcoes)
+                          .filter(([, qtd]) => qtd >= 1)
+                          .map(([key, qtd]) => ({
+                            key,
+                            qtd,
+                            ...buildings[key],
+                          })),
+                        (item) => item.categoria
+                      )
+                    ).map(([categoria, construcoes]) => (
+                      <div
+                        key={categoria}
+                        className="bg-slate-100 p-5 rounded-xl shadow-lg mb-6 max-w-4xl mx-auto"
+                      >
+                        <h4 className="text-xl font-bold mb-4 capitalize text-slate-800 border-b pb-1 border-slate-300">
+                          {categoria}
+                        </h4>
+
+                        <div className="space-y-3">
+                          {construcoes.map((item, idx) => (
+                            <motion.div
+                              key={item.key}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: idx * 0.1, duration: 0.4 }}
+                              className="bg-white rounded-lg shadow p-3 flex items-center gap-4 hover:shadow-md hover:scale-[1.01] transition-transform duration-300"
+                            >
+                              <img
+                                src={item.imagem}
+                                alt={item.nome}
+                                className="w-12 h-12 object-contain rounded"
+                              />
+
+                              <div className="flex-1">
+                                <h5 className="text-base font-bold text-slate-800">
+                                  {item.nome}
+                                </h5>
+                                <p className="text-sm text-gray-600">
+                                  {item.descricao}
+                                </p>
+                              </div>
+
+                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
+                                {item.qtd} construída{item.qtd > 1 && "s"}
+                              </span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </>
                 )}
 
@@ -359,20 +422,18 @@ function ParameterPanel({
             transition={{ duration: 0.3 }}
             className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
           >
-
             {/* Linha superior - Animação e título */}
             <div className="flex items-center mb-4">
               <div className="mr-4 mb-4">
                 <FireLottie speed={totalUsado} />
               </div>
               <h2 className="text-xl font-semibold">
-                Distribuição de Pontos (Máx: {MAX_PONTOS})
+                Skill Points (Máx: {MAX_PONTOS})
               </h2>
             </div>
             <p className="mb-4 text-sm text-gray-500">
               Total usado: {totalUsado} / {MAX_PONTOS}
             </p>
-
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Object.keys(distribuicao).map((campo) => (
@@ -449,18 +510,15 @@ function ParameterPanel({
             transition={{ duration: 0.3 }}
             className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
           >
-
             {/* Linha superior - Animação e título */}
             <div className="flex items-center mb-4">
               <div className="mr-1 mb-4">
-                <PopulationLottie/>
+                <PopulationLottie />
               </div>
-            <h2 className="text-xl font-bold mb-2 text-slate-800">
-              Alocação de Colonos (100%)
-            </h2>
+              <h2 className="text-xl font-bold mb-2 text-slate-800">
+                Alocação de Colonos (100%)
+              </h2>
             </div>
-
-
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {setoresOrdem.map((campo) => (
@@ -563,102 +621,103 @@ function ParameterPanel({
                   "energia",
                   "agua",
                 ].includes(abaConstrucao) && (
-                    <>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold">
-                          Construções - Setor{" "}
-                          {abaConstrucao.charAt(0).toUpperCase() +
-                            abaConstrucao.slice(1)}
-                        </h3>
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Construções - Setor{" "}
+                        {abaConstrucao.charAt(0).toUpperCase() +
+                          abaConstrucao.slice(1)}
+                      </h3>
 
-                        <Badge
-                          badgeContent={filaConstrucoes.length}
-                          color="error"
-                          showZero
+                      <Badge
+                        badgeContent={filaConstrucoes.length}
+                        color="error"
+                        showZero
+                      >
+                        <button
+                          onClick={() => setDrawerAberto(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                         >
-                          <button
-                            onClick={() => setDrawerAberto(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            <List fontSize="small" />
-                            Ver Fila
-                          </button>
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Object.entries(buildings)
-                          .filter(([_, item]) => item.categoria === abaConstrucao)
-                          .map(([key, item]) => {
-                            const temRecursos = Object.entries(item.custo).every(
-                              ([recurso, valor]) => estadoAtual[recurso] >= valor
-                            );
+                          <List fontSize="small" />
+                          Ver Fila
+                        </button>
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {Object.entries(buildings)
+                        .filter(([_, item]) => item.categoria === abaConstrucao)
+                        .map(([key, item]) => {
+                          const temRecursos = Object.entries(item.custo).every(
+                            ([recurso, valor]) => estadoAtual[recurso] >= valor
+                          );
 
-                            return (
-                              <div
-                                key={key}
-                                className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
-                              >
-                                {item.imagem && (
-                                  <div className="relative mb-3">
-                                    <motion.img
-                                      src={item.imagem}
-                                      alt={`Imagem de ${item.nome}`}
-                                      className="w-full h-40 object-cover rounded"
-                                      whileHover={{
-                                        scale: 1.1,
-                                        height: "180px",
-                                      }}
-                                      transition={{ duration: 0.3 }}
-                                    />
-                                    <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-                                      x{estadoAtual.construcoes?.[key] || 0}
-                                    </div>
+                          return (
+                            <div
+                              key={key}
+                              className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
+                            >
+                              {item.imagem && (
+                                <div className="relative mb-3">
+                                  <motion.img
+                                    src={item.imagem}
+                                    alt={`Imagem de ${item.nome}`}
+                                    className="w-full h-40 object-cover rounded"
+                                    whileHover={{
+                                      scale: 1.1,
+                                      height: "180px",
+                                    }}
+                                    transition={{ duration: 0.3 }}
+                                  />
+                                  <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                                    x{estadoAtual.construcoes?.[key] || 0}
                                   </div>
+                                </div>
+                              )}
+
+                              <h4 className="text-lg font-bold mb-1">
+                                {item.nome}
+                              </h4>
+                              <p className="text-sm text-gray-700 mb-2">
+                                {item.descricao}
+                              </p>
+
+                              <ul className="text-sm text-gray-600 mb-2">
+                                {Object.entries(item.custo).map(
+                                  ([recurso, val]) => (
+                                    <li key={recurso}>
+                                      💰 <strong>{recurso}</strong>: {val}
+                                    </li>
+                                  )
                                 )}
+                              </ul>
 
-                                <h4 className="text-lg font-bold mb-1">
-                                  {item.nome}
-                                </h4>
-                                <p className="text-sm text-gray-700 mb-2">
-                                  {item.descricao}
+                              <p className="text-sm text-gray-700 mb-2">
+                                ⏱️ Tempo de construção: {item.tempo} turno(s)
+                              </p>
+
+                              {item.efeitos?.bonusComida && (
+                                <p className="text-sm text-green-700 mb-4">
+                                  🍽️ Bônus: +{item.efeitos.bonusComida} comida
                                 </p>
+                              )}
 
-                                <ul className="text-sm text-gray-600 mb-2">
-                                  {Object.entries(item.custo).map(
-                                    ([recurso, val]) => (
-                                      <li key={recurso}>
-                                        💰 <strong>{recurso}</strong>: {val}
-                                      </li>
-                                    )
-                                  )}
-                                </ul>
-
-                                <p className="text-sm text-gray-700 mb-2">
-                                  ⏱️ Tempo de construção: {item.tempo} turno(s)
-                                </p>
-
-                                {item.efeitos?.bonusComida && (
-                                  <p className="text-sm text-green-700 mb-4">
-                                    🍽️ Bônus: +{item.efeitos.bonusComida} comida
-                                  </p>
-                                )}
-
-                                <button
-                                  onClick={() => handleConstruir(key)}
-                                  disabled={!temRecursos}
-                                  className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
+                              <button
+                                onClick={() => handleConstruir(key)}
+                                disabled={!temRecursos}
+                                className={`mt-auto px-4 py-2 rounded font-semibold ${
+                                  temRecursos
                                     ? "bg-green-600 text-white hover:bg-green-700"
                                     : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                                    } transition`}
-                                >
-                                  Construir
-                                </button>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </>
-                  )}
+                                } transition`}
+                              >
+                                Construir
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
               </motion.div>
             </AnimatePresence>
             <></>
@@ -666,12 +725,12 @@ function ParameterPanel({
         )}
 
         {abaSelecionada === "pesquisas" && (
-          <>
-            <h2 className="text-xl font-semibold mb-4">Pesquisas</h2>
-            <p className="text-gray-400">
-              Tecnologias para evoluir sua colônia.
-            </p>
-          </>
+          <div className="mt-4">
+            <h3 className="text-xl font-semibold mb-4">
+              🌱 Árvore de Evolução
+            </h3>
+            <EvolutionTree />
+          </div>
         )}
         {loading && (
           <div className="flex items-center gap-3 mt-6 text-white">
@@ -683,7 +742,7 @@ function ParameterPanel({
         <button
           onClick={() => {
             handleSubmit(); // mantém a função original
-            setModalAberto(true); // abre o modal com stepper
+            //setModalAberto(true); // abre o modal com stepper
           }}
           className="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200"
         >
@@ -784,6 +843,11 @@ function ParameterPanel({
             />
           </DialogContent>
         </Dialog>
+        <WaterAlertLottie
+          open={modalAguaAberto}
+          onClose={() => setModalAguaAberto(false)}
+          aguaNecessaria={aguaNecessaria}
+        />
       </div>
     </div>
   );
