@@ -16,6 +16,7 @@
     "@mui/material": "^7.1.2",
     "@tailwindcss/postcss": "^4.1.11",
     "@tailwindcss/vite": "^4.1.11",
+    "@xyflow/react": "^12.8.2",
     "framer-motion": "^12.23.0",
     "lottie-react": "^2.4.1",
     "react": "^19.1.0",
