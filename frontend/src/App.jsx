@@ -14,6 +14,7 @@ function App() {
   const cenarioSelecionado = scenarioList[0];
 
   const [estadoAtual, setEstadoAtual] = useState({
+    nome: "",
     turno: 1,
     integridadeEstrutural: 100,
     populacao: cenarioSelecionado.populacaoInicial,
@@ -42,6 +43,7 @@ function App() {
       coletorAtmosferico: 0,
       // depois: defesa, minas...
     },
+    pesquisa: [],
   });
 
   const [filaConstrucoes, setFilaConstrucoes] = useState([]);

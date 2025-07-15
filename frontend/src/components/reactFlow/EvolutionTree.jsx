@@ -21,19 +21,19 @@ const initialNodes = [
     id: "1",
     type: "custom",
     data: { label: "🌱 Início" },
-    position: { x: 100, y: 100 },
+    position: { x: -100, y: 100 },
   },
   {
     id: "2",
     type: "custom",
     data: { label: "💪 Força +1", cienciaNecessaria: 5 },
-    position: { x: 300, y: 50 },
+    position: { x: 300, y: 0 },
   },
   {
     id: "3",
     type: "custom",
     data: { label: "🧠 Inteligência +1", cienciaNecessaria: 10 },
-    position: { x: 300, y: 150 },
+    position: { x: 300, y: 200 },
   },
 ];
 

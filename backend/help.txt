@@ -1,0 +1,11 @@
+colonia-genesis/
+├── backend/                # API Node.js + Express + MongoDB
+│   ├── controllers/        # Lógica das rotas (ex: salvar personagem, status)
+│   ├── models/             # Schemas do MongoDB com Mongoose
+│   ├── routes/             # Rotas da API
+│   ├── services/           # Lógicas extras (ex: validações, helpers)
+│   ├── config/             # Configurações (ex: conexão MongoDB, .env)
+│   ├── app.js              # App Express principal
+│   ├── server.js           # Inicialização do servidor
+│   ├── .env                # Variáveis de ambiente
+│   └── package.json        # Dependências e scripts do backend
