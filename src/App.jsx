@@ -24,7 +24,7 @@ function App() {
     minerais: cenarioSelecionado.mineraisIniciais,
     saude: cenarioSelecionado.saude,
     sustentabilidade: 100,
-    ciencia: 0,
+    ciencia: 100,
     construcoes: {
       fazenda: 0,
       sistemaDeIrrigacao: 0,
@@ -126,6 +126,21 @@ function App() {
     showSnackbar(`✅ Construção de ${nome} iniciada!`, "success");
   };
 
+  const handleGastarCiencia = (quantidade) => {
+    if (estadoAtual.ciencia < quantidade) {
+      showSnackbar("❌ Ciência insuficiente!", "error");
+      return false; // Falha
+    }
+
+    const novoEstado = {
+      ...estadoAtual,
+      ciencia: estadoAtual.ciencia - quantidade,
+    };
+    setEstadoAtual(novoEstado);
+    showSnackbar(`✅ Você gastou ${quantidade} de ciência!`, "success");
+    return true; // Sucesso
+  };
+
   return (
     <div className="flex h-screen bg-slate-900 text-white">
       {/* Conteúdo principal */}
@@ -148,6 +163,7 @@ function App() {
             estadoAtual={estadoAtual}
             onConstruir={handleConstruir}
             filaConstrucoes={filaConstrucoes}
+            onGastarCiencia={handleGastarCiencia}
           />
         </section>
       </main>

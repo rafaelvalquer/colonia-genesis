@@ -10,33 +10,40 @@ export const CustomNode = memo(({ id, data }) => {
     <div className="bg-white rounded-lg shadow-lg p-3 w-40 text-center border-2 border-blue-500 hover:scale-105 transition-transform duration-200 relative">
       <div className="text-blue-600 font-bold text-sm">{data.label}</div>
 
-      {/* Handle de entrada: exceto para nó inicial */}
+      {/* ✅ Informação da ciência necessária (se existir) */}
+      {typeof data.cienciaNecessaria === "number" && (
+        <div className="text-gray-600 text-xs mt-1">
+          🔬 Ciência necessária: {data.cienciaNecessaria}
+        </div>
+      )}
+
+      {/* Handle de entrada (exceto para o nó inicial) */}
       {!isInicio && (
- <Handle
-  type="target"
-  id="input" // ✅ obrigatório para múltiplas conexões
-  position={Position.Left}
-  style={{
-    background: "#3b82f6",
-    width: "10px",
-    height: "10px",
-    borderRadius: "9999px",
-  }}
-/>
+        <Handle
+          type="target"
+          id="input" // ✅ obrigatório para múltiplas conexões
+          position={Position.Left}
+          style={{
+            background: "#3b82f6",
+            width: "10px",
+            height: "10px",
+            borderRadius: "9999px",
+          }}
+        />
       )}
 
       {/* Handle de saída: sempre presente */}
-<Handle
-  type="source"
-  id="output" // ✅ obrigatório para múltiplas conexões
-  position={Position.Right}
-  style={{
-    background: "#3b82f6",
-    width: "10px",
-    height: "10px",
-    borderRadius: "9999px",
-  }}
-/>
+      <Handle
+        type="source"
+        id="output" // ✅ obrigatório para múltiplas conexões
+        position={Position.Right}
+        style={{
+          background: "#3b82f6",
+          width: "10px",
+          height: "10px",
+          borderRadius: "9999px",
+        }}
+      />
     </div>
   );
 });

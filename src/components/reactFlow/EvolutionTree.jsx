@@ -1,5 +1,4 @@
-// EvolutionTree.jsx
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -8,6 +7,7 @@ import {
   useNodesState,
   useEdgesState,
   addEdge,
+  Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/base.css";
 
@@ -26,39 +26,64 @@ const initialNodes = [
   {
     id: "2",
     type: "custom",
-    data: { label: "💪 Força +1" },
+    data: { label: "💪 Força +1", cienciaNecessaria: 5 },
     position: { x: 300, y: 50 },
   },
   {
     id: "3",
     type: "custom",
-    data: { label: "🧠 Inteligência +1" },
+    data: { label: "🧠 Inteligência +1", cienciaNecessaria: 10 },
     position: { x: 300, y: 150 },
   },
 ];
 
-const initialEdges = []; // sem conexões iniciais
+//const initialEdges = []; // sem conexões iniciais
 
-export default function EvolutionTree() {
+export default function EvolutionTree({
+  initialEdges = [],
+  estadoAtual,
+  onGastarCiencia,
+}) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Apenas adiciona uma nova aresta ao conectar, sem criar nó
-const onConnect = useCallback(
-  (params) => {
-    setEdges((eds) => {
-      const hasInput = eds.some((e) => e.target === params.target);
-      const hasOutput = eds.some((e) => e.source === params.source);
+  // 👇 Estado local para controlar a ciência disponível
+  const [cienciaAtual, setCienciaAtual] = useState(estadoAtual.ciencia);
+
+  // 🔄 Atualiza caso o `estadoAtual.ciencia` mude externamente
+  useEffect(() => {
+    setCienciaAtual(estadoAtual.ciencia);
+  }, [estadoAtual.ciencia]);
+
+  const onConnect = useCallback(
+    (params) => {
+      const targetNode = nodes.find((n) => n.id === params.target);
+      const cienciaRequerida = targetNode?.data?.cienciaNecessaria || 0;
+
+      if (cienciaAtual < cienciaRequerida) {
+        alert(
+          `Você precisa de ${cienciaRequerida} de ciência para desbloquear este ponto.`
+        );
+        return;
+      }
+
+      const hasInput = edges.some((e) => e.target === params.target);
+      const hasOutput = edges.some((e) => e.source === params.source);
 
       // Impede múltiplas entradas ou saídas
       if (hasInput) {
         alert("Esse nó já tem uma entrada.");
-        return eds;
+        return;
       }
+
       if (hasOutput) {
         alert("Esse nó já tem uma saída.");
-        return eds;
+        return;
       }
+
+      // ✅ Chama o callback para gastar ciência
+      const sucesso = onGastarCiencia(cienciaRequerida);
+      if (!sucesso) return;
 
       const newEdge = {
         ...params,
@@ -68,13 +93,10 @@ const onConnect = useCallback(
         targetHandle: params.targetHandle ?? "input",
       };
 
-      return [...eds, newEdge];
-    });
-  },
-  [setEdges]
-);
-
-
+      setEdges((eds) => [...eds, newEdge]);
+    },
+    [nodes, edges, estadoAtual.ciencia, onGastarCiencia]
+  );
 
   useEffect(() => {
     const zoomLevel = 1;
@@ -109,6 +131,13 @@ const onConnect = useCallback(
       >
         <Background color="#444" gap={16} />
         <Controls />
+        {/* ✅ Mostra a inteligência no canto superior esquerdo */}
+        <Panel
+          position="top-left"
+          className="text-white text-sm bg-gray-800 p-2 rounded shadow"
+        >
+          🧠 Inteligência: {cienciaAtual}
+        </Panel>
         <MiniMap
           style={{ background: "#1f2937" }}
           nodeColor={() => "#3b82f6"}

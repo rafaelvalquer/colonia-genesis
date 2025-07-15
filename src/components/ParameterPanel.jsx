@@ -45,6 +45,11 @@ const setoresOrdem = [
   "energia",
 ];
 
+const minhasConexoes = [
+  //{ id: "e1-2", source: "1", target: "2", label: "", type: "custom" },
+  //{ id: "e1-3", source: "2", target: "3", label: "", type: "custom" },
+];
+
 const abas = [
   {
     grupo: "Visão Geral",
@@ -73,6 +78,7 @@ function ParameterPanel({
   estadoAtual,
   onConstruir,
   filaConstrucoes,
+  onGastarCiencia,
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
@@ -729,7 +735,11 @@ function ParameterPanel({
             <h3 className="text-xl font-semibold mb-4">
               🌱 Árvore de Evolução
             </h3>
-            <EvolutionTree />
+            <EvolutionTree
+              initialEdges={minhasConexoes}
+              estadoAtual={estadoAtual}
+              onGastarCiencia={onGastarCiencia}
+            />
           </div>
         )}
         {loading && (
