@@ -36,3 +36,20 @@ exports.atualizarColonia = async (req, res) => {
     res.status(500).json({ erro: "Erro ao atualizar colônia." });
   }
 };
+
+exports.buscarColoniaPorNome = async (req, res) => {
+  try {
+    const { nome } = req.params;
+    const colonia = await Colonia.findOne({ nome });
+
+    if (!colonia) {
+      return res.status(404).json({ mensagem: "Colônia não encontrada." });
+    }
+
+    res.json(colonia);
+  } catch (error) {
+    console.error("Erro ao buscar colônia:", error);
+    res.status(500).json({ mensagem: "Erro interno ao buscar colônia." });
+  }
+};
+

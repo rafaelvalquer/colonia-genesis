@@ -1,4 +1,4 @@
-// backend/routes/personagemRoutes.js
+// backend/routes/coloniaRoutes.js
 const express = require("express");
 const router = express.Router();
 const coloniaController = require("../controllers/coloniaController");
@@ -8,5 +8,8 @@ router.post("/", coloniaController.criarColonia);
 
 // PUT: Atualizar colônia existente
 router.put("/:id", coloniaController.atualizarColonia);
+
+// GET: Buscar colônia por nome
+router.get("/buscar/:nome", coloniaController.buscarColoniaPorNome);
 
 module.exports = router;
