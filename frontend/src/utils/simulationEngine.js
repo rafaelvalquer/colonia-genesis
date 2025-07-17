@@ -53,6 +53,10 @@ export function runSimulationTurn(
     comidaProduzida = comidaProduzida + construcoes.fazenda * 5;
   }
 
+    if (construcoes.sistemaDeIrrigacao > 0) {
+    comidaProduzida = comidaProduzida + construcoes.sistemaDeIrrigacao * 10;
+  }
+
   comidaProduzida = comidaProduzida - populacao;
   comida = comida + comidaProduzida;
   console.log("comidaProduzida = " + comidaProduzida);
