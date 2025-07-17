@@ -35,6 +35,12 @@ const initialNodes = [
     data: { label: "🧠 Inteligência +1", cienciaNecessaria: 10 },
     position: { x: 300, y: 200 },
   },
+  {
+    id: "4",
+    type: "custom",
+    data: { label: "🧠 Agua +1", cienciaNecessaria: 15 },
+    position: { x: 700, y: 100 },
+  },
 ];
 
 //const initialEdges = []; // sem conexões iniciais
@@ -46,6 +52,8 @@ export default function EvolutionTree({
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [conexaoPendente, setConexaoPendente] = useState(null);
+  const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
 
   // 👇 Estado local para controlar a ciência disponível
   const [cienciaAtual, setCienciaAtual] = useState(estadoAtual.ciencia);
@@ -56,7 +64,7 @@ export default function EvolutionTree({
   }, [estadoAtual.ciencia]);
 
   const onConnect = useCallback(
-    (params) => {
+    async (params) => {
       const targetNode = nodes.find((n) => n.id === params.target);
       const cienciaRequerida = targetNode?.data?.cienciaNecessaria || 0;
 
@@ -81,10 +89,6 @@ export default function EvolutionTree({
         return;
       }
 
-      // ✅ Chama o callback para gastar ciência
-      const sucesso = onGastarCiencia(cienciaRequerida);
-      if (!sucesso) return;
-
       const newEdge = {
         ...params,
         id: `e${params.source}-${params.target}-${Date.now()}`,
@@ -93,9 +97,10 @@ export default function EvolutionTree({
         targetHandle: params.targetHandle ?? "input",
       };
 
-      setEdges((eds) => [...eds, newEdge]);
+      setConexaoPendente({ edge: newEdge, ciencia: cienciaRequerida });
+      setMostrarConfirmacao(true);
     },
-    [nodes, edges, estadoAtual.ciencia, onGastarCiencia]
+    [nodes, edges, cienciaAtual, onGastarCiencia]
   );
 
   useEffect(() => {
@@ -111,8 +116,62 @@ export default function EvolutionTree({
     );
   }, [setNodes]);
 
+  useEffect(() => {
+    setNodes((nds) => {
+      const connectedNodeIds = new Set();
+      edges.forEach((edge) => {
+        connectedNodeIds.add(edge.source);
+        connectedNodeIds.add(edge.target);
+      });
+
+      return nds.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          inactive: !connectedNodeIds.has(node.id) && node.id !== "1", // não aplica no início
+        },
+      }));
+    });
+  }, [edges, setNodes]);
+
   return (
     <div className="w-full h-[500px] bg-gray-900 rounded-lg shadow p-2">
+      {mostrarConfirmacao && conexaoPendente && (
+        <div className="absolute top-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white p-4 rounded-lg shadow-lg z-50">
+          <p>
+            Deseja desbloquear este nó gastando {conexaoPendente.ciencia} de
+            ciência?
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded"
+              onClick={async () => {
+                const sucesso = await onGastarCiencia(
+                  conexaoPendente.ciencia,
+                  conexaoPendente.edge
+                );
+                if (sucesso) {
+                  setEdges((eds) => [...eds, conexaoPendente.edge]);
+                }
+                setMostrarConfirmacao(false);
+                setConexaoPendente(null);
+              }}
+            >
+              Confirmar
+            </button>
+            <button
+              className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded"
+              onClick={() => {
+                setMostrarConfirmacao(false);
+                setConexaoPendente(null);
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -136,7 +195,7 @@ export default function EvolutionTree({
           position="top-left"
           className="text-white text-sm bg-gray-800 p-2 rounded shadow"
         >
-          🧠 Inteligência: {cienciaAtual}
+          🧠 Ciência: {cienciaAtual}
         </Panel>
         <MiniMap
           style={{ background: "#1f2937" }}

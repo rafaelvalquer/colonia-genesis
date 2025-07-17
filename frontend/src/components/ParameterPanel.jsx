@@ -45,10 +45,7 @@ const setoresOrdem = [
   "energia",
 ];
 
-const minhasConexoes = [
-  //{ id: "e1-2", source: "1", target: "2", label: "", type: "custom" },
-  //{ id: "e1-3", source: "2", target: "3", label: "", type: "custom" },
-];
+//const minhasConexoes = estadoAtual.pesquisa;
 
 const abas = [
   {
@@ -736,7 +733,7 @@ function ParameterPanel({
               🌱 Árvore de Evolução
             </h3>
             <EvolutionTree
-              initialEdges={minhasConexoes}
+              initialEdges={estadoAtual.pesquisa}
               estadoAtual={estadoAtual}
               onGastarCiencia={onGastarCiencia}
             />

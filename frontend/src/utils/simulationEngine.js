@@ -20,6 +20,7 @@ export function runSimulationTurn(
     ciencia,
     turno,
     construcoes,
+    pesquisa,
   } = currentState;
 
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
@@ -31,6 +32,7 @@ export function runSimulationTurn(
     ])
   );
 
+  console.log("pesquisa = " + pesquisa);
   // -------------------
   // 1. Produções básicas com base nos pontos
   // -------------------

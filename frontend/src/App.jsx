@@ -10,10 +10,15 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Slide from "@mui/material/Slide";
 import AuthPage from "./pages/AuthPage"; // nova página de login
-import EvolutionTree from "./components/reactFlow/EvolutionTree";
 import coloniaService from "./services/coloniaService";
 
-function GamePage({ estadoAtual, setEstadoAtual, filaConstrucoes, setFilaConstrucoes, showSnackbar }) {
+function GamePage({
+  estadoAtual,
+  setEstadoAtual,
+  filaConstrucoes,
+  setFilaConstrucoes,
+  showSnackbar,
+}) {
   const handleParametrosChange = async (parametrosSelecionados) => {
     const resultado = runSimulationTurn(
       estadoAtual,
@@ -30,7 +35,10 @@ function GamePage({ estadoAtual, setEstadoAtual, filaConstrucoes, setFilaConstru
 
     // Envia para o backend (supondo que você tenha o id da colônia salvo em `coloniaId`)
     try {
-      await coloniaService.atualizarColonia(estadoAtual._id, resultado.novoEstado);
+      await coloniaService.atualizarColonia(
+        estadoAtual._id,
+        resultado.novoEstado
+      );
     } catch (err) {
       console.error("Erro ao atualizar colônia no backend:", err);
     }
@@ -57,21 +65,23 @@ function GamePage({ estadoAtual, setEstadoAtual, filaConstrucoes, setFilaConstru
     });
 
     setEstadoAtual(novoEstado);
-    setFilaConstrucoes((fila) => [...fila, { id: tipo, nome, tempoRestante: tempo }]);
+    setFilaConstrucoes((fila) => [
+      ...fila,
+      { id: tipo, nome, tempoRestante: tempo },
+    ]);
     showSnackbar(`✅ Construção de ${nome} iniciada!`, "success");
 
-        console.log(JSON.stringify(novoEstado));
+    console.log(JSON.stringify(novoEstado));
 
-        // Envia para o backend (supondo que você tenha o id da colônia salvo em `coloniaId`)
+    // Envia para o backend (supondo que você tenha o id da colônia salvo em `coloniaId`)
     try {
       await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
     } catch (err) {
       console.error("Erro ao atualizar colônia no backend:", err);
     }
-
   };
 
-  const handleGastarCiencia = async (quantidade) => {
+  const handleGastarCiencia = async (quantidade, novaConexao = null) => {
     if (estadoAtual.ciencia < quantidade) {
       showSnackbar("❌ Ciência insuficiente!", "error");
       return false;
@@ -81,10 +91,15 @@ function GamePage({ estadoAtual, setEstadoAtual, filaConstrucoes, setFilaConstru
       ...estadoAtual,
       ciencia: estadoAtual.ciencia - quantidade,
     };
+
+    // Se tiver conexão nova, já adiciona
+    if (novaConexao) {
+      novoEstado.pesquisa = [...(estadoAtual.pesquisa || []), novaConexao];
+    }
+
     setEstadoAtual(novoEstado);
     showSnackbar(`✅ Você gastou ${quantidade} de ciência!`, "success");
 
-    // Envia para o backend (supondo que você tenha o id da colônia salvo em `coloniaId`)
     try {
       await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
     } catch (err) {
@@ -98,7 +113,10 @@ function GamePage({ estadoAtual, setEstadoAtual, filaConstrucoes, setFilaConstru
     <>
       <h1 className="text-3xl font-bold text-center mb-6">Colônia Gênesis</h1>
 
-      <section id="status" className="bg-slate-800 rounded-lg p-4 flex flex-wrap justify-around mb-6 shadow-lg">
+      <section
+        id="status"
+        className="bg-slate-800 rounded-lg p-4 flex flex-wrap justify-around mb-6 shadow-lg"
+      >
         <StatusPanel estado={estadoAtual} />
       </section>
 
@@ -134,7 +152,10 @@ function App() {
       <div className="flex h-screen bg-slate-900 text-white overflow-auto">
         <main className="flex-1 p-6">
           <Routes>
-            <Route path="/" element={<AuthPage setEstadoAtual={setEstadoAtual} />} />
+            <Route
+              path="/"
+              element={<AuthPage setEstadoAtual={setEstadoAtual} />}
+            />
             <Route
               path="/jogo"
               element={
@@ -147,7 +168,9 @@ function App() {
                     showSnackbar={showSnackbar}
                   />
                 ) : (
-                  <div className="text-center text-lg">Carregando colônia...</div>
+                  <div className="text-center text-lg">
+                    Carregando colônia...
+                  </div>
                 )
               }
             />
@@ -167,8 +190,15 @@ function App() {
         >
           {snackbarQueue.map((snack) => (
             <Slide key={snack.id} direction="up" in={true}>
-              <Snackbar open={true} anchorOrigin={{ vertical: "bottom", horizontal: "left" }}>
-                <Alert severity={snack.tipo} variant="filled" sx={{ width: "100%" }}>
+              <Snackbar
+                open={true}
+                anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+              >
+                <Alert
+                  severity={snack.tipo}
+                  variant="filled"
+                  sx={{ width: "100%" }}
+                >
                   {snack.mensagem}
                 </Alert>
               </Snackbar>
