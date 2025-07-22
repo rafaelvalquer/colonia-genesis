@@ -8,6 +8,7 @@ export function runSimulationTurn(
   const log = [];
 
   let {
+    _id,
     populacao,
     energia,
     agua,
@@ -53,7 +54,7 @@ export function runSimulationTurn(
     comidaProduzida = comidaProduzida + construcoes.fazenda * 5;
   }
 
-    if (construcoes.sistemaDeIrrigacao > 0) {
+  if (construcoes.sistemaDeIrrigacao > 0) {
     comidaProduzida = comidaProduzida + construcoes.sistemaDeIrrigacao * 10;
   }
 
@@ -283,6 +284,7 @@ export function runSimulationTurn(
 
   // 5. Criar novo estado antes de aplicar efeitos
   const novoEstado = {
+    _id,
     turno,
     populacao,
     energia,
@@ -295,6 +297,7 @@ export function runSimulationTurn(
     integridadeEstrutural,
     ciencia,
     construcoes: { ...currentState.construcoes }, // Inicializa corretamente
+    pesquisa,
   };
 
   // 4. Atualizar fila e aplicar efeitos

@@ -20,25 +20,25 @@ const initialNodes = [
   {
     id: "1",
     type: "custom",
-    data: { label: "🌱 Início" },
+    data: { label: "🌱 Início", nivel: 1 },
     position: { x: -100, y: 100 },
   },
   {
     id: "2",
     type: "custom",
-    data: { label: "💪 Força +1", cienciaNecessaria: 5 },
+    data: { label: "💪 Força +1", cienciaNecessaria: 5, nivel: 2 },
     position: { x: 300, y: 0 },
   },
   {
     id: "3",
     type: "custom",
-    data: { label: "🧠 Inteligência +1", cienciaNecessaria: 10 },
+    data: { label: "🧠 Inteligência +1", cienciaNecessaria: 10, nivel: 2 },
     position: { x: 300, y: 200 },
   },
   {
     id: "4",
     type: "custom",
-    data: { label: "🧠 Agua +1", cienciaNecessaria: 15 },
+    data: { label: "🧠 Agua +1", cienciaNecessaria: 15, nivel: 3 },
     position: { x: 700, y: 100 },
   },
 ];
@@ -65,16 +65,39 @@ export default function EvolutionTree({
 
   const onConnect = useCallback(
     async (params) => {
+      const sourceNode = nodes.find((n) => n.id === params.source);
       const targetNode = nodes.find((n) => n.id === params.target);
+
+      const nivelSource = sourceNode?.data?.nivel || 0;
+      const nivelTarget = targetNode?.data?.nivel || 0;
+
       const cienciaRequerida = targetNode?.data?.cienciaNecessaria || 0;
 
-      if (cienciaAtual < cienciaRequerida) {
+      // Bloqueia conexões entre o mesmo nível
+      if (nivelSource === nivelTarget) {
+        alert("Você não pode conectar dois pontos do mesmo nível.");
+        return;
+      }
+
+      // Bloqueia conexões que pulam níveis
+      if (nivelTarget !== nivelSource + 1) {
+        alert("Você só pode conectar com o próximo nível.");
+        return;
+      }
+
+      // Verifica se o sourceNode já foi desbloqueado (tem uma entrada)
+      const sourceHasEntrada =
+        nivelSource === 1 || // se for o primeiro nível, é permitido
+        edges.some((e) => e.target === sourceNode.id);
+
+      if (!sourceHasEntrada) {
         alert(
-          `Você precisa de ${cienciaRequerida} de ciência para desbloquear este ponto.`
+          "Você não pode usar esse nó como origem porque ele ainda não foi desbloqueado."
         );
         return;
       }
 
+      // Verifica se o target já tem uma conexão de entrada
       const hasInput = edges.some((e) => e.target === params.target);
       const hasOutput = edges.some((e) => e.source === params.source);
 
@@ -86,6 +109,14 @@ export default function EvolutionTree({
 
       if (hasOutput) {
         alert("Esse nó já tem uma saída.");
+        return;
+      }
+
+      // Verifica se tem ciência suficiente
+      if (cienciaAtual < cienciaRequerida) {
+        alert(
+          `Você precisa de ${cienciaRequerida} de ciência para desbloquear este ponto.`
+        );
         return;
       }
 
