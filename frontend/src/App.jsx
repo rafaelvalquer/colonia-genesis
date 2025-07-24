@@ -48,32 +48,57 @@ function GamePage({
     const construcao = buildings[tipo];
     if (!construcao) return;
 
+    console.log("filaConstrucoes --- " + filaConstrucoes);
     const { custo, tempo, nome } = construcao;
 
-    const temRecursos = Object.entries(custo).every(
-      ([recurso, valor]) => estadoAtual[recurso] >= valor
-    );
+    const quantidadeNaFila = filaConstrucoes.filter(
+      (fc) => fc.id === tipo
+    ).length;
+    const quantidadeConstruida = estadoAtual.construcoes?.[tipo] || 0;
+
+    const multiplicador = 2 ** (quantidadeConstruida + quantidadeNaFila);
+
+    console.log("multiplicador");
+    console.log(multiplicador);
+
+    // Verifica se há recursos suficientes, limitando a água em 100
+    const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
+      const total = valor * multiplicador;
+      const valorFinal = recurso === "agua" ? Math.min(total, 100) : total;
+      return estadoAtual[recurso] >= valorFinal;
+    });
 
     if (!temRecursos) {
       showSnackbar("❌ Recursos insuficientes para construção.", "error");
       return;
     }
 
+    // Atualiza o estado com o desconto dos recursos, limitando a água
     const novoEstado = { ...estadoAtual };
     Object.entries(custo).forEach(([recurso, valor]) => {
-      novoEstado[recurso] -= valor;
+      const total = valor * multiplicador;
+      const valorFinal = recurso === "agua" ? Math.min(total, 100) : total;
+      novoEstado[recurso] -= valorFinal;
     });
 
-    setEstadoAtual(novoEstado);
-    setFilaConstrucoes((fila) => [
-      ...fila,
+    const novaFila = [
+      ...filaConstrucoes,
       { id: tipo, nome, tempoRestante: tempo },
-    ]);
+    ];
+
+    novoEstado.filaConstrucoes = novaFila;
+
+    setEstadoAtual(novoEstado);
+    setFilaConstrucoes(novaFila);
+
     showSnackbar(`✅ Construção de ${nome} iniciada!`, "success");
 
     console.log(JSON.stringify(novoEstado));
 
-    // Envia para o backend (supondo que você tenha o id da colônia salvo em `coloniaId`)
+    // 👉 Força re-render nos filhos
+    setRefresh((prev) => prev + 1);
+
+    // Envia para o backend
     try {
       await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
     } catch (err) {
@@ -126,7 +151,7 @@ function GamePage({
           populacao={estadoAtual.populacao}
           estadoAtual={estadoAtual}
           onConstruir={handleConstruir}
-          filaConstrucoes={filaConstrucoes}
+          filaConstrucoes={estadoAtual.filaConstrucoes}
           onGastarCiencia={handleGastarCiencia}
         />
       </section>
@@ -163,7 +188,7 @@ function App() {
                   <GamePage
                     estadoAtual={estadoAtual}
                     setEstadoAtual={setEstadoAtual}
-                    filaConstrucoes={filaConstrucoes}
+                    filaConstrucoes={estadoAtual.filaConstrucoes}
                     setFilaConstrucoes={setFilaConstrucoes}
                     showSnackbar={showSnackbar}
                   />

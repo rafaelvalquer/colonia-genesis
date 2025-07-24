@@ -62,18 +62,18 @@ export function runSimulationTurn(
   comida = comida + comidaProduzida;
   console.log("comidaProduzida = " + comidaProduzida);
 
-  //#region Defesa
+  /* Defesa
 
   var defesaBase = alocacaoColonos.defesa;
 
   if (pontos.defesa == 1) {
     defesaBase = defesaBase + 15; // Aumenta a defesaBase em 15%
   }
-  console.log("defesaBase = " + defesaBase);
+  console.log("defesaBase = " + defesaBase); */
 
   //Minas
 
-  var mineraisProduzidos = quantidadePorSetor.minas * 10;
+  var mineraisProduzidos = quantidadePorSetor.minas * 10 * consumoAgua;
 
   if (pontos.minas == 1) {
     mineraisProduzidos = mineraisProduzidos * 2;
@@ -83,7 +83,7 @@ export function runSimulationTurn(
 
   //Laboratorio
 
-  var cienciaProduzida = quantidadePorSetor.laboratorio / 2;
+  var cienciaProduzida = Math.floor(quantidadePorSetor.laboratorio / 2);
 
   if (pontos.laboratorio == 1) {
     cienciaProduzida = cienciaProduzida * 2;
@@ -95,6 +95,9 @@ export function runSimulationTurn(
   //Construção
 
   var reparo = Math.floor(quantidadePorSetor.construcao / 10); // cada 10% = +1
+  if (pontos.construcao == 1) {
+    reparo = reparo * 2;
+  }
   integridadeEstrutural += reparo;
 
   console.log("Reparo em % = " + reparo);
@@ -102,7 +105,7 @@ export function runSimulationTurn(
 
   //Saude
 
-  var ganhoSaude = Math.floor(quantidadePorSetor.saude / 10); // cada 10% = +1
+  var ganhoSaude = Math.floor(quantidadePorSetor.saude / 10) * consumoAgua; // cada 10% = +1
 
   // Dobrar se ponto de saúde ativo
   if (pontos.saude === 1) {
@@ -175,7 +178,7 @@ export function runSimulationTurn(
 
   if (sustentabilidade <= 25) {
     comidaProduzida = Math.floor(comidaProduzida * 0.9); // -10%
-    defesaBase = Math.floor(defesaBase * 0.9);
+    //defesaBase = Math.floor(defesaBase * 0.9);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.9);
     reparo = Math.floor(reparo * 0.9);
     agua = Math.floor(agua * 0.9);
@@ -185,7 +188,7 @@ export function runSimulationTurn(
     log.push("Baixa sustentabilidade (<= 25): Eficiência reduzida em 10%");
   } else if (sustentabilidade <= 50) {
     comidaProduzida = Math.floor(comidaProduzida * 0.95); // -5%
-    defesaBase = Math.floor(defesaBase * 0.95);
+    //defesaBase = Math.floor(defesaBase * 0.95);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.95);
     reparo = Math.floor(reparo * 0.95);
     energia = Math.floor(energia * 0.95);
@@ -194,7 +197,7 @@ export function runSimulationTurn(
     log.push("Sustentabilidade moderada (<= 50): Eficiência reduzida em 5%");
   } else if (sustentabilidade < 100) {
     comidaProduzida = Math.floor(comidaProduzida * 1.05); // +5%
-    defesaBase = Math.floor(defesaBase * 1.05);
+    //defesaBase = Math.floor(defesaBase * 1.05);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.05);
     reparo = Math.floor(reparo * 1.05);
     energia = Math.floor(energia * 1.05);
@@ -203,7 +206,7 @@ export function runSimulationTurn(
     log.push("Boa sustentabilidade (51 a 99): Eficiência aumentada em 5%");
   } else if (sustentabilidade === 100) {
     comidaProduzida = Math.floor(comidaProduzida * 1.1); // +10%
-    defesaBase = Math.floor(defesaBase * 1.1);
+    //defesaBase = Math.floor(defesaBase * 1.1);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.1);
     reparo = Math.floor(reparo * 1.1);
     energia = Math.floor(energia * 1.1);
@@ -236,7 +239,7 @@ export function runSimulationTurn(
 
   scenario.eventosProvaveis.forEach((evento) => {
     const chanceBase = evento.chance;
-    const chanceReduzida = chanceBase - defesaBase;
+    const chanceReduzida = chanceBase;
     const sorte = Math.random() * 100;
 
     if (sorte < chanceReduzida) {
@@ -244,7 +247,7 @@ export function runSimulationTurn(
       log.push(`Evento: ${evento.nome}`);
 
       if (evento.efeito === "quebra_estruturas") {
-        let dano = 10 - quantidadePorSetor.defesa;
+        let dano = 10;
 
         // Impede dano negativo
         dano = Math.max(0, dano);
@@ -282,6 +285,21 @@ export function runSimulationTurn(
   sustentabilidade = Math.max(0, Math.min(100, sustentabilidade));
   turno += 1;
 
+  // 4. Atualizar fila e aplicar efeitos
+  const novaFila = [];
+  const construcoesFinalizadas = [];
+
+  filaConstrucoes.forEach((construcao) => {
+    if (construcao.tempoRestante <= 1) {
+      construcoesFinalizadas.push(construcao);
+    } else {
+      novaFila.push({
+        ...construcao,
+        tempoRestante: construcao.tempoRestante - 1,
+      });
+    }
+  });
+
   // 5. Criar novo estado antes de aplicar efeitos
   const novoEstado = {
     _id,
@@ -298,22 +316,8 @@ export function runSimulationTurn(
     ciencia,
     construcoes: { ...currentState.construcoes }, // Inicializa corretamente
     pesquisa,
+    filaConstrucoes: novaFila,
   };
-
-  // 4. Atualizar fila e aplicar efeitos
-  const novaFila = [];
-  const construcoesFinalizadas = [];
-
-  filaConstrucoes.forEach((construcao) => {
-    if (construcao.tempoRestante <= 1) {
-      construcoesFinalizadas.push(construcao);
-    } else {
-      novaFila.push({
-        ...construcao,
-        tempoRestante: construcao.tempoRestante - 1,
-      });
-    }
-  });
 
   construcoesFinalizadas.forEach((c) => {
     const tipo = c.id;

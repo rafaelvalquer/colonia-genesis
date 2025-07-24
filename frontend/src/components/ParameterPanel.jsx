@@ -37,7 +37,7 @@ import EvolutionTree from "./reactFlow/EvolutionTree"; // ajuste o caminho confo
 const MAX_PONTOS = 3;
 const setoresOrdem = [
   "fazenda",
-  "defesa",
+  //"defesa",
   "minas",
   "laboratorio",
   "construcao",
@@ -89,12 +89,9 @@ function ParameterPanel({
   const [modalErroAgua, setModalErroAgua] = useState(false);
   const [modalAguaAberto, setModalAguaAberto] = useState(false);
   const [aguaNecessaria, setAguaNecessaria] = useState(0);
-
-  console.log("filaConstrucoes = " + JSON.stringify(filaConstrucoes));
-
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
-    defesa: 0,
+    //defesa: 0,
     minas: 0,
     laboratorio: 0,
     construcao: 0,
@@ -102,6 +99,8 @@ function ParameterPanel({
     energia: 0,
     exploracao: 0,
   });
+
+  console.log("filaConstrucoes ====", filaConstrucoes); // debugger
 
   const tooltips = {
     agricultura: "Aumenta a produção de alimentos para sua população",
@@ -126,13 +125,13 @@ function ParameterPanel({
   ];
 
   const [alocacaoColonos, setAlocacaoColonos] = useState({
-    fazenda: 15,
-    defesa: 15,
-    minas: 15,
+    fazenda: 20,
+    //defesa: 15,
+    minas: 20,
     laboratorio: 15,
     construcao: 15,
     saude: 15,
-    energia: 10,
+    energia: 15,
   });
 
   const [tempAlocacao, setTempAlocacao] = useState(alocacaoColonos);
@@ -193,12 +192,13 @@ function ParameterPanel({
 
     setLoading(true); // inicia carregamento
 
+    console.log("filaConstrucoes --- " + estadoAtual.filaConstrucoes);
     setTimeout(() => {
       onChange({
         distribuicao,
         agua: consumoAguaOpcoes[aguaIndex].value,
         alocacaoColonos,
-        filaConstrucoes,
+        filaConstrucoes: estadoAtual.filaConstrucoes,
       });
 
       setLoading(false); // encerra após aplicar
@@ -686,11 +686,27 @@ function ParameterPanel({
 
                               <ul className="text-sm text-gray-600 mb-2">
                                 {Object.entries(item.custo).map(
-                                  ([recurso, val]) => (
-                                    <li key={recurso}>
-                                      💰 <strong>{recurso}</strong>: {val}
-                                    </li>
-                                  )
+                                  ([recurso, val]) => {
+                                    const construidas =
+                                      estadoAtual.construcoes?.[key] || 0;
+                                    // Conta apenas as construções na fila que são do mesmo tipo (key)
+                                    const naFila = filaConstrucoes.filter(
+                                      (fc) => fc.id === key
+                                    ).length;
+                                    const multiplicador = construidas + naFila;
+                                    const total = val * 2 ** multiplicador;
+                                    const valorFinal =
+                                      recurso === "agua"
+                                        ? Math.min(total, 100)
+                                        : total;
+
+                                    return (
+                                      <li key={recurso}>
+                                        💰 <strong>{recurso}</strong>:{" "}
+                                        {valorFinal}
+                                      </li>
+                                    );
+                                  }
                                 )}
                               </ul>
 

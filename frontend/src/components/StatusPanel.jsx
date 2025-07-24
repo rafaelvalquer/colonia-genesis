@@ -21,13 +21,14 @@ function StatusPanel({ estado }) {
       value: `${estado.integridadeEstrutural}%`,
       icon: <FaShieldAlt />,
     },
-    { label: "População", value: estado.populacao, icon: <FaUsers /> },
-    { label: "Energia", value: estado.energia, icon: <FaBolt /> },
     {
       label: "Água",
       value: `${estado.agua}/${estado.maxAgua}`,
       icon: <FaTint />,
     },
+    { label: "População", value: estado.populacao, icon: <FaUsers /> },
+    { label: "Energia", value: estado.energia, icon: <FaBolt /> },
+
     { label: "Comida", value: estado.comida, icon: <FaDrumstickBite /> },
     { label: "Minerais", value: estado.minerais, icon: <FaHammer /> },
     { label: "Ciência", value: estado.ciencia, icon: <FaFlask /> },

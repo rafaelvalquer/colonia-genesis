@@ -9,6 +9,15 @@ const pesquisaSchema = new mongoose.Schema({
   type: String,
 });
 
+const filaConstrucaoSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    nome: { type: String, required: true },
+    tempoRestante: { type: Number, required: true },
+  },
+  { _id: false } // evita gerar um _id para cada item da fila
+);
+
 const coloniaSchema = new mongoose.Schema({
   nome: { type: String, required: true },
   turno: { type: Number, default: 1 },
@@ -40,6 +49,7 @@ const coloniaSchema = new mongoose.Schema({
     coletorAtmosferico: { type: Number, default: 0 },
   },
 
+  filaConstrucoes: [filaConstrucaoSchema],
   pesquisa: [pesquisaSchema],
 });
 

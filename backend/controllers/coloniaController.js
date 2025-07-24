@@ -37,6 +37,7 @@ exports.atualizarColonia = async (req, res) => {
   }
 };
 
+// Busca Colonia existente por nome
 exports.buscarColoniaPorNome = async (req, res) => {
   try {
     const { nome } = req.params;
@@ -52,4 +53,3 @@ exports.buscarColoniaPorNome = async (req, res) => {
     res.status(500).json({ mensagem: "Erro interno ao buscar colônia." });
   }
 };
-
