@@ -1,7 +1,7 @@
 // src/entities/Enemy.js
 
 export const enemyTypes = {
-  fraco: { hp: 3, speed: 3, cor: "#aaffaa", dano: 1 },
+  fraco: { hp: 2, speed: 3, cor: "#aaffaa", dano: 1 },
   rapido: { hp: 2, speed: 5, cor: "#ffdd55", dano: 1 },
   tanque: { hp: 8, speed: 1, cor: "#ff5555", dano: 2 },
   elite: { hp: 12, speed: 2, cor: "#cc66ff", dano: 3 }, // exemplo novo

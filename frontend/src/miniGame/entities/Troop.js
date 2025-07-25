@@ -1,32 +1,50 @@
 // src/entities/Troop.js
 
 export const troopTypes = {
-  arqueiro: {
+  colono: {
     preco: 10,
     alcance: 5,
     cooldown: 50,
-    dano: 2,
-    cor: "green",
+    dano: 1,
+    cor: "#8D6E63",
     corProjetil: "yellow",
     velocidadeProjetil: 6,
   },
-  guerreiro: {
+  marine: {
     preco: 15,
     alcance: 2,
     cooldown: 60,
     dano: 3,
-    cor: "orange",
-    corProjetil: "red",
+    cor: "#4FC3F7",
+    corProjetil: "#B3E5FC",
     velocidadeProjetil: 5,
   },
-  mago: {
+  heavy: {
     preco: 20,
     alcance: 4,
     cooldown: 80,
     dano: 4,
-    cor: "blue",
-    corProjetil: "cyan",
+    cor: "#F4511E",
+    corProjetil: "#FF8A65",
     velocidadeProjetil: 4,
+  },
+  grenadier: {
+    preco: 18,
+    alcance: 3,
+    cooldown: 90,
+    dano: 3,
+    cor: "#9CCC65",
+    corProjetil: "#C5E1A5",
+    velocidadeProjetil: 4,
+  },
+  psi: {
+    preco: 25,
+    alcance: 4,
+    cooldown: 100,
+    dano: 3,
+    cor: "#AB47BC",
+    corProjetil: "#E1BEE7",
+    velocidadeProjetil: 3,
   },
 };
 

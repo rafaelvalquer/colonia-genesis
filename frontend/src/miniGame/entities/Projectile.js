@@ -1,12 +1,14 @@
 // src/entities/Projectile.js
 
 export class Projectile {
-  constructor({ x, y, dx, row }) {
+  constructor({ x, y, dx, row, tipo, dano }) {
     this.id = Date.now();
     this.x = x;
     this.y = y;
     this.dx = dx;
     this.row = row;
+    this.tipo = tipo;
+    this.dano = dano;
     this.active = true;
   }
 
@@ -17,8 +19,12 @@ export class Projectile {
 
   checkCollision(enemy) {
     if (enemy.row === this.row && Math.abs(enemy.x - this.x) < 10) {
-      enemy.takeDamage();
+      enemy.hp -= this.dano;
       this.active = false;
+      enemy.hitTimer = 5;
+      console.log(
+        `Projectile (${this.tipo}) acertou inimigo: dano = ${this.dano}`
+      );
     }
   }
 }

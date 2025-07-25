@@ -1,11 +1,12 @@
 import { useRef, useEffect, useState } from "react";
 import { Troop, troopTypes } from "./entities/Troop";
-import { Enemy, enemyTypes } from "./entities/Enemy";
-import { Projectile } from "./entities/Projectile";
+import { Enemy } from "./entities/Enemy";
 import { waveConfig } from "./entities/WaveConfig";
 import { tileCols, tileRows, tileWidth, tileHeight } from "./entities/Tiles";
+import { CollisionManager } from "./engine/CollisionManager";
+import Button from "@mui/material/Button";
 
-const GameCanvas = () => {
+const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
   const canvasRef = useRef(null);
   const gameRef = useRef({
     tropas: [],
@@ -13,11 +14,45 @@ const GameCanvas = () => {
     projectilePool: [],
   });
 
+  const atualizarEstado = (novosDados) => {
+    const atualizado = {
+      ...estadoAtual,
+      ...novosDados,
+    };
+    onEstadoAtualChange?.(atualizado); // só chama se função estiver definida
+    // Atualiza energia local se estiver presente
+    if (novosDados.energia !== undefined) {
+      setEnergia(novosDados.energia);
+    }
+    // Se precisar sincronizar outros valores locais, adicione aqui
+  };
+
+  //console.log("População da colônia:", estadoAtual.populacao);
+  //console.log("População da colônia:", JSON.stringify(estadoAtual));
+
+  // Estado local para energia, iniciado com o valor da prop
+  const [energia, setEnergia] = useState(estadoAtual.energia);
+
+  // Sincroniza energia local caso prop mude (ex: reinício, recarga etc)
+  useEffect(() => {
+    setEnergia(estadoAtual.energia);
+  }, [estadoAtual.energia]);
+
   const [tropaSelecionada, setTropaSelecionada] = useState(null);
-  const [moedas, setMoedas] = useState(100);
   const [jogoEncerrado, setJogoEncerrado] = useState(false);
   const [onda, setOnda] = useState(1);
   const [contadorSpawn, setContadorSpawn] = useState(0);
+  const [modoPreparacao, setModoPreparacao] = useState(true);
+  const inimigosCriadosRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedTroop, setDraggedTroop] = useState(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+
+  const troopImages = {
+    colono: "https://placehold.co/50x50/4CAF50/FFFFFF?text=Arqueiro",
+    marine: "https://placehold.co/50x50/2196F3/FFFFFF?text=marine",
+    heavy: "https://placehold.co/50x50/9C27B0/FFFFFF?text=heavy",
+  };
 
   // Desenho com frame por frame
   useEffect(() => {
@@ -81,6 +116,15 @@ const GameCanvas = () => {
         ctx.restore();
       });
 
+      // Desenha a tropa sendo arrastada
+      if (isDragging && draggedTroop) {
+        const img = new Image();
+        img.src = troopImages[draggedTroop];
+        ctx.globalAlpha = 0.7;
+        ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
+        ctx.globalAlpha = 1.0;
+      }
+
       if (jogoEncerrado) {
         ctx.fillStyle = "red";
         ctx.font = "50px Arial";
@@ -91,12 +135,22 @@ const GameCanvas = () => {
     };
 
     draw();
-  }, [jogoEncerrado]);
+  }, [jogoEncerrado, isDragging, dragPosition]);
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    setDragPosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
 
   // GAME LOOP
   useEffect(() => {
     const loop = setInterval(() => {
-      if (jogoEncerrado) return;
+      if (jogoEncerrado || modoPreparacao) return;
 
       const { tropas, inimigos } = gameRef.current;
 
@@ -114,79 +168,89 @@ const GameCanvas = () => {
       }
 
       // Atualizar projéteis e colisões
-      gameRef.current.projectilePool.forEach((p) => {
-        if (!p.active) return;
-
-        p.update();
-
-        // Colisão
-        for (let i of gameRef.current.inimigos) {
-          p.checkCollision(i);
-          if (!p.active) break;
-        }
-      });
+      CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
 
       // Tropas atacam
-      tropas.forEach((t) => {
-        t.updateCooldown();
-        if (t.cooldown <= 0) {
-          const alcance = t.config.alcance;
-          const alvo = gameRef.current.inimigos.find(
-            (e) =>
-              e.row === t.row &&
-              Math.floor(e.x / tileWidth) >= t.col &&
-              Math.floor(e.x / tileWidth) <= t.col + alcance
-          );
-
-          if (alvo) {
-            const projData = t.attack(tileWidth, tileHeight);
-            projData.tipo = t.tipo;
-
-            const proj = gameRef.current.projectilePool.find((p) => !p.active);
-            if (proj) {
-              Object.assign(proj, projData);
-            } else {
-              gameRef.current.projectilePool.push(new Projectile(projData));
-            }
-          }
-        }
-      });
+      CollisionManager.tropasAtacam(gameRef.current);
 
       // Spawn de inimigos
       setContadorSpawn((contadorAnterior) => {
         const novoContador = contadorAnterior + 1;
 
-        if (novoContador >= waveConfig.frequenciaSpawn) {
+        if (
+          novoContador >= waveConfig.frequenciaSpawn &&
+          inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda)
+        ) {
           const row = Math.floor(Math.random() * tileRows);
-
-          // Pega os tipos possíveis para a onda atual
           const tiposDisponiveis = waveConfig.tiposPorOnda(onda);
-
-          // Escolhe um tipo aleatório entre os disponíveis
           const tipoAleatorio =
             tiposDisponiveis[
               Math.floor(Math.random() * tiposDisponiveis.length)
             ];
 
-          // Cria o inimigo baseado no tipo
           gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
+          inimigosCriadosRef.current += 1;
 
-          return 0; // reseta contador após spawn
+          return 0;
         }
 
         return novoContador;
       });
 
-      // Progresso de onda (a cada 30s)
-      if (Date.now() % 30000 < 100) {
+      // Verifica fim da onda
+      if (
+        !modoPreparacao &&
+        gameRef.current.inimigos.length === 0 &&
+        inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda)
+      ) {
+        setModoPreparacao(true);
         setOnda((o) => o + 1);
-        setMoedas((m) => m + 20);
+        atualizarEstado({ energia: energia + 20 });
       }
-      console.log("frameRate");
-    }, 100); // 100 = ~10 FPS - 16 = ~60 FPS
+
+      console.log("Inimigos Criados:", inimigosCriadosRef.current);
+    }, 100);
 
     return () => clearInterval(loop);
-  }, [jogoEncerrado, onda]);
+  }, [jogoEncerrado, onda, modoPreparacao]);
+
+  const handleMouseDown = (troopType) => {
+    if (energia < troopTypes[troopType].preco) return; // bloqueia se energia insuficiente
+    setIsDragging(true);
+    setDraggedTroop(troopType);
+  };
+
+  const handleMouseUp = (e) => {
+    if (!isDragging || !draggedTroop) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const col = Math.floor(x / tileWidth);
+    const row = Math.floor(y / tileHeight);
+
+    // Impede posicionar sobre outra tropa
+    const ocupado = gameRef.current.tropas.some(
+      (t) => t.row === row && t.col === col
+    );
+    if (ocupado) {
+      setIsDragging(false);
+      setDraggedTroop(null);
+      return;
+    }
+
+    if (energia < troopTypes[draggedTroop].preco) {
+      setIsDragging(false);
+      setDraggedTroop(null);
+      return;
+    }
+
+    gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
+    atualizarEstado({ energia: energia - troopTypes[draggedTroop].preco }); // desconta energia
+    setIsDragging(false);
+    setDraggedTroop(null);
+  };
 
   const handleClick = (e) => {
     if (!tropaSelecionada || jogoEncerrado) return;
@@ -204,41 +268,95 @@ const GameCanvas = () => {
     );
     if (ocupado) return;
 
-    if (moedas < troopTypes[tropaSelecionada].preco) return;
+    if (energia < troopTypes[tropaSelecionada].preco) return;
 
     gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
-
+    atualizarEstado({ energia: energia - troopTypes[tropaSelecionada].preco });
     setTropaSelecionada(null);
-    setMoedas((m) => m - troopTypes[tropaSelecionada].preco);
   };
 
   return (
     <div>
-      <div style={{ marginBottom: 10 }}>
-        <strong>Moedas: {moedas}</strong>
-        <button onClick={() => setTropaSelecionada("arqueiro")}>
-          🧝 Arqueiro (10)
-        </button>
-        <button onClick={() => setTropaSelecionada("guerreiro")}>
-          🛡 Guerreiro (15)
-        </button>
-        <button onClick={() => setTropaSelecionada("mago")}>
-          🧙 Mago (20)
-        </button>
-        <button onClick={() => setTropaSelecionada(null)}>❌ Cancelar</button>
+      <div className="mb-4">
+        <strong className="block mb-2">⚡ Energia: {energia}</strong>
+
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(troopTypes).map(([tipo, config]) => (
+            <Button
+              key={tipo}
+              variant="contained"
+              color="primary"
+              onMouseDown={() => handleMouseDown(tipo)}
+              disabled={energia < config.preco}
+              sx={{ marginRight: 1, marginBottom: 1 }}
+            >
+              {getEmoji(tipo)} {capitalize(tipo)} ({config.preco})
+            </Button>
+          ))}
+
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={() => setTropaSelecionada(null)}
+          >
+            ❌ Cancelar
+          </Button>
+        </div>
       </div>
+
       <p>
         <strong>🌀 Onda: {onda}</strong>
       </p>
+
+      {modoPreparacao && (
+        <div style={{ marginBottom: 10 }}>
+          <button
+            onClick={() => {
+              setModoPreparacao(false);
+              setContadorSpawn(0);
+              inimigosCriadosRef.current = 0;
+            }}
+            style={{
+              padding: "10px 20px",
+              fontWeight: "bold",
+              backgroundColor: "#4caf50",
+              color: "white",
+              border: "none",
+              borderRadius: "5px",
+              cursor: "pointer",
+            }}
+          >
+            ▶️ Iniciar Onda {onda}
+          </button>
+        </div>
+      )}
+
       <canvas
         ref={canvasRef}
         width={1024}
         height={576}
         style={{ background: "#202020", border: "2px solid #fff" }}
         onClick={handleClick}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
       />
     </div>
   );
 };
+
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function getEmoji(tipo) {
+  const emojis = {
+    colono: "🧑‍🌾",
+    marine: "🪖",
+    heavy: "🔫",
+    grenadier: "💣",
+    psi: "🧠",
+  };
+  return emojis[tipo] || "⚔️";
+}
 
 export default GameCanvas;
