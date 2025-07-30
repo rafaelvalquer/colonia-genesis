@@ -69,8 +69,8 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
     if (atual.energia !== undefined) {
       setEnergia(atual.energia);
+      energiaRef.current = atual.energia; // ✅ novo
     }
-
     console.log("atualizado = " + JSON.stringify(atualizado));
 
     if (sincronizarBackend) {
@@ -84,10 +84,12 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
   // Estado local para energia, iniciado com o valor da prop
   const [energia, setEnergia] = useState(estadoAtual.energia);
+  const energiaRef = useRef(energia);
 
   // Sincroniza energia local caso prop mude (ex: reinício, recarga etc)
   useEffect(() => {
     setEnergia(estadoAtual.energia);
+    energiaRef.current = estadoAtual.energia;
   }, [estadoAtual.energia]);
 
   const [tropaSelecionada, setTropaSelecionada] = useState(null);
@@ -315,8 +317,7 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
           console.log("ENERGIA = " + energia);
           if (onda >= LIMITE_DE_ONDAS) {
             // Final do jogo: atualiza energia no backend e volta
-
-            await atualizarEstado({ energia: energia }, true);
+            await atualizarEstado({ energia: energiaRef.current }, true);
 
             const novaColonia = await coloniaService.buscarColonia(
               estadoAtual.nome
@@ -376,6 +377,7 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     }
 
     gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
+    console.log("ENERGIA == " + energia);
     atualizarEstado({ energia: energia - troopTypes[draggedTroop].preco });
     setIsDragging(false);
     setDraggedTroop(null);
