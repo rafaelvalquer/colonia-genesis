@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import ParameterPanel from "./components/ParameterPanel";
 import StatusPanel from "./components/StatusPanel";
@@ -11,6 +11,8 @@ import Box from "@mui/material/Box";
 import Slide from "@mui/material/Slide";
 import AuthPage from "./pages/AuthPage"; // nova página de login
 import coloniaService from "./services/coloniaService";
+import MiniGamePage from "./pages/TowerDefensePage.jsx"; // novo
+import { useNavigate } from "react-router-dom";
 
 function GamePage({
   estadoAtual,
@@ -19,6 +21,24 @@ function GamePage({
   setFilaConstrucoes,
   showSnackbar,
 }) {
+  useEffect(() => {
+    const buscarColoniaAtualizada = async () => {
+      try {
+        const nomeSalvo = localStorage.getItem("nomeColonia"); // ou outro identificador
+        if (nomeSalvo) {
+          const novaColonia = await coloniaService.buscarColonia(nomeSalvo);
+          setEstadoAtual(novaColonia);
+          setFilaConstrucoes(novaColonia.filaConstrucoes || []);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar colônia:", err);
+        showSnackbar("❌ Erro ao carregar dados da colônia.", "error");
+      }
+    };
+
+    buscarColoniaAtualizada();
+  }, []);
+
   const handleParametrosChange = async (parametrosSelecionados) => {
     const resultado = runSimulationTurn(
       estadoAtual,
@@ -199,6 +219,8 @@ function App() {
                 )
               }
             />
+            <Route path="/minigame" element={<MiniGamePage />} />{" "}
+            {/* Adicionado */}
           </Routes>
         </main>
 

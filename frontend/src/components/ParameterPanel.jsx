@@ -33,6 +33,7 @@ import FireLottie from "./FireLottie"; // ajuste o caminho se necessário
 import PopulationLottie from "./PopulationLottie"; // ajuste o caminho se necessário
 import WaterAlertLottie from "./WaterAlertLottie"; // ajuste o caminho conforme sua estrutura
 import EvolutionTree from "./reactFlow/EvolutionTree"; // ajuste o caminho conforme a estrutura do seu projeto
+import { useNavigate } from "react-router-dom";
 
 const MAX_PONTOS = 3;
 const setoresOrdem = [
@@ -246,6 +247,8 @@ function ParameterPanel({
       <p>🎯 População satisfeita e produtiva</p>
     </>,
   ];
+
+  const navigate = useNavigate();
 
   return (
     <div className="flex flex-col md:flex-row gap-4">
@@ -845,6 +848,7 @@ function ParameterPanel({
                     if (stepAtual === steps.length - 1) {
                       setModalAberto(false); // fecha o modal no fim
                       setStepAtual(0); // reseta para o próximo uso
+                      navigate("/minigame", { state: { estadoAtual } }); // redireciona para o jogo
                     } else {
                       setStepAtual((prev) => prev + 1);
                     }

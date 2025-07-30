@@ -13,6 +13,7 @@ export default function LoginForm({ setEstadoAtual }) {
       if (colonia) {
         // salve no estado global ou redirecione
         console.log("Login OK:", colonia);
+        localStorage.setItem("nomeColonia", colonia.nome); // ou dados._id
         setEstadoAtual(colonia);
         navigate("/jogo");
       } else {

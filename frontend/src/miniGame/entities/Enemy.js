@@ -1,11 +1,8 @@
 // src/entities/Enemy.js
 
-export const enemyTypes = {
-  fraco: { hp: 2, speed: 3, cor: "#aaffaa", dano: 1 },
-  rapido: { hp: 2, speed: 5, cor: "#ffdd55", dano: 1 },
-  tanque: { hp: 8, speed: 1, cor: "#ff5555", dano: 2 },
-  elite: { hp: 12, speed: 2, cor: "#cc66ff", dano: 3 }, // exemplo novo
-};
+import { enemyTypes, enemyAnimations } from "./EnemyTypes.js";
+
+console.log("Criando inimigo do tipo:", enemyTypes);
 
 export class Enemy {
   constructor(tipo, row, x = 1024) {
@@ -21,6 +18,12 @@ export class Enemy {
     this.cor = config.cor;
     this.x = x;
     this.hitTimer = 0;
+
+    // Animação com imagens separadas
+    this.frames = enemyAnimations[tipo];
+    this.frameIndex = 0;
+    this.frameTimer = 0;
+    this.frameRate = 3; // A cada chamada de updatePosition(), frameTimer aumenta em 1. QUanto maior, mais lento a troca de frame.
   }
 
   takeDamage(dano = 1) {
@@ -34,6 +37,14 @@ export class Enemy {
 
   updatePosition() {
     this.x -= this.speed;
+
+    // animação
+    this.frameTimer++;
+    if (this.frameTimer >= this.frameRate) {
+      this.frameTimer = 0;
+      this.frameIndex = (this.frameIndex + 1) % this.frames.length;
+    }
+
     if (this.hitTimer > 0) this.hitTimer -= 1;
   }
 }

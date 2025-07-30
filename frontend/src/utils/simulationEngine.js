@@ -9,6 +9,7 @@ export function runSimulationTurn(
 
   let {
     _id,
+    nome,
     populacao,
     energia,
     agua,
@@ -303,6 +304,7 @@ export function runSimulationTurn(
   // 5. Criar novo estado antes de aplicar efeitos
   const novoEstado = {
     _id,
+    nome,
     turno,
     populacao,
     energia,
