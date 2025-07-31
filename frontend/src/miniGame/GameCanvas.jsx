@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from "react";
-import { Troop, troopTypes } from "./entities/Troop";
+import { Troop, troopTypes, troopAnimations } from "./entities/Troop";
 import { Enemy } from "./entities/Enemy";
 import { waveConfig } from "./entities/WaveConfig";
 import { tileCols, tileRows, tileWidth, tileHeight } from "./entities/Tiles";
@@ -82,16 +82,6 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     }
   };
 
-  // Estado local para energia, iniciado com o valor da prop
-  const [energia, setEnergia] = useState(estadoAtual.energia);
-  const energiaRef = useRef(energia);
-
-  // Sincroniza energia local caso prop mude (ex: reinício, recarga etc)
-  useEffect(() => {
-    setEnergia(estadoAtual.energia);
-    energiaRef.current = estadoAtual.energia;
-  }, [estadoAtual.energia]);
-
   const [tropaSelecionada, setTropaSelecionada] = useState(null);
   const [jogoEncerrado, setJogoEncerrado] = useState(false);
   const [onda, setOnda] = useState(1);
@@ -101,14 +91,23 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedTroop, setDraggedTroop] = useState(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [modoRemocao, setModoRemocao] = useState(false);
+  const [energia, setEnergia] = useState(estadoAtual.energia);
+  const energiaRef = useRef(energia);
 
-  const troopImages = {
+  // Sincroniza energia local caso prop mude (ex: reinício, recarga etc)
+  useEffect(() => {
+    setEnergia(estadoAtual.energia);
+    energiaRef.current = estadoAtual.energia;
+  }, [estadoAtual.energia]);
+
+  /* const troopImages = {
     colono: "https://placehold.co/50x50/4CAF50/FFFFFF?text=colono",
     marine: "https://placehold.co/50x50/2196F3/FFFFFF?text=marine",
     heavy: "https://placehold.co/50x50/9C27B0/FFFFFF?text=heavy",
     grenadier: "https://placehold.co/50x50/9C27B0/FFFFFF?text=grenadier",
     psi: "https://placehold.co/50x50/9C27B0/FFFFFF?text=psi",
-  };
+  }; */
 
   // Desenho com frame por frame
   useEffect(() => {
@@ -148,14 +147,29 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
       // TROPAS
       gameRef.current.tropas.forEach((t) => {
+        t.updateAnimation?.(); // chama animação por frame
+
+        const framesByState = troopAnimations[t.tipo];
+        const frames = framesByState?.[t.state];
+        if (!frames || frames.length === 0) return;
+
+        const img = frames[t.frameIndex || 0];
+        if (!img || !img.complete) return;
+
+        const escala = 1;
+        const larguraDesejada = img.width * escala;
+        const alturaDesejada = img.height * escala;
+
         const x = t.col * tileWidth + tileWidth / 2;
         const y = t.row * tileHeight + tileHeight / 2;
-        ctx.fillStyle = troopTypes[t.tipo].cor;
-        ctx.beginPath();
-        ctx.arc(x, y, 20, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.fillStyle = "white";
-        ctx.fillText(t.tipo[0].toUpperCase(), x - 5, y + 5);
+
+        ctx.drawImage(
+          img,
+          x - larguraDesejada / 2,
+          y - alturaDesejada / 2,
+          larguraDesejada,
+          alturaDesejada
+        );
       });
 
       //Inimigos
@@ -203,11 +217,14 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
       // Desenha a tropa sendo arrastada
       if (isDragging && draggedTroop) {
-        const img = new Image();
-        img.src = troopImages[draggedTroop];
-        ctx.globalAlpha = 0.7;
-        ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
-        ctx.globalAlpha = 1.0;
+        const frames = troopAnimations[draggedTroop];
+        const img = frames?.[0];
+
+        if (img && img.complete) {
+          ctx.globalAlpha = 0.7;
+          ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
+          ctx.globalAlpha = 1.0;
+        }
       }
 
       if (jogoEncerrado) {
@@ -285,13 +302,13 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
           if (podeSpawnar) {
             const row =
               linhasValidasParaSpawn[
-              Math.floor(Math.random() * linhasValidasParaSpawn.length)
+                Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
 
             const tiposDisponiveis = ["alienVermelho", "alienBege"];
             const tipoAleatorio =
               tiposDisponiveis[
-              Math.floor(Math.random() * tiposDisponiveis.length)
+                Math.floor(Math.random() * tiposDisponiveis.length)
               ];
 
             gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
@@ -334,7 +351,6 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     return () => clearInterval(loopId); // ✅ limpa corretamente o intervalo
   }, [jogoEncerrado, onda, modoPreparacao]);
 
-
   const handleMouseDown = (troopType) => {
     if (energia < troopTypes[troopType].preco) return; // bloqueia se energia insuficiente
     setIsDragging(true);
@@ -374,13 +390,15 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
     gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
     console.log("ENERGIA == " + JSON.stringify(energiaRef));
-    atualizarEstado({ energia: energiaRef.current - troopTypes[draggedTroop].preco });
+    atualizarEstado({
+      energia: energiaRef.current - troopTypes[draggedTroop].preco,
+    });
     setIsDragging(false);
     setDraggedTroop(null);
   };
 
   const handleClick = (e) => {
-    if (!tropaSelecionada || jogoEncerrado) return;
+    if (jogoEncerrado) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -389,7 +407,25 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     const col = Math.floor(x / tileWidth);
     const row = Math.floor(y / tileHeight);
 
-    if (!estaNaAreaDeCombate(row, col)) return; // 🔒 fora da área de combate
+    if (!estaNaAreaDeCombate(row, col)) return;
+
+    if (modoRemocao) {
+      const index = gameRef.current.tropas.findIndex(
+        (t) => t.row === row && t.col === col
+      );
+
+      if (index !== -1) {
+        const tipo = gameRef.current.tropas[index].tipo;
+        gameRef.current.tropas.splice(index, 1);
+        const energiaRecuperada = Math.floor(troopTypes[tipo].preco / 2);
+        atualizarEstado({ energia: energiaRef.current + energiaRecuperada });
+      }
+
+      setModoRemocao(false); // sair do modo após clique
+      return;
+    }
+
+    if (!tropaSelecionada) return;
 
     const ocupado = gameRef.current.tropas.some(
       (t) => t.row === row && t.col === col
@@ -399,7 +435,9 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     if (energia < troopTypes[tropaSelecionada].preco) return;
 
     gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
-    atualizarEstado({ energia: energiaRef.current - troopTypes[tropaSelecionada].preco });
+    atualizarEstado({
+      energia: energiaRef.current - troopTypes[tropaSelecionada].preco,
+    });
     setTropaSelecionada(null);
   };
 
@@ -426,10 +464,13 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
           <Button
             variant="outlined"
-            color="secondary"
-            onClick={() => setTropaSelecionada(null)}
+            color="error"
+            onClick={() => {
+              setModoRemocao(true);
+              setTropaSelecionada(null); // desfaz seleção de compra
+            }}
           >
-            ❌ Cancelar
+            💥 Remover Tropa
           </Button>
         </div>
 
