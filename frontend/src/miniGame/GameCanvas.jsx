@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { Troop, troopTypes } from "./entities/Troop";
 import { Enemy } from "./entities/Enemy";
 import { waveConfig } from "./entities/WaveConfig";
@@ -57,7 +57,7 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
   const atualizarEstado = async (novosDados, sincronizarBackend = false) => {
     const atual =
       typeof novosDados === "function"
-        ? novosDados({ ...estadoAtual, energia })
+        ? novosDados({ ...estadoAtual, energia: energiaRef.current })
         : novosDados;
 
     const atualizado = {
@@ -69,7 +69,7 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
 
     if (atual.energia !== undefined) {
       setEnergia(atual.energia);
-      energiaRef.current = atual.energia; // ✅ novo
+      energiaRef.current = atual.energia;
     }
     console.log("atualizado = " + JSON.stringify(atualizado));
 
@@ -115,18 +115,10 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
+    let animationId;
+
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      /* // GRID
-      for (let row = 0; row < tileRows; row++) {
-        for (let col = 0; col < tileCols; col++) {
-          const x = col * tileWidth;
-          const y = row * tileHeight;
-          ctx.strokeStyle = "#444";
-          ctx.strokeRect(x, y, tileWidth, tileHeight);
-        }
-      } */
 
       //Mapa Canvas
       for (let row = 0; row < tileRows; row++) {
@@ -224,10 +216,11 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
         ctx.fillText("GAME OVER", 400, 288);
       }
 
-      requestAnimationFrame(draw); // inicia o loop após carregar
+      animationId = requestAnimationFrame(draw); // apenas aqui
     };
 
-    draw();
+    animationId = requestAnimationFrame(draw); // chama uma vez fora
+    return () => cancelAnimationFrame(animationId);
   }, [jogoEncerrado, isDragging, dragPosition]);
 
   const handleMouseMove = (e) => {
@@ -272,9 +265,10 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
         // Fim de jogo
         if (gameRef.current.inimigos.some((e) => e.x <= 50)) {
           setJogoEncerrado(true);
+          return;
         }
 
-        // Atualizar projéteis e colisões
+        // Atualizar projéteis e verificar colisões
         CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
 
         // Tropas atacam
@@ -284,39 +278,41 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
         setContadorSpawn((contadorAnterior) => {
           const novoContador = contadorAnterior + 1;
 
-          if (
+          const podeSpawnar =
             novoContador >= waveConfig.frequenciaSpawn &&
-            inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda)
-          ) {
+            inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda);
+
+          if (podeSpawnar) {
             const row =
               linhasValidasParaSpawn[
-                Math.floor(Math.random() * linhasValidasParaSpawn.length)
+              Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
 
             const tiposDisponiveis = ["alienVermelho", "alienBege"];
             const tipoAleatorio =
               tiposDisponiveis[
-                Math.floor(Math.random() * tiposDisponiveis.length)
+              Math.floor(Math.random() * tiposDisponiveis.length)
               ];
 
             gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
             inimigosCriadosRef.current += 1;
 
-            return 0;
+            return 0; // zera o contador de spawn
           }
 
           return novoContador;
         });
 
         // Verifica fim da onda
-        if (
-          !modoPreparacao &&
-          gameRef.current.inimigos.length === 0 &&
-          inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda)
-        ) {
-          console.log("ENERGIA = " + energia);
+        const todosInimigosMortos = gameRef.current.inimigos.length === 0;
+        const todosInimigosGerados =
+          inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
+
+        if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
+          console.log("ENERGIA = " + energiaRef.current);
+
           if (onda >= LIMITE_DE_ONDAS) {
-            // Final do jogo: atualiza energia no backend e volta
+            // Final do jogo: atualiza energia e retorna
             await atualizarEstado({ energia: energiaRef.current }, true);
 
             const novaColonia = await coloniaService.buscarColonia(
@@ -328,16 +324,16 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
             // Próxima onda
             setModoPreparacao(true);
             setOnda((o) => o + 1);
-            //atualizarEstado({ energia: energia });
           }
         }
 
         console.log("Inimigos Criados:", inimigosCriadosRef.current);
       })();
-    }, 64); // taxa de atualização do jogo
+    }, 32); // Frame rate
 
-    return () => clearInterval(loopId);
+    return () => clearInterval(loopId); // ✅ limpa corretamente o intervalo
   }, [jogoEncerrado, onda, modoPreparacao]);
+
 
   const handleMouseDown = (troopType) => {
     if (energia < troopTypes[troopType].preco) return; // bloqueia se energia insuficiente
@@ -377,8 +373,8 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     }
 
     gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
-    console.log("ENERGIA == " + energia);
-    atualizarEstado({ energia: energia - troopTypes[draggedTroop].preco });
+    console.log("ENERGIA == " + JSON.stringify(energiaRef));
+    atualizarEstado({ energia: energiaRef.current - troopTypes[draggedTroop].preco });
     setIsDragging(false);
     setDraggedTroop(null);
   };
@@ -403,7 +399,7 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     if (energia < troopTypes[tropaSelecionada].preco) return;
 
     gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
-    atualizarEstado({ energia: energia - troopTypes[tropaSelecionada].preco });
+    atualizarEstado({ energia: energiaRef.current - troopTypes[tropaSelecionada].preco });
     setTropaSelecionada(null);
   };
 
