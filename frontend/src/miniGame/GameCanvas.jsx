@@ -215,17 +215,18 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
         ctx.restore();
       });
 
-      // Desenha a tropa sendo arrastada
-      if (isDragging && draggedTroop) {
-        const frames = troopAnimations[draggedTroop];
-        const img = frames?.[0];
+// Desenha a tropa sendo arrastada
+if (isDragging && draggedTroop) {
+  const frames = troopAnimations[draggedTroop]?.idle;
+  const img = frames?.[0];
 
-        if (img && img.complete) {
-          ctx.globalAlpha = 0.7;
-          ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
-          ctx.globalAlpha = 1.0;
-        }
-      }
+  if (img && img.complete) {
+    ctx.globalAlpha = 0.7;
+    ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
+    ctx.globalAlpha = 1.0;
+  }
+}
+
 
       if (jogoEncerrado) {
         ctx.fillStyle = "red";
