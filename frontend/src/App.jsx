@@ -64,6 +64,40 @@ function GamePage({
     }
   };
 
+  const handleCriarPopulacao = async (item) => {
+    const { nome, custo } = item;
+
+    // Verifica se há recursos suficientes (custo fixo)
+    const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
+      const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
+      return estadoAtual[recurso] >= valorFinal;
+    });
+
+    if (!temRecursos) {
+      showSnackbar("❌ Recursos insuficientes para criar população.", "error");
+      return;
+    }
+
+    // Desconta os recursos
+    const novoEstado = { ...estadoAtual };
+    Object.entries(custo).forEach(([recurso, valor]) => {
+      const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
+      novoEstado[recurso] -= valorFinal;
+    });
+
+    // Incrementa população total
+    novoEstado.populacao = (estadoAtual.populacao || 0) + 1;
+
+    setEstadoAtual(novoEstado);
+    showSnackbar(`✅ ${nome} criado com sucesso!`, "success");
+
+    try {
+      await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
+    } catch (err) {
+      console.error("Erro ao atualizar colônia no backend:", err);
+    }
+  };
+
   const handleConstruir = async (tipo) => {
     const construcao = buildings[tipo];
     if (!construcao) return;
@@ -114,9 +148,6 @@ function GamePage({
     showSnackbar(`✅ Construção de ${nome} iniciada!`, "success");
 
     console.log(JSON.stringify(novoEstado));
-
-    // 👉 Força re-render nos filhos
-    setRefresh((prev) => prev + 1);
 
     // Envia para o backend
     try {
@@ -173,6 +204,7 @@ function GamePage({
           onConstruir={handleConstruir}
           filaConstrucoes={estadoAtual.filaConstrucoes}
           onGastarCiencia={handleGastarCiencia}
+          onCriarPopulacao={handleCriarPopulacao}
         />
       </section>
     </>

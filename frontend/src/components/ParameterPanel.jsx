@@ -34,6 +34,10 @@ import PopulationLottie from "./PopulationLottie"; // ajuste o caminho se necess
 import WaterAlertLottie from "./WaterAlertLottie"; // ajuste o caminho conforme sua estrutura
 import EvolutionTree from "./reactFlow/EvolutionTree"; // ajuste o caminho conforme a estrutura do seu projeto
 import { useNavigate } from "react-router-dom";
+import IconVisaoGeral from "./icons/IconVisaoGeral";
+import IconParametros from "./icons/IconParametros";
+import IconDesenvolvimento from "./icons/IconDesenvolvimento";
+import IconPopulacao from "./icons/IconPopulacao";
 
 const MAX_PONTOS = 3;
 const setoresOrdem = [
@@ -51,10 +55,12 @@ const setoresOrdem = [
 const abas = [
   {
     grupo: "Visão Geral",
+    icone: <IconVisaoGeral />,
     itens: [{ id: "central", label: "Central de Comando" }],
   },
   {
     grupo: "Parâmetros",
+    icone: <IconParametros />,
     itens: [
       { id: "distribuicao", label: "Skill Points" },
       { id: "agua", label: "Consumo de Água" },
@@ -63,9 +69,18 @@ const abas = [
   },
   {
     grupo: "Desenvolvimento",
+    icone: <IconDesenvolvimento />,
     itens: [
       { id: "construcoes", label: "Construções" },
       { id: "pesquisas", label: "Pesquisas" },
+    ],
+  },
+  {
+    grupo: "População & Tropas",
+    icone: <IconPopulacao />,
+    itens: [
+      { id: "criacaoPopulacao", label: "População" },
+      { id: "novasTropas", label: "Treinar Tropas" },
     ],
   },
 ];
@@ -77,6 +92,7 @@ function ParameterPanel({
   onConstruir,
   filaConstrucoes,
   onGastarCiencia,
+  onCriarPopulacao,
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
@@ -90,6 +106,7 @@ function ParameterPanel({
   const [modalErroAgua, setModalErroAgua] = useState(false);
   const [modalAguaAberto, setModalAguaAberto] = useState(false);
   const [aguaNecessaria, setAguaNecessaria] = useState(0);
+  const [colonos, setColonos] = useState(10);
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
     //defesa: 0,
@@ -100,6 +117,19 @@ function ParameterPanel({
     energia: 0,
     exploracao: 0,
   });
+
+  const populacoes = [
+    {
+      id: "populacao",
+      nome: "Colono",
+      descricao: "Trabalhador comum que pode ser alocado em funções básicas.",
+      imagem: "/imagens/colono.png", // troque pela sua imagem real
+      custo: {
+        comida: 20,
+        agua: 15,
+      },
+    },
+  ];
 
   console.log("filaConstrucoes ====", filaConstrucoes); // debugger
 
@@ -141,6 +171,10 @@ function ParameterPanel({
 
   const handleSliderChange = (campo, novoValor) => {
     setTempAlocacao((old) => ({ ...old, [campo]: novoValor }));
+  };
+
+  const handleCriarPopulacao = (item) => {
+    onCriarPopulacao(item); // <- apenas isso
   };
 
   const handleSliderChangeCommitted = (campo, novoValor) => {
@@ -256,7 +290,8 @@ function ParameterPanel({
       <aside className="w-full md:w-60 bg-slate-800 rounded-lg p-4 shadow-lg overflow-y-auto max-h-[600px]">
         {abas.map((grupo) => (
           <div key={grupo.grupo} className="mb-6">
-            <h3 className="text-sm font-bold text-gray-300 mb-2 uppercase tracking-widest">
+            <h3 className="text-sm font-bold text-gray-300 mb-2 uppercase tracking-widest flex items-center">
+              {grupo.icone}
               {grupo.grupo}
             </h3>
             <ul className="flex flex-col gap-2 border-l border-gray-600 pl-3">
@@ -264,7 +299,7 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 ${
+                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${
                       abaSelecionada === aba.id
                         ? "border-blue-400 text-white font-semibold"
                         : "border-transparent text-gray-400 hover:text-white"
@@ -758,6 +793,84 @@ function ParameterPanel({
             />
           </div>
         )}
+
+        {abaSelecionada === "criacaoPopulacao" && (
+          <motion.div
+            key="criacaoPopulacao"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
+          >
+            <div className="mb-4">
+              <h3 className="text-xl font-bold">Criação de População</h3>
+              <p className="text-sm text-gray-600">
+                Recrute colonos e tropas imediatamente para fortalecer sua
+                colônia.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {populacoes.map((item, index) => {
+                const temRecursos = Object.entries(item.custo).every(
+                  ([recurso, valor]) => estadoAtual[recurso] >= valor
+                );
+
+                return (
+                  <div
+                    key={index}
+                    className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
+                  >
+                    {item.imagem && (
+                      <div className="relative mb-3">
+                        <motion.img
+                          src={item.imagem}
+                          alt={`Imagem de ${item.nome}`}
+                          className="w-full h-40 object-cover rounded"
+                          whileHover={{
+                            scale: 1.1,
+                            height: "180px",
+                          }}
+                          transition={{ duration: 0.3 }}
+                        />
+                        <div className="absolute top-2 right-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                          x{estadoAtual.populacao || 0}
+                        </div>
+                      </div>
+                    )}
+
+                    <h4 className="text-lg font-bold mb-1">{item.nome}</h4>
+                    <p className="text-sm text-gray-700 mb-2">
+                      {item.descricao}
+                    </p>
+
+                    <ul className="text-sm text-gray-600 mb-2">
+                      {Object.entries(item.custo).map(([recurso, valor]) => (
+                        <li key={recurso}>
+                          💰 <strong>{recurso}</strong>: {valor}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <button
+                      onClick={() => handleCriarPopulacao(item)}
+                      disabled={!temRecursos}
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${
+                        temRecursos
+                          ? "bg-purple-600 text-white hover:bg-purple-700"
+                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                      } transition`}
+                    >
+                      Criar
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
         {loading && (
           <div className="flex items-center gap-3 mt-6 text-white">
             <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
