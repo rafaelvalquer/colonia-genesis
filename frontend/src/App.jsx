@@ -64,8 +64,8 @@ function GamePage({
     }
   };
 
-  const handleCriarPopulacao = async (item) => {
-    const { nome, custo } = item;
+  const handleCriarTropa = async (item) => {
+    const { id, nome, custo } = item;
 
     // Verifica se há recursos suficientes (custo fixo)
     const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
@@ -74,7 +74,7 @@ function GamePage({
     });
 
     if (!temRecursos) {
-      showSnackbar("❌ Recursos insuficientes para criar população.", "error");
+      showSnackbar("❌ Recursos insuficientes para criar tropa.", "error");
       return;
     }
 
@@ -85,18 +85,20 @@ function GamePage({
       novoEstado[recurso] -= valorFinal;
     });
 
-    // Incrementa população total
-    novoEstado.populacao = (estadoAtual.populacao || 0) + 1;
+    // Incrementa a tropa correspondente
+    novoEstado.populacao[id] = (novoEstado.populacao[id] || 0) + 1;
 
     setEstadoAtual(novoEstado);
     showSnackbar(`✅ ${nome} criado com sucesso!`, "success");
 
+    console.log(novoEstado);
     try {
       await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
     } catch (err) {
       console.error("Erro ao atualizar colônia no backend:", err);
     }
   };
+
 
   const handleConstruir = async (tipo) => {
     const construcao = buildings[tipo];
@@ -204,7 +206,7 @@ function GamePage({
           onConstruir={handleConstruir}
           filaConstrucoes={estadoAtual.filaConstrucoes}
           onGastarCiencia={handleGastarCiencia}
-          onCriarPopulacao={handleCriarPopulacao}
+          onCriarTropa={handleCriarTropa}
         />
       </section>
     </>

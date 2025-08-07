@@ -101,14 +101,6 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     energiaRef.current = estadoAtual.energia;
   }, [estadoAtual.energia]);
 
-  /* const troopImages = {
-    colono: "https://placehold.co/50x50/4CAF50/FFFFFF?text=colono",
-    marine: "https://placehold.co/50x50/2196F3/FFFFFF?text=marine",
-    heavy: "https://placehold.co/50x50/9C27B0/FFFFFF?text=heavy",
-    grenadier: "https://placehold.co/50x50/9C27B0/FFFFFF?text=grenadier",
-    psi: "https://placehold.co/50x50/9C27B0/FFFFFF?text=psi",
-  }; */
-
   // Desenho com frame por frame
   useEffect(() => {
     const canvas = canvasRef.current;

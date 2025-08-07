@@ -22,7 +22,11 @@ const coloniaSchema = new mongoose.Schema({
   nome: { type: String, required: true },
   turno: { type: Number, default: 1 },
   integridadeEstrutural: { type: Number, default: 100 },
-  populacao: { type: Number, required: true },
+  populacao: {
+    colonos: { type: Number, default: 0 },
+    exploradores: { type: Number, default: 0 },
+    marines: { type: Number, default: 0 },
+  },
   energia: { type: Number, required: true },
   agua: { type: Number, required: true },
   maxAgua: { type: Number, default: 100 },
