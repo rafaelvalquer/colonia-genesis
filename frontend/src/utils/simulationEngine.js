@@ -30,7 +30,7 @@ export function runSimulationTurn(
   const quantidadePorSetor = Object.fromEntries(
     Object.entries(alocacaoColonos).map(([setor, porcentagem]) => [
       setor,
-      Math.ceil((porcentagem / 100) * populacao),
+      Math.ceil((porcentagem / 100) * populacao.colonos),
     ])
   );
 
@@ -59,7 +59,7 @@ export function runSimulationTurn(
     comidaProduzida = comidaProduzida + construcoes.sistemaDeIrrigacao * 10;
   }
 
-  comidaProduzida = comidaProduzida - populacao;
+  comidaProduzida = comidaProduzida - populacao.colonos;
   comida = comida + comidaProduzida;
   console.log("comidaProduzida = " + comidaProduzida);
 
@@ -274,12 +274,12 @@ export function runSimulationTurn(
 
   integridadeEstrutural = Math.min(100, Math.max(0, integridadeEstrutural));
 
-  if (comida < populacao) {
-    populacao -= 5;
+  if (comida < populacao.colonos) {
+    populacao.colonos -= 5;
     saude -= 10;
     log.push("Fome! A população e saúde caíram.");
   } else {
-    populacao += 2;
+    populacao.colonos += 2;
   }
 
   saude = Math.max(0, Math.min(100, saude));
