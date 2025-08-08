@@ -42,7 +42,7 @@ tileImages.chao.src = chao;
 tileImages.chaoD.src = chaoD;
 tileImages.chaoE.src = chaoE;
 
-const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
+const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const canvasRef = useRef(null);
   const gameRef = useRef({
     tropas: [],
@@ -63,9 +63,14 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
     const atualizado = {
       ...estadoAtual,
       ...atual,
+      populacao: {
+        ...estadoAtual.populacao,
+        ...(atual.populacao || {}),
+      },
     };
 
-    onEstadoAtualChange?.(atualizado);
+    //onEstadoAtualChange?.(atualizado);
+
 
     if (atual.energia !== undefined) {
       setEnergia(atual.energia);
@@ -207,17 +212,17 @@ const GameCanvas = ({ estadoAtual, onEstadoAtualChange }) => {
         ctx.restore();
       });
 
-// Desenha a tropa sendo arrastada
-if (isDragging && draggedTroop) {
-  const frames = troopAnimations[draggedTroop]?.idle;
-  const img = frames?.[0];
+      // Desenha a tropa sendo arrastada
+      if (isDragging && draggedTroop) {
+        const frames = troopAnimations[draggedTroop]?.idle;
+        const img = frames?.[0];
 
-  if (img && img.complete) {
-    ctx.globalAlpha = 0.7;
-    ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
-    ctx.globalAlpha = 1.0;
-  }
-}
+        if (img && img.complete) {
+          ctx.globalAlpha = 0.7;
+          ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
+          ctx.globalAlpha = 1.0;
+        }
+      }
 
 
       if (jogoEncerrado) {
@@ -295,13 +300,13 @@ if (isDragging && draggedTroop) {
           if (podeSpawnar) {
             const row =
               linhasValidasParaSpawn[
-                Math.floor(Math.random() * linhasValidasParaSpawn.length)
+              Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
 
             const tiposDisponiveis = ["alienVermelho", "alienBege"];
             const tipoAleatorio =
               tiposDisponiveis[
-                Math.floor(Math.random() * tiposDisponiveis.length)
+              Math.floor(Math.random() * tiposDisponiveis.length)
               ];
 
             gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
@@ -383,9 +388,33 @@ if (isDragging && draggedTroop) {
 
     gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
     console.log("ENERGIA == " + JSON.stringify(energiaRef));
+
+    const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
+    const novaPopulacao = { ...estadoAtual.populacao };
+
+    if (draggedTroop === "colono" && novaPopulacao.colonos > 0) {
+      novaPopulacao.colonos -= 1;
+      estadoAtual.populacao.colonos -= 1;
+    } else if (draggedTroop === "marine" && novaPopulacao.marines > 0) {
+      novaPopulacao.marines -= 1;
+      estadoAtual.populacao.marines -= 1;
+    }
+
+    // Aqui criamos um novo objeto de estado (sem mutar o antigo)
+    const novoEstado = {
+      ...estadoAtual,
+      energia: novaEnergia,
+      populacao: novaPopulacao,
+    };
+
+    onEstadoChange(novoEstado); // Dispara re-render do HUD
+
+
     atualizarEstado({
-      energia: energiaRef.current - troopTypes[draggedTroop].preco,
-    });
+      energia: novaEnergia,
+      populacao: novaPopulacao,
+    }, true);
+
     setIsDragging(false);
     setDraggedTroop(null);
   };
@@ -410,8 +439,35 @@ if (isDragging && draggedTroop) {
       if (index !== -1) {
         const tipo = gameRef.current.tropas[index].tipo;
         gameRef.current.tropas.splice(index, 1);
-        const energiaRecuperada = Math.floor(troopTypes[tipo].preco / 2);
-        atualizarEstado({ energia: energiaRef.current + energiaRecuperada });
+        const novaEnergia = Math.floor(troopTypes[tipo].preco / 2);
+
+        // Clona população atual
+        const novaPopulacao = { ...estadoAtual.populacao };
+
+        // Ajusta o tipo removido
+        if (tipo === "colono") {
+          novaPopulacao.colonos += 1;
+          estadoAtual.populacao.colonos += 1;
+        } else if (tipo === "marine") {
+          novaPopulacao.marines += 1;
+          estadoAtual.populacao.marines += 1;
+        }
+
+        // Aqui criamos um novo objeto de estado (sem mutar o antigo)
+        const novoEstado = {
+          ...estadoAtual,
+          energia: novaEnergia,
+          populacao: novaPopulacao,
+        };
+
+        onEstadoChange(novoEstado); // Dispara re-render do HUD
+
+
+        // Atualiza estado
+        atualizarEstado({
+          energia: energiaRef.current + novaEnergia,
+          populacao: novaPopulacao,
+        }, true);
       }
 
       setModoRemocao(false); // sair do modo após clique
@@ -428,9 +484,35 @@ if (isDragging && draggedTroop) {
     if (energia < troopTypes[tropaSelecionada].preco) return;
 
     gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
+
+    const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
+    const novaPopulacao = { ...estadoAtual.populacao };
+
+    if (draggedTroop === "colono" && novaPopulacao.colonos > 0) {
+      novaPopulacao.colonos -= 1;
+      estadoAtual.populacao.colonos -= 1;
+    } else if (draggedTroop === "marine" && novaPopulacao.marines > 0) {
+      novaPopulacao.marines -= 1;
+      estadoAtual.populacao.marines -= 1;
+    }
+
+    // Aqui criamos um novo objeto de estado (sem mutar o antigo)
+    const novoEstado = {
+      ...estadoAtual,
+      energia: novaEnergia,
+      populacao: novaPopulacao,
+    };
+
+    onEstadoChange(novoEstado); // Dispara re-render do HUD
+
+
+
     atualizarEstado({
-      energia: energiaRef.current - troopTypes[tropaSelecionada].preco,
-    });
+      energia: novaEnergia,
+      populacao: novaPopulacao,
+    }, true);
+
+
     setTropaSelecionada(null);
   };
 
@@ -449,7 +531,11 @@ if (isDragging && draggedTroop) {
               variant="contained"
               color="primary"
               onMouseDown={() => handleMouseDown(tipo)}
-              disabled={energia < config.preco}
+              disabled={
+                energia < config.preco ||
+                (tipo === "colono" && estadoAtual.populacao.colonos <= 0) ||
+                (tipo === "marine" && estadoAtual.populacao.marines <= 0)
+              }
             >
               {getEmoji(tipo)} {capitalize(tipo)} ({config.preco})
             </Button>
