@@ -71,7 +71,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     //onEstadoAtualChange?.(atualizado);
 
-
     if (atual.energia !== undefined) {
       setEnergia(atual.energia);
       energiaRef.current = atual.energia;
@@ -224,7 +223,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         }
       }
 
-
       if (jogoEncerrado) {
         ctx.fillStyle = "red";
         ctx.font = "50px Arial";
@@ -300,13 +298,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           if (podeSpawnar) {
             const row =
               linhasValidasParaSpawn[
-              Math.floor(Math.random() * linhasValidasParaSpawn.length)
+                Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
 
             const tiposDisponiveis = ["alienVermelho", "alienBege"];
             const tipoAleatorio =
               tiposDisponiveis[
-              Math.floor(Math.random() * tiposDisponiveis.length)
+                Math.floor(Math.random() * tiposDisponiveis.length)
               ];
 
             gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
@@ -333,7 +331,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             const novaColonia = await coloniaService.buscarColonia(
               estadoAtual.nome
             );
-            onEstadoAtualChange?.(novaColonia);
+            onEstadoChange?.(novaColonia);
             navigate("/jogo");
           } else {
             // Próxima onda
@@ -409,11 +407,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     onEstadoChange(novoEstado); // Dispara re-render do HUD
 
-
-    atualizarEstado({
-      energia: novaEnergia,
-      populacao: novaPopulacao,
-    }, true);
+    atualizarEstado(
+      {
+        energia: novaEnergia,
+        populacao: novaPopulacao,
+      },
+      true
+    );
 
     setIsDragging(false);
     setDraggedTroop(null);
@@ -462,12 +462,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         onEstadoChange(novoEstado); // Dispara re-render do HUD
 
-
         // Atualiza estado
-        atualizarEstado({
-          energia: energiaRef.current + novaEnergia,
-          populacao: novaPopulacao,
-        }, true);
+        atualizarEstado(
+          {
+            energia: energiaRef.current + novaEnergia,
+            populacao: novaPopulacao,
+          },
+          true
+        );
       }
 
       setModoRemocao(false); // sair do modo após clique
@@ -505,13 +507,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     onEstadoChange(novoEstado); // Dispara re-render do HUD
 
-
-
-    atualizarEstado({
-      energia: novaEnergia,
-      populacao: novaPopulacao,
-    }, true);
-
+    atualizarEstado(
+      {
+        energia: novaEnergia,
+        populacao: novaPopulacao,
+      },
+      true
+    );
 
     setTropaSelecionada(null);
   };

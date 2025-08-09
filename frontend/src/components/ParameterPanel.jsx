@@ -128,6 +128,17 @@ function ParameterPanel({
         agua: 15,
       },
     },
+    {
+      id: "exploradores",
+      nome: "Explorador",
+      descricao:
+        "Aventureiro treinado para desbravar novos territórios, coletar recursos e mapear áreas desconhecidas.",
+      imagem: "/images/explorador.png", // caminho para a imagem que geramos
+      custo: {
+        comida: 35,
+        agua: 25,
+      },
+    },
   ];
 
   const tropas = [
@@ -164,7 +175,6 @@ function ParameterPanel({
       },
     },
   ];
-
 
   console.log("filaConstrucoes ====", filaConstrucoes); // debugger
 
@@ -210,7 +220,6 @@ function ParameterPanel({
   const handleCriarTropa = (item) => {
     onCriarTropa(item); // <- apenas isso
   };
-
 
   const handleSliderChangeCommitted = (campo, novoValor) => {
     const restante = 100 - novoValor;
@@ -334,10 +343,11 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${abaSelecionada === aba.id
-                      ? "border-blue-400 text-white font-semibold"
-                      : "border-transparent text-gray-400 hover:text-white"
-                      } transition-colors`}
+                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${
+                      abaSelecionada === aba.id
+                        ? "border-blue-400 text-white font-semibold"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    } transition-colors`}
                   >
                     {aba.label}
                   </button>
@@ -402,14 +412,20 @@ function ParameterPanel({
                       <li className="group relative inline-block">
                         <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
                           <span className="mr-1">👥</span>
-                          População: {Object.values(estadoAtual.populacao).reduce((acc, valor) => acc + valor, 0)}
+                          População:{" "}
+                          {Object.values(estadoAtual.populacao).reduce(
+                            (acc, valor) => acc + valor,
+                            0
+                          )}
                         </div>
 
                         {/* Tooltip melhorado */}
-                        <div className="absolute z-20 left-0 mt-2 w-56 p-3 bg-gray-800 rounded-lg shadow-xl 
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-56 p-3 bg-gray-800 rounded-lg shadow-xl 
                        opacity-0 invisible group-hover:opacity-100 group-hover:visible 
                        transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
-                       border border-gray-700 text-white">
+                       border border-gray-700 text-white"
+                        >
                           <div className="text-sm space-y-2">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
@@ -434,7 +450,12 @@ function ParameterPanel({
                             </div>
                             <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
                               <span>Total:</span>
-                              <span>{Object.values(estadoAtual.populacao).reduce((acc, valor) => acc + valor, 0)}</span>
+                              <span>
+                                {Object.values(estadoAtual.populacao).reduce(
+                                  (acc, valor) => acc + valor,
+                                  0
+                                )}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -661,7 +682,9 @@ function ParameterPanel({
                   <div className="text-sm text-slate-600 mt-1 flex justify-between">
                     <span>{tempAlocacao[campo]}%</span>
                     <span className="font-medium text-blue-600">
-                      {Math.round((tempAlocacao[campo] / 100) * populacao.colonos)}{" "}
+                      {Math.round(
+                        (tempAlocacao[campo] / 100) * populacao.colonos
+                      )}{" "}
                       colonos
                     </span>
                   </div>
@@ -735,118 +758,119 @@ function ParameterPanel({
                   "energia",
                   "agua",
                 ].includes(abaConstrucao) && (
-                    <>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold">
-                          Construções - Setor{" "}
-                          {abaConstrucao.charAt(0).toUpperCase() +
-                            abaConstrucao.slice(1)}
-                        </h3>
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Construções - Setor{" "}
+                        {abaConstrucao.charAt(0).toUpperCase() +
+                          abaConstrucao.slice(1)}
+                      </h3>
 
-                        <Badge
-                          badgeContent={filaConstrucoes.length}
-                          color="error"
-                          showZero
+                      <Badge
+                        badgeContent={filaConstrucoes.length}
+                        color="error"
+                        showZero
+                      >
+                        <button
+                          onClick={() => setDrawerAberto(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                         >
-                          <button
-                            onClick={() => setDrawerAberto(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            <List fontSize="small" />
-                            Ver Fila
-                          </button>
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Object.entries(buildings)
-                          .filter(([_, item]) => item.categoria === abaConstrucao)
-                          .map(([key, item]) => {
-                            const temRecursos = Object.entries(item.custo).every(
-                              ([recurso, valor]) => estadoAtual[recurso] >= valor
-                            );
+                          <List fontSize="small" />
+                          Ver Fila
+                        </button>
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {Object.entries(buildings)
+                        .filter(([_, item]) => item.categoria === abaConstrucao)
+                        .map(([key, item]) => {
+                          const temRecursos = Object.entries(item.custo).every(
+                            ([recurso, valor]) => estadoAtual[recurso] >= valor
+                          );
 
-                            return (
-                              <div
-                                key={key}
-                                className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
-                              >
-                                {item.imagem && (
-                                  <div className="relative mb-3">
-                                    <motion.img
-                                      src={item.imagem}
-                                      alt={`Imagem de ${item.nome}`}
-                                      className="w-full h-40 object-cover rounded"
-                                      whileHover={{
-                                        scale: 1.1,
-                                        height: "180px",
-                                      }}
-                                      transition={{ duration: 0.3 }}
-                                    />
-                                    <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-                                      x{estadoAtual.construcoes?.[key] || 0}
-                                    </div>
+                          return (
+                            <div
+                              key={key}
+                              className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
+                            >
+                              {item.imagem && (
+                                <div className="relative mb-3">
+                                  <motion.img
+                                    src={item.imagem}
+                                    alt={`Imagem de ${item.nome}`}
+                                    className="w-full h-40 object-cover rounded"
+                                    whileHover={{
+                                      scale: 1.1,
+                                      height: "180px",
+                                    }}
+                                    transition={{ duration: 0.3 }}
+                                  />
+                                  <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                                    x{estadoAtual.construcoes?.[key] || 0}
                                   </div>
+                                </div>
+                              )}
+
+                              <h4 className="text-lg font-bold mb-1">
+                                {item.nome}
+                              </h4>
+                              <p className="text-sm text-gray-700 mb-2">
+                                {item.descricao}
+                              </p>
+
+                              <ul className="text-sm text-gray-600 mb-2">
+                                {Object.entries(item.custo).map(
+                                  ([recurso, val]) => {
+                                    const construidas =
+                                      estadoAtual.construcoes?.[key] || 0;
+                                    // Conta apenas as construções na fila que são do mesmo tipo (key)
+                                    const naFila = filaConstrucoes.filter(
+                                      (fc) => fc.id === key
+                                    ).length;
+                                    const multiplicador = construidas + naFila;
+                                    const total = val * 2 ** multiplicador;
+                                    const valorFinal =
+                                      recurso === "agua"
+                                        ? Math.min(total, 100)
+                                        : total;
+
+                                    return (
+                                      <li key={recurso}>
+                                        💰 <strong>{recurso}</strong>:{" "}
+                                        {valorFinal}
+                                      </li>
+                                    );
+                                  }
                                 )}
+                              </ul>
 
-                                <h4 className="text-lg font-bold mb-1">
-                                  {item.nome}
-                                </h4>
-                                <p className="text-sm text-gray-700 mb-2">
-                                  {item.descricao}
+                              <p className="text-sm text-gray-700 mb-2">
+                                ⏱️ Tempo de construção: {item.tempo} turno(s)
+                              </p>
+
+                              {item.efeitos?.bonusComida && (
+                                <p className="text-sm text-green-700 mb-4">
+                                  🍽️ Bônus: +{item.efeitos.bonusComida} comida
                                 </p>
+                              )}
 
-                                <ul className="text-sm text-gray-600 mb-2">
-                                  {Object.entries(item.custo).map(
-                                    ([recurso, val]) => {
-                                      const construidas =
-                                        estadoAtual.construcoes?.[key] || 0;
-                                      // Conta apenas as construções na fila que são do mesmo tipo (key)
-                                      const naFila = filaConstrucoes.filter(
-                                        (fc) => fc.id === key
-                                      ).length;
-                                      const multiplicador = construidas + naFila;
-                                      const total = val * 2 ** multiplicador;
-                                      const valorFinal =
-                                        recurso === "agua"
-                                          ? Math.min(total, 100)
-                                          : total;
-
-                                      return (
-                                        <li key={recurso}>
-                                          💰 <strong>{recurso}</strong>:{" "}
-                                          {valorFinal}
-                                        </li>
-                                      );
-                                    }
-                                  )}
-                                </ul>
-
-                                <p className="text-sm text-gray-700 mb-2">
-                                  ⏱️ Tempo de construção: {item.tempo} turno(s)
-                                </p>
-
-                                {item.efeitos?.bonusComida && (
-                                  <p className="text-sm text-green-700 mb-4">
-                                    🍽️ Bônus: +{item.efeitos.bonusComida} comida
-                                  </p>
-                                )}
-
-                                <button
-                                  onClick={() => handleConstruir(key)}
-                                  disabled={!temRecursos}
-                                  className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
+                              <button
+                                onClick={() => handleConstruir(key)}
+                                disabled={!temRecursos}
+                                className={`mt-auto px-4 py-2 rounded font-semibold ${
+                                  temRecursos
                                     ? "bg-green-600 text-white hover:bg-green-700"
                                     : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                                    } transition`}
-                                >
-                                  Construir
-                                </button>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </>
-                  )}
+                                } transition`}
+                              >
+                                Construir
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
               </motion.div>
             </AnimatePresence>
             <></>
@@ -907,7 +931,7 @@ function ParameterPanel({
                           transition={{ duration: 0.3 }}
                         />
                         <div className="absolute top-2 right-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-                          x{estadoAtual.populacao.colonos || 0}
+                          x{estadoAtual.populacao[item.id] || 0}
                         </div>
                       </div>
                     )}
@@ -928,10 +952,11 @@ function ParameterPanel({
                     <button
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                        ? "bg-purple-600 text-white hover:bg-purple-700"
-                        : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                        } transition`}
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${
+                        temRecursos
+                          ? "bg-purple-600 text-white hover:bg-purple-700"
+                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                      } transition`}
                     >
                       Criar
                     </button>
@@ -985,7 +1010,9 @@ function ParameterPanel({
                     )}
 
                     <h4 className="text-lg font-bold mb-1">{item.nome}</h4>
-                    <p className="text-sm text-gray-700 mb-2">{item.descricao}</p>
+                    <p className="text-sm text-gray-700 mb-2">
+                      {item.descricao}
+                    </p>
 
                     <ul className="text-sm text-gray-600 mb-2">
                       {Object.entries(item.custo).map(([recurso, valor]) => (
@@ -998,10 +1025,11 @@ function ParameterPanel({
                     <button
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                        ? "bg-yellow-600 text-white hover:bg-yellow-700"
-                        : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                        } transition`}
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${
+                        temRecursos
+                          ? "bg-yellow-600 text-white hover:bg-yellow-700"
+                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                      } transition`}
                     >
                       Criar
                     </button>
@@ -1011,7 +1039,6 @@ function ParameterPanel({
             </div>
           </motion.div>
         )}
-
 
         {loading && (
           <div className="flex items-center gap-3 mt-6 text-white">

@@ -46,7 +46,7 @@ exports.buscarColoniaPorNome = async (req, res) => {
     if (!colonia) {
       return res.status(404).json({ mensagem: "Colônia não encontrada." });
     }
-
+    console.log(colonia);
     res.json(colonia);
   } catch (error) {
     console.error("Erro ao buscar colônia:", error);

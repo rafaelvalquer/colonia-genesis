@@ -14,7 +14,11 @@ import {
 } from "react-icons/fa";
 
 function StatusPanel({ estado }) {
-  const somaPopulacao = Object.values(estado.populacao).reduce((acc, valor) => acc + valor, 0);
+  console.log(estado);
+  const somaPopulacao = Object.values(estado.populacao).reduce(
+    (acc, valor) => acc + valor,
+    0
+  );
   const statusList = [
     { label: "Turno", value: estado.turno, icon: <FaClock /> },
     {
@@ -59,7 +63,7 @@ function StatusPanel({ estado }) {
             <span>{somaPopulacao}</span>
           </div>
         </div>
-      )
+      ),
     },
     { label: "Energia", value: estado.energia, icon: <FaBolt /> },
 
@@ -85,10 +89,12 @@ function StatusPanel({ estado }) {
           <span className="font-medium">{item.value}</span>
           <span className="text-gray-400 text-xs">{item.label}</span>
           {item.tooltip && (
-            <div className="absolute z-20 left-1/2 transform -translate-x-1/2 top-full mt-1 w-56 p-3 bg-gray-800 rounded-lg shadow-xl 
+            <div
+              className="absolute z-20 left-1/2 transform -translate-x-1/2 top-full mt-1 w-56 p-3 bg-gray-800 rounded-lg shadow-xl 
                            opacity-0 invisible group-hover:opacity-100 group-hover:visible 
                            transition-all duration-300 transform translate-y-0 group-hover:translate-y-1
-                           border border-gray-700 text-white">
+                           border border-gray-700 text-white"
+            >
               {item.tooltip}
             </div>
           )}
