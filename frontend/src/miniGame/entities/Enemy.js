@@ -19,11 +19,11 @@ export class Enemy {
     this.x = x;
     this.hitTimer = 0;
 
-    // Animação com imagens separadas
+    // Animação
     this.frames = enemyAnimations[tipo];
     this.frameIndex = 0;
     this.frameTimer = 0;
-    this.frameRate = 3; // A cada chamada de updatePosition(), frameTimer aumenta em 1. QUanto maior, mais lento a troca de frame.
+    this.frameRate = 3;
   }
 
   takeDamage(dano = 1) {

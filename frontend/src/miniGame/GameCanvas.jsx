@@ -4,7 +4,14 @@ import { Enemy } from "./entities/Enemy";
 import { waveConfig } from "./entities/WaveConfig";
 import { tileCols, tileRows, tileWidth, tileHeight } from "./entities/Tiles";
 import { CollisionManager } from "./engine/CollisionManager";
-import Button from "@mui/material/Button";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import coloniaService from "../services/coloniaService";
 import centro from "./assets/tiles/groundCentro.png";
@@ -92,12 +99,17 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const [contadorSpawn, setContadorSpawn] = useState(0);
   const [modoPreparacao, setModoPreparacao] = useState(true);
   const inimigosCriadosRef = useRef(0);
+  const inimigosTotaisRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedTroop, setDraggedTroop] = useState(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [modoRemocao, setModoRemocao] = useState(false);
   const [energia, setEnergia] = useState(estadoAtual.energia);
   const energiaRef = useRef(energia);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [dadosVitoria, setDadosVitoria] = useState({
+    inimigosMortos: 0,
+  });
 
   // Sincroniza energia local caso prop mude (ex: reinício, recarga etc)
   useEffect(() => {
@@ -275,6 +287,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           })
           .filter((e) => !e.isDead());
 
+        // Inimigos atacam tropas
+        CollisionManager.inimigosAtacam(gameRef.current);
+
         // Fim de jogo
         if (gameRef.current.inimigos.some((e) => e.x <= 50)) {
           setJogoEncerrado(true);
@@ -309,6 +324,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
             gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
             inimigosCriadosRef.current += 1;
+            inimigosTotaisRef.current += 1; // contador global total
 
             return 0; // zera o contador de spawn
           }
@@ -324,15 +340,52 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
           console.log("ENERGIA = " + energiaRef.current);
 
-          if (onda >= LIMITE_DE_ONDAS) {
-            // Final do jogo: atualiza energia e retorna
-            await atualizarEstado({ energia: energiaRef.current }, true);
+          if (onda == 2) {
+            //LIMITE_DE_ONDAS) {
 
-            const novaColonia = await coloniaService.buscarColonia(
-              estadoAtual.nome
-            );
-            onEstadoChange?.(novaColonia);
-            navigate("/jogo");
+            // Para o loop
+            setJogoEncerrado(true);
+            clearInterval(loopId); // para o intervalo atual
+
+            // 1️⃣ Contar tropas que estão em campo
+            const tropasEmCampo = gameRef.current.tropas;
+            const tropasParaRetornar = {};
+
+            tropasEmCampo.forEach((tropa) => {
+              const tipo = tropa.tipo;
+              tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
+            });
+
+            // 2️⃣ Atualizar população (sem mutar estadoAtual diretamente)
+            const novaPopulacao = { ...estadoAtual.populacao };
+            Object.entries(tropasParaRetornar).forEach(([tipo, qtd]) => {
+              if (tipo === "colono") {
+                novaPopulacao.colonos += qtd;
+              }
+              if (tipo === "marine") {
+                novaPopulacao.marines += qtd;
+              }
+            });
+
+            const novoEstado = {
+              ...estadoAtual,
+              energia: energiaRef.current,
+              populacao: novaPopulacao,
+            };
+
+            await atualizarEstado(novoEstado, true);
+
+            // 3️⃣ Limpar campo de batalha
+            gameRef.current.tropas = [];
+
+            // 4️⃣ Guardar dados para o Dialog
+            setDadosVitoria({
+              inimigosMortos: inimigosTotaisRef.current,
+              tropasRetornadas: tropasParaRetornar,
+            });
+
+            // 5️⃣ Abrir o Dialog (não navegar ainda)
+            setOpenDialog(true);
           } else {
             // Próxima onda
             setModoPreparacao(true);
@@ -456,7 +509,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         // Aqui criamos um novo objeto de estado (sem mutar o antigo)
         const novoEstado = {
           ...estadoAtual,
-          energia: novaEnergia,
+          energia: energiaRef.current + novaEnergia,
           populacao: novaPopulacao,
         };
 
@@ -593,6 +646,55 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
       />
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle
+          style={{
+            backgroundColor: "#4CAF50",
+            color: "#FFF",
+            textAlign: "center",
+            fontFamily: "Press Start 2P, cursive",
+          }}
+        >
+          🏆 Vitória Épica! 🎮
+        </DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom>
+            Você sobreviveu a todas as ondas e derrotou{" "}
+            <strong>{dadosVitoria.inimigosMortos}</strong> inimigos ferozes!
+          </Typography>
+
+          {dadosVitoria.tropasRetornadas &&
+            Object.keys(dadosVitoria.tropasRetornadas).length > 0 && (
+              <>
+                <Typography gutterBottom>
+                  As seguintes tropas conseguiram voltar para casa triunfantes:
+                </Typography>
+                <ul>
+                  {Object.entries(dadosVitoria.tropasRetornadas).map(
+                    ([tipo, qtd]) => (
+                      <li key={tipo}>
+                        <Typography>
+                          {tipo.charAt(0).toUpperCase() + tipo.slice(1)}:{" "}
+                          <strong>{qtd}</strong>
+                        </Typography>
+                      </li>
+                    )
+                  )}
+                </ul>
+              </>
+            )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={() => navigate("/jogo")}
+            style={{ fontFamily: "Press Start 2P, cursive" }}
+          >
+            Voltar para o Jogo
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

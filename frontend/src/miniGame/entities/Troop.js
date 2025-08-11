@@ -5,6 +5,7 @@ import { loadTroopFrames } from "../assets/troop/loadTroopFrames";
 export const troopTypes = {
   colono: {
     preco: 10,
+    hp: 5,
     alcance: 5,
     cooldown: 50,
     dano: 1,
@@ -19,6 +20,7 @@ export const troopTypes = {
   },
   marine: {
     preco: 15,
+    hp: 8,
     alcance: 2,
     cooldown: 60,
     dano: 3,
