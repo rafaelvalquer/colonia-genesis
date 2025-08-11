@@ -6,18 +6,24 @@ export const enemyTypes = {
   alienBege: {
     nome: "alienBege",
     hp: 3,
+    alcance: 10,
     speed: 1,
-    dano: 1,
+    dano: 10,
+    cooldown: 60,
     cor: "red",
+    velocidadeProjetil: 10,
     frameCount: 7,
     frameInterval: 8, // menor = animação mais rápida
   },
   alienVermelho: {
     nome: "alien",
     hp: 2,
+    alcance: 10,
     speed: 3,
-    dano: 2,
+    dano: 10,
+    cooldown: 60,
     cor: "purple",
+    velocidadeProjetil: 10,
     frameCount: 6,
   },
   robot: {

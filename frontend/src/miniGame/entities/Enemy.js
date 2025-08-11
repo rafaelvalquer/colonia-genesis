@@ -15,7 +15,10 @@ export class Enemy {
     this.maxHp = config.hp;
     this.speed = config.speed;
     this.dano = config.dano;
+    this.cooldown = config.cooldown;
+    this.alcance = config.alcance;
     this.cor = config.cor;
+    this.velocidadeProjetil = config.velocidadeProjetil;
     this.x = x;
     this.hitTimer = 0;
 
