@@ -157,6 +157,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       gameRef.current.tropas.forEach((t) => {
         t.updateAnimation?.(); // chama animação por frame
 
+        // 🔹 atualiza fade de morte
+        t.updateDeath?.();
+
         const framesByState = troopAnimations[t.tipo];
         const frames = framesByState?.[t.state];
         if (!frames || frames.length === 0) return;
@@ -171,6 +174,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const x = t.col * tileWidth + tileWidth / 2;
         const y = t.row * tileHeight + tileHeight / 2;
 
+        // 🔹 aplica opacidade
+        ctx.save();
+        ctx.globalAlpha = t.opacity ?? 1;
+
         ctx.drawImage(
           img,
           x - larguraDesejada / 2,
@@ -178,6 +185,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           larguraDesejada,
           alturaDesejada
         );
+        ctx.restore();
       });
 
       //Inimigos
@@ -298,6 +306,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // Atualizar projéteis e verificar colisões
         CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
+
+        // Tropas Inimigos
+        CollisionManager.inimigosAtacam(gameRef.current);
 
         // Tropas atacam
         CollisionManager.tropasAtacam(gameRef.current);

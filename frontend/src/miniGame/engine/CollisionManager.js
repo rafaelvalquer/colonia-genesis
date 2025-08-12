@@ -3,6 +3,14 @@
 import { Projectile } from "../entities/Projectile";
 import { tileWidth, tileHeight } from "../entities/Tiles";
 
+function getEnemyRow(enemyY) {
+  return Math.floor(enemyY / tileHeight);
+}
+
+function getEnemyCol(enemyX) {
+  return Math.floor(enemyX / tileWidth);
+}
+
 export const CollisionManager = {
   updateProjectilesAndCheckCollisions(gameRef) {
     gameRef.projectilePool.forEach((p) => {
@@ -42,5 +50,31 @@ export const CollisionManager = {
         }
       }
     });
+  },
+
+  // 🔹 Ataque corpo a corpo usando alcance em COLUNAS
+  inimigosAtacam(gameRef) {
+    gameRef.inimigos.forEach((enemy) => {
+      const enemyRow = enemy.row;
+      const enemyCol = Math.floor(enemy.x / tileWidth);
+
+      const alvo = gameRef.tropas.find(
+        (t) =>
+          !t.remove && // não removida ainda
+          t.row === enemyRow &&
+          Math.abs(t.col - enemyCol) <= (enemy.alcance ?? 1)
+      );
+
+      if (alvo) {
+        if (enemy.baseSpeed == null) enemy.baseSpeed = enemy.speed;
+        enemy.speed = 0;
+        enemy.attack(alvo); // chama takeDamage internamente
+      } else {
+        enemy.speed = enemy.baseSpeed ?? enemy.speed;
+      }
+    });
+
+    // remove só depois do fade
+    gameRef.tropas = gameRef.tropas.filter((t) => !t.remove);
   },
 };

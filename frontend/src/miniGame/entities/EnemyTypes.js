@@ -5,10 +5,10 @@ import { loadEnemyFrames } from "../assets/enemy/loadEnemyFrames";
 export const enemyTypes = {
   alienBege: {
     nome: "alienBege",
-    hp: 3,
-    alcance: 10,
+    hp: 20,
+    alcance: 1,
     speed: 1,
-    dano: 10,
+    dano: 2,
     cooldown: 60,
     cor: "red",
     velocidadeProjetil: 10,
@@ -17,10 +17,10 @@ export const enemyTypes = {
   },
   alienVermelho: {
     nome: "alien",
-    hp: 2,
-    alcance: 10,
+    hp: 20,
+    alcance: 1,
     speed: 3,
-    dano: 10,
+    dano: 2,
     cooldown: 60,
     cor: "purple",
     velocidadeProjetil: 10,

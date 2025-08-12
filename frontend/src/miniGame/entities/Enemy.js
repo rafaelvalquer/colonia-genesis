@@ -16,11 +16,13 @@ export class Enemy {
     this.speed = config.speed;
     this.dano = config.dano;
     this.cooldown = config.cooldown;
-    this.alcance = config.alcance;
+    this.alcance = config.alcance || 20;
     this.cor = config.cor;
-    this.velocidadeProjetil = config.velocidadeProjetil;
     this.x = x;
     this.hitTimer = 0;
+
+    // Controle de ataque
+    this.cooldownTimer = 0; // frames até próximo ataque
 
     // Animação
     this.frames = enemyAnimations[tipo];
@@ -38,6 +40,17 @@ export class Enemy {
     return this.hp <= 0 || this.x <= 0;
   }
 
+  canAttack() {
+    return this.cooldownTimer <= 0;
+  }
+
+  attack(tropa) {
+    if (this.canAttack()) {
+      tropa.takeDamage(this.dano);
+      this.cooldownTimer = this.cooldown; // reseta cooldown
+    }
+  }
+
   updatePosition() {
     this.x -= this.speed;
 
@@ -47,6 +60,9 @@ export class Enemy {
       this.frameTimer = 0;
       this.frameIndex = (this.frameIndex + 1) % this.frames.length;
     }
+
+    // Reduz cooldown de ataque
+    if (this.cooldownTimer > 0) this.cooldownTimer--;
 
     if (this.hitTimer > 0) this.hitTimer -= 1;
   }
