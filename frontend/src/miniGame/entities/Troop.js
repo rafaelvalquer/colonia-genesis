@@ -32,6 +32,17 @@ export const troopTypes = {
       idle: { frameCount: 9, frameInterval: 8 },
       attack: { frameCount: 4, frameInterval: 6 },
     },
+  },
+  muralhaReforcada: {
+    preco: 15,
+    hp: 20,
+    alcance: 0,
+    cooldown: 0,
+    dano: 0,
+    estados: ["idle", "defense"],
+    animacoes: {
+      defense: { frameCount: 3, frameInterval: 999999 }, // não anima por tempo
+    },
   } /*
   heavy: {
     preco: 20,
@@ -89,10 +100,12 @@ export class Troop {
 
     // Combate e vida
     this.hp = this.config.hp;
+    this.maxHp = this.config.hp; // << adiciona isso
     this.isDead = false;
 
     // Animação
-    this.state = "idle";
+    // Estado inicial: muralha começa em 'defense', demais em 'idle'
+    this.state = tipo === "muralhaReforcada" ? "defense" : "idle";
     this.frameTick = 0;
     this.frameIndex = 0;
 
@@ -102,6 +115,11 @@ export class Troop {
     this.deathDuration = 20;
     this._deathStep = 1 / this.deathDuration;
     this.remove = false;
+
+    // Se for muralha, já ajusta o frame conforme HP atual
+    if (this.state === "defense") {
+      this.updateDefenseAppearance();
+    }
   }
 
   updateCooldown() {
@@ -109,10 +127,15 @@ export class Troop {
   }
 
   canAttack() {
+    // muralha não ataca
+    if (this.state === "defense") return false;
     return !this.isDead && this.cooldown <= 0;
   }
 
   attack(tileWidth, tileHeight) {
+    // muralha não cria projétil
+    if (this.state === "defense") return null;
+
     this.cooldown = this.config.cooldown;
     this.state = "attack";
     this.frameIndex = 0;
@@ -128,6 +151,20 @@ export class Troop {
       active: true,
       dano: this.config.dano,
     };
+  }
+
+  // 🔹 Ajusta o frame do estado 'defense' conforme a vida
+  updateDefenseAppearance() {
+    if (this.state !== "defense") return;
+    const ratio = this.hp / this.maxHp;
+
+    if (ratio <= 0.25) {
+      this.frameIndex = 2; // 25% ou menos → último frame
+    } else if (ratio <= 0.5) {
+      this.frameIndex = 1; // entre 50% e 25% → frame 1
+    } else {
+      this.frameIndex = 0; // acima de 50% → frame 0
+    }
   }
 
   takeDamage(dano) {
@@ -165,6 +202,13 @@ export class Troop {
   }
 
   updateAnimation() {
+    // Se for muralha, não avançamos frames por tempo; o frame é controlado pelo HP.
+    if (this.state === "defense") {
+      // ainda assim, garantimos que está coerente (caso algo altere HP fora do takeDamage)
+      this.updateDefenseAppearance();
+      return;
+    }
+
     const stateConfig = this.config.animacoes?.[this.state] || {};
     const interval = stateConfig.frameInterval || 8;
 

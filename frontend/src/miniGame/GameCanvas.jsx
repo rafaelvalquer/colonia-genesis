@@ -186,6 +186,28 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           alturaDesejada
         );
         ctx.restore();
+
+        // 🔹 barra de vida da tropa (acima do sprite)
+        const maxHpTroop = t.maxHp ?? t.config.hp ?? 1;
+        const hpRatio = Math.max(0, t.hp) / maxHpTroop;
+
+        const barWidth = 30;
+        const barHeight = 4;
+        const barX = x - barWidth / 2;
+        const barY = y - alturaDesejada / 2 - 10; // 10px acima do topo do sprite
+
+        ctx.save();
+        ctx.globalAlpha = t.opacity ?? 1; // acompanha o fade da morte
+        ctx.fillStyle = "red";
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        ctx.fillStyle = "lime";
+        ctx.fillRect(barX, barY, barWidth * hpRatio, barHeight);
+
+        // (opcional) contorno
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        ctx.restore();
       });
 
       //Inimigos
@@ -208,11 +230,24 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         );
         ctx.restore();
 
-        // Barra de vida
+        // Barra de vida com contorno
+        const barWidth = 30;
+        const barHeight = 4;
+        const barX = e.x - barWidth / 2;
+        const barY = y - 30;
+
+        // Fundo vermelho
         ctx.fillStyle = "red";
-        ctx.fillRect(e.x - 15, y - 30, 30, 4);
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // Preenchimento verde proporcional ao HP
         ctx.fillStyle = "lime";
-        ctx.fillRect(e.x - 15, y - 30, (30 * e.hp) / e.maxHp, 4);
+        ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
+
+        // Contorno preto
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
       });
 
       // PROJÉTEIS
