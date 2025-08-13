@@ -61,52 +61,34 @@ export const CollisionManager = {
       const enemyRow = enemy.row;
       const enemyCol = Math.floor(enemy.x / tileWidth);
 
-      // tropas vivas na mesma linha
-      const candidatas = gameRef.tropas.filter(
-        (t) => !t.remove && !t.isDead && t.row === enemyRow
+      const alvo = gameRef.tropas.find(
+        (t) =>
+          !t.remove &&
+          t.row === enemyRow &&
+          Math.abs(t.col - enemyCol) <= (enemy.alcance ?? 1)
       );
-      if (candidatas.length === 0) {
-        // sem alvo nessa linha → segue andando
-        enemy.speed = enemy.baseSpeed ?? enemy.speed;
-        return;
-      }
 
-      // escolhe a tropa mais próxima dentro do alcance (em COLUNAS)
-      const alcanceCols = enemy.alcance ?? 1;
-      const alvo = candidatas
-        .filter((t) => Math.abs(t.col - enemyCol) <= alcanceCols)
-        .sort(
-          (a, b) => Math.abs(a.col - enemyCol) - Math.abs(b.col - enemyCol)
-        )[0];
-
-      if (!alvo) {
-        // ninguém no alcance → segue andando
-        enemy.speed = enemy.baseSpeed ?? enemy.speed;
-        return;
-      }
-
-      // guarda velocidade original
-      if (enemy.baseSpeed == null) enemy.baseSpeed = enemy.speed;
-
-      // queremos que ele pare um pouco à direita da tropa (mais “próximo”)
-      // borda direita da célula da tropa = (alvo.col + 1) * tileWidth
-      const approachPadPx = -20; // ajuste fino da distância (px)
-      const desiredStopX = (alvo.col + 1) * tileWidth - approachPadPx;
-
-      if (enemy.x > desiredStopX) {
-        // ainda não chegou perto o suficiente → continue andando
-        enemy.speed = enemy.baseSpeed;
-      } else {
-        // chegou na distância ideal → para e ataca
+      if (alvo) {
+        // para para atacar
         enemy.speed = 0;
-        enemy.attack(alvo); // usa cooldown interno
-        if (alvo.hp <= 0) {
-          alvo.startDeath?.();
+
+        if (enemy.canAttack()) {
+          enemy.attack(alvo); // estado 'attack' + reseta cooldown
+        } else {
+          // aguardando cooldown
+          if (enemy.state !== "attack") {
+            enemy.state = "idle";
+            enemy.frameIndex = 0;
+            enemy.frameTick = 0;
+          }
+        }
+      } else {
+        // sem alvo -> volta a andar
+        enemy.speed = enemy.baseSpeed ?? enemy.speed;
+        if (enemy.state !== "attack") {
+          enemy.state = "walking";
         }
       }
     });
-
-    // limpa tropas que terminaram o fade de morte em outro ponto do loop se preferir
-    gameRef.tropas = gameRef.tropas.filter((t) => !t.remove);
   },
 };

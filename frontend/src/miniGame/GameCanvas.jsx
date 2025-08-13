@@ -210,12 +210,21 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.restore();
       });
 
-      //Inimigos
+      // Inimigos
       gameRef.current.inimigos.forEach((e) => {
-        const img = e.frames[e.frameIndex];
+        // 1) pega os frames do estado atual (novo sistema) ou cai pro legado (e.frames)
+        const frames =
+          (e.framesByState && e.state && e.framesByState[e.state]) ||
+          e.frames ||
+          [];
+
+        const img = frames[e.frameIndex];
+        if (!img || !img.complete) return;
+
+        // 2) desenha sprite (como antes)
         const escala = 0.2;
-        const larguraDesejada = 217 * escala; // ≈ 162.75
-        const alturaDesejada = 425 * escala; // ≈ 318.75
+        const larguraDesejada = 217 * escala;
+        const alturaDesejada = 425 * escala;
         const y = e.row * tileHeight + tileHeight / 2;
 
         ctx.save();
@@ -230,21 +239,21 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         );
         ctx.restore();
 
-        // Barra de vida com contorno
+        // 3) barra de vida com contorno
         const barWidth = 30;
         const barHeight = 4;
         const barX = e.x - barWidth / 2;
         const barY = y - 30;
 
-        // Fundo vermelho
+        // fundo vermelho
         ctx.fillStyle = "red";
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // Preenchimento verde proporcional ao HP
+        // preenchimento verde proporcional
         ctx.fillStyle = "lime";
         ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
 
-        // Contorno preto
+        // contorno
         ctx.strokeStyle = "black";
         ctx.lineWidth = 1;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
@@ -342,7 +351,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         // Atualizar projéteis e verificar colisões
         CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
 
-        // Tropas Inimigos
+        // Inimigos atacam
         CollisionManager.inimigosAtacam(gameRef.current);
 
         // Tropas atacam
@@ -362,12 +371,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
 
-            const tiposDisponiveis = ["alienVermelho", "alienBege"];
+            const tiposDisponiveis = [/*"alienVermelho"*/ "alienBege"];
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)
               ];
-
+            console.log(tiposDisponiveis);
             gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
             inimigosCriadosRef.current += 1;
             inimigosTotaisRef.current += 1; // contador global total

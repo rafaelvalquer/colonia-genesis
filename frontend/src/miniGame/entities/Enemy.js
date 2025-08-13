@@ -7,13 +7,14 @@ console.log("Criando inimigo do tipo:", enemyTypes);
 export class Enemy {
   constructor(tipo, row, x = 1024) {
     const config = enemyTypes[tipo];
-
+    console.log(config);
     this.id = Date.now();
     this.tipo = tipo;
     this.row = row;
     this.hp = config.hp;
     this.maxHp = config.hp;
     this.speed = config.speed;
+    this.baseSpeed = this.speed;
     this.dano = config.dano;
     this.cooldown = config.cooldown;
     this.alcance = config.alcance || 20;
@@ -24,11 +25,11 @@ export class Enemy {
     // Controle de ataque
     this.cooldownTimer = 0; // frames até próximo ataque
 
-    // Animação
-    this.frames = enemyAnimations[tipo];
+    // estado/anim
+    this.state = "walking";
+    this.framesByState = enemyAnimations[tipo];
     this.frameIndex = 0;
-    this.frameTimer = 0;
-    this.frameRate = 3;
+    this.frameTick = 0;
   }
 
   takeDamage(dano = 1) {
@@ -45,25 +46,56 @@ export class Enemy {
   }
 
   attack(tropa) {
-    if (this.canAttack()) {
-      tropa.takeDamage(this.dano);
-      this.cooldownTimer = this.cooldown; // reseta cooldown
-    }
+    if (!this.canAttack()) return;
+    // aplica dano
+    tropa.takeDamage(this.dano);
+
+    // inicia cooldown e coloca no estado "attack" (anim de ataque toca agora)
+    this.cooldownTimer = this.cooldown;
+    this.state = "attack";
+    this.frameIndex = 0;
+    this.frameTick = 0;
   }
 
   updatePosition() {
-    this.x -= this.speed;
-
-    // animação
-    this.frameTimer++;
-    if (this.frameTimer >= this.frameRate) {
-      this.frameTimer = 0;
-      this.frameIndex = (this.frameIndex + 1) % this.frames.length;
-    }
-
-    // Reduz cooldown de ataque
+    // reduz cooldown de ataque
     if (this.cooldownTimer > 0) this.cooldownTimer--;
 
-    if (this.hitTimer > 0) this.hitTimer -= 1;
+    // move apenas quando está "walking"
+    if (this.state === "walking") {
+      this.x -= this.speed;
+    }
+
+    // se está em cooldown e não tem alvo naquele frame, pode ficar idle
+    if (this.cooldownTimer > 0 && this.state !== "attack") {
+      this.state = "idle";
+    }
+
+    if (this.hitTimer > 0) this.hitTimer--;
+
+    // animação por estado
+    this.updateAnimation();
+  }
+
+  updateAnimation() {
+    const animCfg = enemyTypes[this.tipo].animacoes?.[this.state] || {
+      frameInterval: 8,
+    };
+    const frames = this.framesByState?.[this.state] || [];
+    const interval = animCfg.frameInterval || 8;
+
+    this.frameTick++;
+    if (this.frameTick >= interval) {
+      this.frameTick = 0;
+      this.frameIndex++;
+
+      if (this.frameIndex >= frames.length) {
+        // se acabou o ataque, volta para idle (ou walking será setado pelo CollisionManager)
+        if (this.state === "attack") {
+          this.state = "idle";
+        }
+        this.frameIndex = 0;
+      }
+    }
   }
 }
