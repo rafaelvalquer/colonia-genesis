@@ -5,7 +5,7 @@ import { loadEnemyFrames } from "../assets/enemy/loadEnemyFrames";
 export const enemyTypes = {
   alienBege: {
     nome: "alienBege",
-    hp: 20,
+    hp: 10,
     alcance: 1, // em colunas
     speed: 1,
     dano: 2,
@@ -18,9 +18,9 @@ export const enemyTypes = {
       idle: { frameCount: 5, frameInterval: 10 },
     },
   },
-  /*  alienVermelho: {
+  alienVermelho: {
     nome: "alien",
-    hp: 20,
+    hp: 10,
     alcance: 1,
     speed: 3,
     dano: 2,
@@ -28,11 +28,12 @@ export const enemyTypes = {
     cor: "purple",
     estados: ["walking", "attack", "idle"],
     animacoes: {
-      walking: { frameCount: 6, frameInterval: 8 },
-      attack: { frameCount: 6, frameInterval: 6 },
-      idle: { frameCount: 4, frameInterval: 10 },
+      walking: { frameCount: 3, frameInterval: 8 },
+      attack: { frameCount: 3, frameInterval: 6 },
+      idle: { frameCount: 3, frameInterval: 10 },
     },
   },
+  /*
   robot: {
     nome: "Robô",
     hp: 10,

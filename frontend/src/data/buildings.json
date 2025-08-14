@@ -47,7 +47,7 @@
   "muralhaReforcada": {
     "nome": "Muralha Reforçada",
     "categoria": "defesa",
-    "descricao": "Aumenta a proteção da colônia contra desastres e invasões.",
+    "descricao": "Estrutura de defesa contra ataques das criaturas.",
     "imagem": "/images/muralha-reforcada.png",
     "tempo": 4,
     "custo": {

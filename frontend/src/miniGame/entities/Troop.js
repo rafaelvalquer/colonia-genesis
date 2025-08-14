@@ -9,6 +9,7 @@ export const troopTypes = {
     alcance: 5,
     cooldown: 50,
     dano: 1,
+    retornaAoFinal: true,
     cor: "#8D6E63",
     corProjetil: "yellow",
     velocidadeProjetil: 6,
@@ -24,6 +25,7 @@ export const troopTypes = {
     alcance: 2,
     cooldown: 60,
     dano: 3,
+    retornaAoFinal: true,
     cor: "#4FC3F7",
     corProjetil: "#B3E5FC",
     velocidadeProjetil: 5,
@@ -39,6 +41,7 @@ export const troopTypes = {
     alcance: 0,
     cooldown: 0,
     dano: 0,
+    retornaAoFinal: false,
     estados: ["idle", "defense"],
     animacoes: {
       defense: { frameCount: 3, frameInterval: 999999 }, // não anima por tempo

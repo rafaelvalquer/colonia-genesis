@@ -74,6 +74,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ...estadoAtual.populacao,
         ...(atual.populacao || {}),
       },
+      construcoes: {
+        ...estadoAtual.construcoes,
+        ...(atual.construcoes ?? {}),
+      },
     };
 
     //onEstadoAtualChange?.(atualizado);
@@ -371,7 +375,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
 
-            const tiposDisponiveis = [/*"alienVermelho"*/ "alienBege"];
+            const tiposDisponiveis = ["alienVermelho", "alienBege"];
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)
@@ -408,7 +412,11 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
             tropasEmCampo.forEach((tropa) => {
               const tipo = tropa.tipo;
-              tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
+              const config = troopTypes[tipo];
+              // só conta quem tem retornaAoFinal = true
+              if (config?.retornaAoFinal) {
+                tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
+              }
             });
 
             // 2️⃣ Atualizar população (sem mutar estadoAtual diretamente)
@@ -497,6 +505,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
     const novaPopulacao = { ...estadoAtual.populacao };
+    const novaConstrucoes = { ...estadoAtual.construcoes };
 
     if (draggedTroop === "colono" && novaPopulacao.colonos > 0) {
       novaPopulacao.colonos -= 1;
@@ -504,6 +513,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     } else if (draggedTroop === "marine" && novaPopulacao.marines > 0) {
       novaPopulacao.marines -= 1;
       estadoAtual.populacao.marines -= 1;
+    } else if (
+      draggedTroop === "muralhaReforcada" &&
+      novaConstrucoes.muralhaReforcada > 0
+    ) {
+      novaConstrucoes.muralhaReforcada -= 1;
+      estadoAtual.construcoes.muralhaReforcada -= 1;
     }
 
     // Aqui criamos um novo objeto de estado (sem mutar o antigo)
@@ -511,6 +526,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       ...estadoAtual,
       energia: novaEnergia,
       populacao: novaPopulacao,
+      construcoes: novaConstrucoes,
     };
 
     onEstadoChange(novoEstado); // Dispara re-render do HUD
@@ -519,6 +535,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       {
         energia: novaEnergia,
         populacao: novaPopulacao,
+        construcoes: novaConstrucoes,
       },
       true
     );
@@ -551,6 +568,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // Clona população atual
         const novaPopulacao = { ...estadoAtual.populacao };
+        const novaConstrucoes = { ...estadoAtual.construcoes };
 
         // Ajusta o tipo removido
         if (tipo === "colono") {
@@ -559,6 +577,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         } else if (tipo === "marine") {
           novaPopulacao.marines += 1;
           estadoAtual.populacao.marines += 1;
+        } else if (tipo === "muralhaReforcada") {
+          novaConstrucoes.muralhaReforcada += 1;
+          estadoAtual.construcoes.muralhaReforcada += 1;
         }
 
         // Aqui criamos um novo objeto de estado (sem mutar o antigo)
@@ -566,6 +587,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           ...estadoAtual,
           energia: energiaRef.current + novaEnergia,
           populacao: novaPopulacao,
+          construcoes: novaConstrucoes,
         };
 
         onEstadoChange(novoEstado); // Dispara re-render do HUD
@@ -575,6 +597,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           {
             energia: energiaRef.current + novaEnergia,
             populacao: novaPopulacao,
+            construcoes: novaConstrucoes,
           },
           true
         );
@@ -597,6 +620,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
     const novaPopulacao = { ...estadoAtual.populacao };
+    const novaConstrucoes = { ...estadoAtual.construcoes };
 
     if (draggedTroop === "colono" && novaPopulacao.colonos > 0) {
       novaPopulacao.colonos -= 1;
@@ -604,6 +628,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     } else if (draggedTroop === "marine" && novaPopulacao.marines > 0) {
       novaPopulacao.marines -= 1;
       estadoAtual.populacao.marines -= 1;
+    } else if (
+      draggedTroop === "muralhaReforcada" &&
+      novaPopulacao.muralhaReforcada > 0
+    ) {
+      novaConstrucoes.muralhaReforcada -= 1;
+      estadoAtual.novaConstrucoes.muralhaReforcada -= 1;
     }
 
     // Aqui criamos um novo objeto de estado (sem mutar o antigo)
@@ -611,6 +641,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       ...estadoAtual,
       energia: novaEnergia,
       populacao: novaPopulacao,
+      construcoes: novaConstrucoes,
     };
 
     onEstadoChange(novoEstado); // Dispara re-render do HUD
@@ -619,6 +650,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       {
         energia: novaEnergia,
         populacao: novaPopulacao,
+        construcoes: novaConstrucoes,
       },
       true
     );
@@ -644,7 +676,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               disabled={
                 energia < config.preco ||
                 (tipo === "colono" && estadoAtual.populacao.colonos <= 0) ||
-                (tipo === "marine" && estadoAtual.populacao.marines <= 0)
+                (tipo === "marine" && estadoAtual.populacao.marines <= 0) ||
+                (tipo === "muralhaReforcada" &&
+                  estadoAtual.construcoes.muralhaReforcada <= 0)
               }
             >
               {getEmoji(tipo)} {capitalize(tipo)} ({config.preco})

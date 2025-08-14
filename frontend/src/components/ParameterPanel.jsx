@@ -38,7 +38,7 @@ import IconVisaoGeral from "./icons/IconVisaoGeral";
 import IconParametros from "./icons/IconParametros";
 import IconDesenvolvimento from "./icons/IconDesenvolvimento";
 import IconPopulacao from "./icons/IconPopulacao";
-
+import IconMissoes from "./icons/IconMissoes";
 const MAX_PONTOS = 3;
 const setoresOrdem = [
   "fazenda",
@@ -80,6 +80,15 @@ const abas = [
     itens: [
       { id: "criacaoPopulacao", label: "População" },
       { id: "criacaoTropas", label: "Treinar Tropas" },
+    ],
+  },
+  {
+    grupo: "Missões",
+    icone: <IconMissoes />,
+    itens: [
+      { id: "exploracao", label: "Exploração" }, // preparar e enviar expedicionário
+      { id: "expedicoes", label: "Em Andamento" }, // fila + status/tempo de retorno
+      { id: "relatorios", label: "Relatórios" }, // histórico de missões concluídas
     ],
   },
 ];
