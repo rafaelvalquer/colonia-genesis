@@ -56,39 +56,81 @@ export const CollisionManager = {
   },
 
   // 🔹 Ataque corpo a corpo usando alcance em COLUNAS
-  inimigosAtacam(gameRef) {
-    gameRef.inimigos.forEach((enemy) => {
-      const enemyRow = enemy.row;
-      const enemyCol = Math.floor(enemy.x / tileWidth);
+// 🔹 Ataque corpo a corpo usando alcance em COLUNAS + aproximação em pixels
+inimigosAtacam(gameRef) {
+  const approachPadPx = -20; // quanto "dentro" da célula o inimigo deve chegar antes de parar
 
-      const alvo = gameRef.tropas.find(
-        (t) =>
-          !t.remove &&
-          t.row === enemyRow &&
-          Math.abs(t.col - enemyCol) <= (enemy.alcance ?? 1)
-      );
+  // helper pra trocar estado e resetar animação
+  const setAnim = (enemy, state) => {
+    if (enemy.state !== state) {
+      enemy.state = state;
+      enemy.frameIndex = 0;
+      enemy.frameTick = 0;
+    }
+  };
 
-      if (alvo) {
-        // para para atacar
-        enemy.speed = 0;
+  gameRef.inimigos.forEach((enemy) => {
+    const enemyRow = enemy.row;
+    const enemyCol = Math.floor(enemy.x / tileWidth);
 
-        if (enemy.canAttack()) {
-          enemy.attack(alvo); // estado 'attack' + reseta cooldown
-        } else {
-          // aguardando cooldown
-          if (enemy.state !== "attack") {
-            enemy.state = "idle";
-            enemy.frameIndex = 0;
-            enemy.frameTick = 0;
-          }
-        }
-      } else {
-        // sem alvo -> volta a andar
-        enemy.speed = enemy.baseSpeed ?? enemy.speed;
-        if (enemy.state !== "attack") {
-          enemy.state = "walking";
-        }
+    // tropas vivas na mesma linha
+    const candidatas = gameRef.tropas.filter(
+      (t) => !t.remove && !t.isDead && t.row === enemyRow
+    );
+
+    if (candidatas.length === 0) {
+      // sem alvo nessa linha → segue andando
+      enemy.speed = enemy.baseSpeed ?? enemy.speed;
+      if (enemy.state !== "attack") setAnim(enemy, "walking");
+      return;
+    }
+
+    // escolhe a mais próxima dentro do alcance em COLUNAS
+    const alcanceCols = enemy.alcance ?? 1;
+    const noAlcance = candidatas
+      .filter((t) => Math.abs(t.col - enemyCol) <= alcanceCols)
+      .sort((a, b) => Math.abs(a.col - enemyCol) - Math.abs(b.col - enemyCol));
+
+    const alvo = noAlcance[0];
+
+    if (!alvo) {
+      // ninguém no alcance → segue andando
+      enemy.speed = enemy.baseSpeed ?? enemy.speed;
+      if (enemy.state !== "attack") setAnim(enemy, "walking");
+      return;
+    }
+
+    // guarda velocidade original se ainda não guardou
+    if (enemy.baseSpeed == null) enemy.baseSpeed = enemy.speed;
+
+    // Queremos parar um pouco ANTES da borda direita da célula da tropa
+    // Borda direita da célula da tropa = (alvo.col + 1) * tileWidth
+    const desiredStopX = (alvo.col + 1) * tileWidth - approachPadPx;
+
+    if (enemy.x > desiredStopX) {
+      // ainda não encostou o suficiente → continua andando
+      enemy.speed = enemy.baseSpeed;
+      if (enemy.state !== "attack") setAnim(enemy, "walking");
+      return;
+    }
+
+    // chegou na distância ideal → para e interage
+    enemy.speed = 0;
+
+    if (enemy.canAttack && enemy.canAttack()) {
+      enemy.attack(alvo);       // chama takeDamage e seta cooldown interno
+      setAnim(enemy, "attack"); // animação de ataque
+      if (alvo.hp <= 0) {
+        alvo.startDeath?.();
       }
-    });
-  },
+    } else {
+      // aguardando cooldown → fica em idle
+      if (enemy.state !== "attack") setAnim(enemy, "idle");
+    }
+  });
+
+  // limpeza de tropas que terminaram o fade (se você não fizer em outro lugar)
+  gameRef.tropas = gameRef.tropas.filter((t) => !t.remove);
+},
+
 };
