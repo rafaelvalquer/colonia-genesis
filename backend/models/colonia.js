@@ -18,6 +18,70 @@ const filaConstrucaoSchema = new mongoose.Schema(
   { _id: false } // evita gerar um _id para cada item da fila
 );
 
+const hpSchema = new mongoose.Schema(
+  {
+    current: { type: Number, min: 0, required: true },
+    max: { type: Number, min: 1, required: true },
+  },
+  { _id: false }
+);
+
+const staminaSchema = new mongoose.Schema(
+  {
+    current: { type: Number, min: 0, required: true },
+    max: { type: Number, min: 1, required: true },
+  },
+  { _id: false }
+);
+
+const skillsSchema = new mongoose.Schema(
+  {
+    combate: { type: Number, min: 0, default: 0 },
+    ciencia: { type: Number, min: 0, default: 0 },
+    furtividade: { type: Number, min: 0, default: 0 },
+    forca: { type: Number, min: 0, default: 0 },
+    arqueologia: { type: Number, min: 0, default: 0 },
+    sobrevivencia: { type: Number, min: 0, default: 0 },
+  },
+  { _id: false }
+);
+
+const equipmentSchema = new mongoose.Schema(
+  {
+    arma: { type: String, default: null },
+    armadura: { type: String, default: null },
+    gadget: { type: String, default: null },
+  },
+  { _id: false }
+);
+
+const exploradorSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true }, // ex: "exp_001"
+    name: { type: String, required: true },
+    nickname: { type: String, default: null },
+    level: { type: Number, min: 1, default: 1 },
+    xp: { type: Number, min: 0, default: 0 },
+    xpNext: { type: Number, min: 1, default: 100 },
+    hp: { type: hpSchema, required: true },
+    stamina: { type: staminaSchema, required: true },
+    skills: { type: skillsSchema, default: () => ({}) },
+    traits: { type: [String], default: [] },
+    equipment: { type: equipmentSchema, default: () => ({}) },
+    status: {
+      type: String,
+      enum: ["disponivel", "emMissao", "ferido", "descansando"],
+      default: "disponivel",
+    },
+    missionId: { type: String, default: null },
+    portrait: { type: String, default: null },
+    createdAt: { type: Number, default: () => Date.now() },
+    updatedAt: { type: Number, default: () => Date.now() },
+  },
+  { _id: false }
+);
+/** ---------------------------------------------- */
+
 const coloniaSchema = new mongoose.Schema({
   nome: { type: String, required: true },
   turno: { type: Number, default: 1 },
@@ -26,6 +90,10 @@ const coloniaSchema = new mongoose.Schema({
     colonos: { type: Number, default: 0 },
     exploradores: { type: Number, default: 0 },
     marines: { type: Number, default: 0 },
+  },
+  exploradores: {
+    type: [exploradorSchema],
+    default: [],
   },
   energia: { type: Number, required: true },
   agua: { type: Number, required: true },

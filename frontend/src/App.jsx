@@ -64,10 +64,49 @@ function GamePage({
     }
   };
 
+  const generateNextExplorerId = (exploradores = []) => {
+    const maxNum = exploradores.reduce((acc, e) => {
+      const m = /^exp_(\d+)$/.exec(e?.id || "");
+      return Math.max(acc, m ? parseInt(m[1], 10) : 0);
+    }, 0);
+    const next = maxNum + 1;
+    return `exp_${String(next).padStart(3, "0")}`;
+  };
+
+  const createExplorer = (idStr, ordinalNumber = 1) => {
+    const baseName = `explorador${ordinalNumber}`;
+    const now = Date.now();
+    return {
+      id: idStr,
+      name: baseName,
+      nickname: baseName,
+      level: 1,
+      xp: 0,
+      xpNext: 10,
+      hp: { current: 10, max: 10 },
+      stamina: { current: 10, max: 10 },
+      skills: {
+        combate: 0,
+        ciencia: 0,
+        furtividade: 0,
+        forca: 0,
+        arqueologia: 0,
+        sobrevivencia: 0,
+      },
+      traits: [],
+      equipment: { arma: null, armadura: null, gadget: null },
+      status: "disponivel",
+      missionId: null,
+      portrait: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  };
+
   const handleCriarTropa = async (item) => {
     const { id, nome, custo } = item;
 
-    // Verifica se há recursos suficientes (custo fixo)
+    // 1) Verifica recursos
     const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
       const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
       return estadoAtual[recurso] >= valorFinal;
@@ -78,27 +117,44 @@ function GamePage({
       return;
     }
 
-    // Desconta os recursos
-    const novoEstado = { ...estadoAtual };
+    // 2) Clona estado e desconta recursos
+    const novoEstado = {
+      ...estadoAtual,
+      exploradores: [...(estadoAtual.exploradores || [])], // garante array
+      populacao: { ...estadoAtual.populacao },
+    };
+
     Object.entries(custo).forEach(([recurso, valor]) => {
       const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
       novoEstado[recurso] -= valorFinal;
     });
 
-    // Incrementa a tropa correspondente
-    novoEstado.populacao[id] = (novoEstado.populacao[id] || 0) + 1;
+    // 3) Ramo normal (colonos, marines etc.)
+    if (id !== "exploradores") {
+      novoEstado.populacao[id] = (novoEstado.populacao[id] || 0) + 1;
+    } else {
+      // 3b) Criar EXPLORADOR completo + incrementar populacao.exploradores
+      const nextId = generateNextExplorerId(novoEstado.exploradores);
+      // usa o número gerado para montar "exploradorN"
+      const ordinal = parseInt(nextId.split("_")[1], 10); // ex: "exp_007" -> 7
+      const novoExplorador = createExplorer(nextId, ordinal);
 
+      novoEstado.exploradores.push(novoExplorador);
+      novoEstado.populacao.exploradores =
+        (novoEstado.populacao.exploradores || 0) + 1;
+    }
+
+    // 4) Atualiza UI
     setEstadoAtual(novoEstado);
     showSnackbar(`✅ ${nome} criado com sucesso!`, "success");
 
-    console.log(novoEstado);
+    // 5) Sincroniza com backend
     try {
       await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
     } catch (err) {
       console.error("Erro ao atualizar colônia no backend:", err);
     }
   };
-
 
   const handleConstruir = async (tipo) => {
     const construcao = buildings[tipo];
@@ -207,6 +263,7 @@ function GamePage({
           filaConstrucoes={estadoAtual.filaConstrucoes}
           onGastarCiencia={handleGastarCiencia}
           onCriarTropa={handleCriarTropa}
+          onEstadoChange={setEstadoAtual}
         />
       </section>
     </>

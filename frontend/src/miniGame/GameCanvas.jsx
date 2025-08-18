@@ -658,43 +658,137 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     setTropaSelecionada(null);
   };
 
+  const energyCSS = `
+@keyframes pulseEnergy {
+  0%, 100% {
+    color: #FCD34D;             /* amarelo (tailwind amber-300) */
+    text-shadow: 0 0 0 rgba(250, 204, 21, 0);
+  }
+  50% {
+    color: #FFEB3B;             /* amarelo vivo */
+    text-shadow: 0 0 10px rgba(250, 204, 21, .85);
+  }
+}
+.energyPulse {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 800;
+  animation: pulseEnergy 1.2s ease-in-out infinite;
+}
+`;
+
+  const getTroopThumb = (tipo) => {
+    const ani = troopAnimations?.[tipo] || {};
+    const img = ani?.idle?.[0] || ani?.defense?.[0] || ani?.attack?.[0];
+    return img?.src || null;
+  };
+
+  const stockMap = {
+    colono: ["populacao", "colonos"], // plural no estado
+    marine: ["populacao", "marines"], // plural no estado
+    muralhaReforcada: ["construcoes", "muralhaReforcada"],
+  };
+
+  const getByPath = (obj, path) =>
+    path.reduce((acc, k) => (acc && acc[k] != null ? acc[k] : undefined), obj);
+
+  const getDisponivel = (tipo) => {
+    const path = stockMap[tipo];
+    if (!path) return 0;
+    const val = getByPath(estadoAtual, path);
+    return typeof val === "number" ? val : 0;
+  };
+
+  const isDisabledTroop = (tipo, config) => {
+    const disponivel = getDisponivel(tipo);
+    return energia < config.preco || disponivel <= 0;
+  };
+
   return (
     <div style={{ display: "flex", alignItems: "flex-start" }}>
-      {/* Coluna lateral esquerda com botões */}
+      <style>{energyCSS}</style>
+
       <div style={{ marginRight: "16px", minWidth: "180px" }}>
-        <strong style={{ display: "block", marginBottom: "10px" }}>
-          ⚡ Energia: {energia}
-        </strong>
+        <strong className="energyPulse">⚡ Energia: {energia}</strong>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {Object.entries(troopTypes).map(([tipo, config]) => (
-            <Button
-              key={tipo}
-              variant="contained"
-              color="primary"
-              onMouseDown={() => handleMouseDown(tipo)}
-              disabled={
-                energia < config.preco ||
-                (tipo === "colono" && estadoAtual.populacao.colonos <= 0) ||
-                (tipo === "marine" && estadoAtual.populacao.marines <= 0) ||
-                (tipo === "muralhaReforcada" &&
-                  estadoAtual.construcoes.muralhaReforcada <= 0)
-              }
-            >
-              {getEmoji(tipo)} {capitalize(tipo)} ({config.preco})
-            </Button>
-          ))}
+        <div
+          className="w-24 bg-gray-800 border-r border-gray-700 p-3 overflow-y-auto flex flex-col items-center space-y-4"
+          style={{ userSelect: "none" }} // evita seleção durante o arrasto
+        >
+          {Object.entries(troopTypes).map(([tipo, config]) => {
+            const disabled = isDisabledTroop(tipo, config);
+            const thumb = getTroopThumb(tipo);
+            const disponivel = getDisponivel(tipo);
+            const selected = draggedTroop === tipo || tropaSelecionada === tipo;
 
-          <Button
-            variant="outlined"
-            color="error"
+            return (
+              <button
+                key={tipo}
+                type="button"
+                // previne drag nativo e já inicia seu arrasto custom
+                onMouseDown={(e) => {
+                  if (disabled) return;
+                  e.preventDefault(); // evita iniciar drag nativo / seleção
+                  handleMouseDown(tipo);
+                }}
+                onDragStart={(e) => e.preventDefault()} // desativa DnD HTML5
+                disabled={disabled}
+                title={`${tipo} (${config.preco})`}
+                className={[
+                  "relative w-16 h-24 rounded-lg flex flex-col items-center justify-center p-2 transition",
+                  disabled
+                    ? "bg-gray-700 opacity-40 cursor-not-allowed"
+                    : "bg-gray-700 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer",
+                  selected ? "ring-2 ring-blue-400" : "",
+                ].join(" ")}
+              >
+                {thumb ? (
+                  <img
+                    src={thumb}
+                    alt={tipo}
+                    draggable={false} // impede DnD nativo
+                    onDragStart={(e) => e.preventDefault()}
+                    className="w-12 h-12 object-contain rounded mb-1 border-2 border-blue-500 bg-gray-900/30"
+                    style={{
+                      WebkitUserDrag: "none",
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded mb-1 bg-gray-600" />
+                )}
+
+                <span className="text-[10px] leading-tight text-center capitalize">
+                  {tipo}
+                </span>
+
+                {/* Preço */}
+                <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                  {config.preco}
+                </div>
+
+                {/* Quantidade disponível */}
+                <div className="absolute -bottom-2 -right-2 bg-gray-900 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                  x{disponivel}
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Remover tropa */}
+          <button
+            type="button"
             onClick={() => {
               setModoRemocao(true);
-              setTropaSelecionada(null); // desfaz seleção de compra
+              setTropaSelecionada(null);
             }}
+            className="mt-2 w-16 h-24 bg-gray-700 hover:bg-gray-600 text-red-300 rounded-lg flex flex-col items-center justify-center p-2 transition"
+            title="Remover Tropa"
           >
-            💥 Remover Tropa
-          </Button>
+            <span className="text-xl mb-1">💥</span>
+            <span className="text-[10px] text-center">Remover</span>
+          </button>
         </div>
 
         <p style={{ marginTop: "20px" }}>

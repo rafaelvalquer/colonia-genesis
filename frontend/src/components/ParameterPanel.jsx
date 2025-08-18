@@ -39,6 +39,10 @@ import IconParametros from "./icons/IconParametros";
 import IconDesenvolvimento from "./icons/IconDesenvolvimento";
 import IconPopulacao from "./icons/IconPopulacao";
 import IconMissoes from "./icons/IconMissoes";
+import MissoesExploracao from "../pages/MissoesExploracao.jsx"; // novo
+import MissoesExploradores from "../pages/MissoesExploradores.jsx"; // novo
+import coloniaService from "../services/coloniaService.js";
+
 const MAX_PONTOS = 3;
 const setoresOrdem = [
   "fazenda",
@@ -86,6 +90,7 @@ const abas = [
     grupo: "Missões",
     icone: <IconMissoes />,
     itens: [
+      { id: "exploradores", label: "Exploradores" }, // preparar e enviar expedicionário
       { id: "exploracao", label: "Exploração" }, // preparar e enviar expedicionário
       { id: "expedicoes", label: "Em Andamento" }, // fila + status/tempo de retorno
       { id: "relatorios", label: "Relatórios" }, // histórico de missões concluídas
@@ -101,6 +106,7 @@ function ParameterPanel({
   filaConstrucoes,
   onGastarCiencia,
   onCriarTropa,
+  onEstadoChange,
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
@@ -1047,6 +1053,24 @@ function ParameterPanel({
               })}
             </div>
           </motion.div>
+        )}
+
+        {abaSelecionada === "exploradores" && (
+          <MissoesExploradores
+            estadoAtual={estadoAtual}
+            onSalvar={async (delta) => {
+              const novoEstado = { ...estadoAtual, ...delta }; // delta = { exploradores: [...] }
+              onEstadoChange?.(novoEstado); // atualiza o estado do pai → re-render com nome novo
+              await coloniaService.atualizarColonia(
+                estadoAtual._id,
+                novoEstado
+              ); // persiste no backend
+            }}
+          />
+        )}
+
+        {abaSelecionada === "exploracao" && (
+          <MissoesExploracao estadoAtual={estadoAtual} />
         )}
 
         {loading && (
