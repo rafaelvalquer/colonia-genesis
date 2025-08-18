@@ -293,6 +293,7 @@ function ParameterPanel({
         agua: consumoAguaOpcoes[aguaIndex].value,
         alocacaoColonos,
         filaConstrucoes: estadoAtual.filaConstrucoes,
+        filaMissoes: estadoAtual.filaMissoes,
       });
 
       setLoading(false); // encerra após aplicar
@@ -358,11 +359,10 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${
-                      abaSelecionada === aba.id
+                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${abaSelecionada === aba.id
                         ? "border-blue-400 text-white font-semibold"
                         : "border-transparent text-gray-400 hover:text-white"
-                    } transition-colors`}
+                      } transition-colors`}
                   >
                     {aba.label}
                   </button>
@@ -773,119 +773,118 @@ function ParameterPanel({
                   "energia",
                   "agua",
                 ].includes(abaConstrucao) && (
-                  <>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-xl font-bold">
-                        Construções - Setor{" "}
-                        {abaConstrucao.charAt(0).toUpperCase() +
-                          abaConstrucao.slice(1)}
-                      </h3>
+                    <>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold">
+                          Construções - Setor{" "}
+                          {abaConstrucao.charAt(0).toUpperCase() +
+                            abaConstrucao.slice(1)}
+                        </h3>
 
-                      <Badge
-                        badgeContent={filaConstrucoes.length}
-                        color="error"
-                        showZero
-                      >
-                        <button
-                          onClick={() => setDrawerAberto(true)}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        <Badge
+                          badgeContent={filaConstrucoes.length}
+                          color="error"
+                          showZero
                         >
-                          <List fontSize="small" />
-                          Ver Fila
-                        </button>
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {Object.entries(buildings)
-                        .filter(([_, item]) => item.categoria === abaConstrucao)
-                        .map(([key, item]) => {
-                          const temRecursos = Object.entries(item.custo).every(
-                            ([recurso, valor]) => estadoAtual[recurso] >= valor
-                          );
+                          <button
+                            onClick={() => setDrawerAberto(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            <List fontSize="small" />
+                            Ver Fila
+                          </button>
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {Object.entries(buildings)
+                          .filter(([_, item]) => item.categoria === abaConstrucao)
+                          .map(([key, item]) => {
+                            const temRecursos = Object.entries(item.custo).every(
+                              ([recurso, valor]) => estadoAtual[recurso] >= valor
+                            );
 
-                          return (
-                            <div
-                              key={key}
-                              className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
-                            >
-                              {item.imagem && (
-                                <div className="relative mb-3">
-                                  <motion.img
-                                    src={item.imagem}
-                                    alt={`Imagem de ${item.nome}`}
-                                    className="w-full h-40 object-cover rounded"
-                                    whileHover={{
-                                      scale: 1.1,
-                                      height: "180px",
-                                    }}
-                                    transition={{ duration: 0.3 }}
-                                  />
-                                  <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-                                    x{estadoAtual.construcoes?.[key] || 0}
-                                  </div>
-                                </div>
-                              )}
-
-                              <h4 className="text-lg font-bold mb-1">
-                                {item.nome}
-                              </h4>
-                              <p className="text-sm text-gray-700 mb-2">
-                                {item.descricao}
-                              </p>
-
-                              <ul className="text-sm text-gray-600 mb-2">
-                                {Object.entries(item.custo).map(
-                                  ([recurso, val]) => {
-                                    const construidas =
-                                      estadoAtual.construcoes?.[key] || 0;
-                                    // Conta apenas as construções na fila que são do mesmo tipo (key)
-                                    const naFila = filaConstrucoes.filter(
-                                      (fc) => fc.id === key
-                                    ).length;
-                                    const multiplicador = construidas + naFila;
-                                    const total = val * 2 ** multiplicador;
-                                    const valorFinal =
-                                      recurso === "agua"
-                                        ? Math.min(total, 100)
-                                        : total;
-
-                                    return (
-                                      <li key={recurso}>
-                                        💰 <strong>{recurso}</strong>:{" "}
-                                        {valorFinal}
-                                      </li>
-                                    );
-                                  }
-                                )}
-                              </ul>
-
-                              <p className="text-sm text-gray-700 mb-2">
-                                ⏱️ Tempo de construção: {item.tempo} turno(s)
-                              </p>
-
-                              {item.efeitos?.bonusComida && (
-                                <p className="text-sm text-green-700 mb-4">
-                                  🍽️ Bônus: +{item.efeitos.bonusComida} comida
-                                </p>
-                              )}
-
-                              <button
-                                onClick={() => handleConstruir(key)}
-                                disabled={!temRecursos}
-                                className={`mt-auto px-4 py-2 rounded font-semibold ${
-                                  temRecursos
-                                    ? "bg-green-600 text-white hover:bg-green-700"
-                                    : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                                } transition`}
+                            return (
+                              <div
+                                key={key}
+                                className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
                               >
-                                Construir
-                              </button>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </>
-                )}
+                                {item.imagem && (
+                                  <div className="relative mb-3">
+                                    <motion.img
+                                      src={item.imagem}
+                                      alt={`Imagem de ${item.nome}`}
+                                      className="w-full h-40 object-cover rounded"
+                                      whileHover={{
+                                        scale: 1.1,
+                                        height: "180px",
+                                      }}
+                                      transition={{ duration: 0.3 }}
+                                    />
+                                    <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                                      x{estadoAtual.construcoes?.[key] || 0}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <h4 className="text-lg font-bold mb-1">
+                                  {item.nome}
+                                </h4>
+                                <p className="text-sm text-gray-700 mb-2">
+                                  {item.descricao}
+                                </p>
+
+                                <ul className="text-sm text-gray-600 mb-2">
+                                  {Object.entries(item.custo).map(
+                                    ([recurso, val]) => {
+                                      const construidas =
+                                        estadoAtual.construcoes?.[key] || 0;
+                                      // Conta apenas as construções na fila que são do mesmo tipo (key)
+                                      const naFila = filaConstrucoes.filter(
+                                        (fc) => fc.id === key
+                                      ).length;
+                                      const multiplicador = construidas + naFila;
+                                      const total = val * 2 ** multiplicador;
+                                      const valorFinal =
+                                        recurso === "agua"
+                                          ? Math.min(total, 100)
+                                          : total;
+
+                                      return (
+                                        <li key={recurso}>
+                                          💰 <strong>{recurso}</strong>:{" "}
+                                          {valorFinal}
+                                        </li>
+                                      );
+                                    }
+                                  )}
+                                </ul>
+
+                                <p className="text-sm text-gray-700 mb-2">
+                                  ⏱️ Tempo de construção: {item.tempo} turno(s)
+                                </p>
+
+                                {item.efeitos?.bonusComida && (
+                                  <p className="text-sm text-green-700 mb-4">
+                                    🍽️ Bônus: +{item.efeitos.bonusComida} comida
+                                  </p>
+                                )}
+
+                                <button
+                                  onClick={() => handleConstruir(key)}
+                                  disabled={!temRecursos}
+                                  className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
+                                      ? "bg-green-600 text-white hover:bg-green-700"
+                                      : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                                    } transition`}
+                                >
+                                  Construir
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </>
+                  )}
               </motion.div>
             </AnimatePresence>
             <></>
@@ -967,11 +966,10 @@ function ParameterPanel({
                     <button
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${
-                        temRecursos
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
                           ? "bg-purple-600 text-white hover:bg-purple-700"
                           : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                      } transition`}
+                        } transition`}
                     >
                       Criar
                     </button>
@@ -1040,11 +1038,10 @@ function ParameterPanel({
                     <button
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${
-                        temRecursos
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
                           ? "bg-yellow-600 text-white hover:bg-yellow-700"
                           : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                      } transition`}
+                        } transition`}
                     >
                       Criar
                     </button>
@@ -1070,7 +1067,10 @@ function ParameterPanel({
         )}
 
         {abaSelecionada === "exploracao" && (
-          <MissoesExploracao estadoAtual={estadoAtual} />
+          <MissoesExploracao
+            estadoAtual={estadoAtual}
+            onEstadoChange={onEstadoChange}
+          />
         )}
 
         {loading && (

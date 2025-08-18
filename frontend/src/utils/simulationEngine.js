@@ -301,7 +301,35 @@ export function runSimulationTurn(
     }
   });
 
-  // 5. Criar novo estado antes de aplicar efeitos
+  // -------------------
+  // 4b. FILA DE MISSÕES (novo — por turnos)
+  // -------------------
+  // mapa de recompensas simples (ajuste conforme seu design real)
+  const missionRewards = {
+    templo:   { ouro: 1500, reliquias: 3, ciencia: 0, comida: 0, minerais: 0 },
+    vulcao:   { ouro: 3500, cristaisEnergeticos: 1, ciencia: 0, comida: 0, minerais: 0 },
+    floresta: { ouro: 1200, amuleto: 1, ciencia: 0, comida: 0, minerais: 0 },
+  };
+
+  const filaMissoesAtual = Array.isArray(currentState.filaMissoes)
+    ? currentState.filaMissoes.map((f) => ({ ...f }))
+    : [];
+
+  const missoesConcluidas = [];
+  const filaMissoesNova = [];
+
+  for (const item of filaMissoesAtual) {
+    const rest = Math.max(0, (item.tempoRestante ?? item.turnosTotais ?? 1) - 1);
+    if (rest === 0) {
+      missoesConcluidas.push({ ...item, tempoRestante: 0, status: "concluida" });
+    } else {
+      filaMissoesNova.push({ ...item, tempoRestante: rest, status: "emAndamento" });
+    }
+  }
+
+  // -------------------
+  // 5. Montar novo estado base antes de aplicar efeitos
+  // -------------------
   const novoEstado = {
     _id,
     nome,
@@ -319,6 +347,9 @@ export function runSimulationTurn(
     construcoes: { ...currentState.construcoes }, // Inicializa corretamente
     pesquisa,
     filaConstrucoes: novaFila,
+    filaMissoes: filaMissoesNova,       // 🔥 mantém a fila atualizada
+    exploradores: [...(currentState.exploradores || [])], // para liberar depois
+    relatoriosMissoes: [...(currentState.relatoriosMissoes || [])],
   };
 
   construcoesFinalizadas.forEach((c) => {
@@ -342,6 +373,59 @@ export function runSimulationTurn(
 
     log.push(`🏗️ ${dadosConstrucao.nome} finalizada!`);
   });
+
+  // -------------------
+  // 6. Finalização de MISSÕES: liberar exploradores + recompensas
+  // -------------------
+  if (missoesConcluidas.length > 0) {
+    // liberar exploradores
+    novoEstado.exploradores = (novoEstado.exploradores || []).map((ex) => {
+      const terminou = missoesConcluidas.find((m) => m.explorerId === ex.id);
+      if (!terminou) return ex;
+      return {
+        ...ex,
+        status: "disponivel",
+        missionId: null,
+        updatedAt: Date.now(),
+        // aqui daria para aplicar xp/stamina etc.
+      };
+    });
+
+    // recalc livres em populacao.exploradores (conta “disponivel”)
+    const livres = (novoEstado.exploradores || []).filter((e) => e.status === "disponivel").length;
+    novoEstado.populacao = {
+      ...novoEstado.populacao,
+      exploradores: livres,
+    };
+
+    // recompensas
+    for (const fin of missoesConcluidas) {
+      const r = missionRewards[fin.missionId] || {};
+      Object.entries(r).forEach(([recurso, qtd]) => {
+        if (qtd == null) return;
+        if (typeof novoEstado[recurso] === "number") {
+          novoEstado[recurso] += qtd;
+        } else if (novoEstado[recurso] == null) {
+          // cria o campo se não existir (ex.: ouro, reliquias etc.)
+          novoEstado[recurso] = qtd;
+        } else {
+          // se for um tipo diferente, ignora silenciosamente
+        }
+      });
+
+      // relatório
+      novoEstado.relatoriosMissoes.push({
+        id: `rel_${fin.id}`,
+        explorerId: fin.explorerId,
+        missionId: fin.missionId,
+        titulo: fin.titulo,
+        concluidaEm: Date.now(),
+        resultado: "sucesso",
+      });
+
+      log.push(`🧭 Missão concluída: ${fin.titulo} (Explorador ${fin.nome}).`);
+    }
+  }
 
   return {
     novoEstado,

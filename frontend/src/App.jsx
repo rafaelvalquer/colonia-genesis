@@ -45,7 +45,8 @@ function GamePage({
       parametrosSelecionados,
       scenarioList[0],
       parametrosSelecionados.filaConstrucoes,
-      buildings
+      buildings,
+      parametrosSelecionados.filaMissoes
     );
 
     setEstadoAtual(resultado.novoEstado);

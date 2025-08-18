@@ -18,6 +18,15 @@ const filaConstrucaoSchema = new mongoose.Schema(
   { _id: false } // evita gerar um _id para cada item da fila
 );
 
+const filaMissoesSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    nome: { type: String, required: true },
+    tempoRestante: { type: Number, required: true },
+  },
+  { _id: false } // evita gerar um _id para cada item da fila
+);
+
 const hpSchema = new mongoose.Schema(
   {
     current: { type: Number, min: 0, required: true },
@@ -122,6 +131,7 @@ const coloniaSchema = new mongoose.Schema({
   },
 
   filaConstrucoes: [filaConstrucaoSchema],
+  filaMissoes: [filaMissoesSchema],
   pesquisa: [pesquisaSchema],
 });
 

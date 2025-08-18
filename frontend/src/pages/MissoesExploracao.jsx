@@ -44,6 +44,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         descricao:
           "Explore as ruínas ancestrais em busca do artefato sagrado. Cuidado com armadilhas antigas.",
         tags: ["Arqueologia", "Perigo", "Artefatos"],
+        turnos: 8, // 🔥 novo campo
         recompensas: [
           { label: "1500 Ouro", cor: "text-yellow-400" },
           { label: "+3 Relíquias", cor: "text-blue-400" },
@@ -61,6 +62,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         descricao:
           "Colete cristais de energia nas cavernas vulcânicas. Temperaturas extremas exigem preparo.",
         tags: ["Extremo", "Recursos", "Ciência"],
+        turnos: 12, // 🔥 novo campo
         recompensas: [
           { label: "3500 Ouro", cor: "text-yellow-400" },
           { label: "Cristais Energéticos", cor: "text-pink-400" },
@@ -78,6 +80,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         descricao:
           "Investigue fenômenos misteriosos na floresta proibida. Encontre a fonte dos eventos.",
         tags: ["Mistério", "Investigação", "Sobrenatural"],
+        turnos: 6, // 🔥 novo campo
         recompensas: [
           { label: "1200 Ouro", cor: "text-yellow-400" },
           { label: "Amuleto Protetor", cor: "text-purple-400" },
@@ -87,6 +90,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     ],
     []
   );
+
 
   const [assignments, setAssignments] = useState({
     templo: [],
@@ -133,7 +137,8 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     setShowModal(true);
   };
 
-  const confirmAssign = () => {
+  // dentro de MissoesExploracao.jsx (no confirmAssign)
+  const confirmAssign = async () => {
     if (!pending) return;
     const { explorerId, missionId } = pending;
 
@@ -145,6 +150,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     }
 
     const explorer = available[idx];
+    const miss = missions.find((x) => x.id === missionId);
 
     // Remove da lista local disponível…
     setAvailable((prev) => prev.filter((x) => x.id !== explorerId));
@@ -154,34 +160,49 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
       [missionId]: [...prev[missionId], explorer],
     }));
 
-    // Atualiza o estado global:
-    // - marca o explorador como "emMissao" e define missionId
-    // - (opcional) decrementa contador de populacao.exploradores se você ainda usa esse número como “livres”
+    // Atualiza o estado global + FILA DE MISSÕES (em turnos)
     onEstadoChange?.((prev) => {
       const novosExploradores = (prev.exploradores || []).map((ex) =>
         ex.id === explorer.id
           ? {
-              ...ex,
-              status: "emMissao",
-              missionId: missionId,
-              updatedAt: Date.now(),
-            }
+            ...ex,
+            status: "emMissao",
+            missionId: missionId,
+            updatedAt: Date.now(),
+          }
           : ex
       );
+
+      const novaFilaMissoes = [
+        ...(prev.filaMissoes || []),
+        {
+          id: `miss_${Date.now()}`,     // id único da missão na fila
+          explorerId: explorer.id,      // quem está na missão
+          nome: explorer.nome,          // nome do explorador
+          missionId,                    // id da missão base (templo, vulcao…)
+          titulo: miss?.titulo || missionId,
+          turnosTotais: miss?.turnos ?? 1,
+          tempoRestante: miss?.turnos ?? 1,  // 🔴 importante: em turnos!
+          status: "emAndamento",
+        },
+      ];
 
       return {
         ...prev,
         exploradores: novosExploradores,
         populacao: {
           ...prev.populacao,
+          // se "exploradores" representa livres, decrementa:
           exploradores: Math.max(0, (prev.populacao?.exploradores ?? 0) - 1),
         },
+        filaMissoes: novaFilaMissoes,
       };
     });
 
     setPending(null);
     setShowModal(false);
   };
+
 
   return (
     <motion.div
@@ -283,14 +304,17 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
 
                 <div className="flex-grow">
                   <div className="flex items-start justify-between mb-2">
-                    <h5 className="text-xl font-bold text-slate-900">
-                      {m.titulo}
-                    </h5>
-                    <span
-                      className={`${m.diffBg} text-xs px-2 py-1 rounded-full`}
-                    >
-                      Dificuldade: {m.dificuldade}
-                    </span>
+                    <h5 className="text-xl font-bold text-slate-900">{m.titulo}</h5>
+
+                    <div className="flex gap-2">
+                      <span className={`${m.diffBg} text-xs px-2 py-1 rounded-full`}>
+                        Dificuldade: {m.dificuldade}
+                      </span>
+                      <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                        {m.turnos} turnos
+                      </span>
+
+                    </div>
                   </div>
 
                   <p className="text-slate-600 mb-3">{m.descricao}</p>
@@ -325,10 +349,9 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                       onDragLeave={() => setOverMission(null)}
                       onDrop={(e) => handleDrop(e, m.id)}
                       className={`drop-zone rounded-lg p-4 border border-dashed transition
-                        ${
-                          overMission === m.id
-                            ? "bg-green-50 border-green-300"
-                            : "bg-slate-100 border-slate-300"
+                        ${overMission === m.id
+                          ? "bg-green-50 border-green-300"
+                          : "bg-slate-100 border-slate-300"
                         }`}
                     >
                       {assignments[m.id].length === 0 ? (
