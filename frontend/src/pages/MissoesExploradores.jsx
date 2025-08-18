@@ -330,9 +330,14 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
                       value={e.name || ""}
                       onChange={(ev) => handleNameChange(e.id, ev.target.value)}
                     />
-                    <p className="text-gray-400">
-                      {e.nickname || e.name || "Explorador"}
-                    </p>
+
+                    {/* Mostra o nickname só se existir e for diferente do name */}
+                    {e.nickname &&
+                    e.nickname.trim() &&
+                    e.nickname !== e.name ? (
+                      <p className="text-gray-400">{e.nickname}</p>
+                    ) : null}
+
                     <StatusBadge status={e.status} />
                   </div>
                 </div>

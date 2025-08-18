@@ -2,49 +2,34 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 /**
- * Props esperadas:
- * - estadoAtual: objeto global (contém populacao.exploradores)
+ * Props:
+ * - estadoAtual: objeto global (contém exploradores: [])
  * - onEstadoChange: fn(prev => novoEstado) para atualizar no pai
  */
 const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
-  const totalExploradores = estadoAtual?.populacao?.exploradores ?? 0;
+  // total de exploradores cadastrados no sistema (independe do status)
+  const totalExploradores = estadoAtual?.exploradores?.length ?? 0;
 
-  // Gera "tokens" de exploradores disponíveis a partir da contagem atual
-  const [available, setAvailable] = useState(() =>
-    Array.from({ length: totalExploradores }, (_, i) => ({
-      id: String(i + 1),
-      nome: `Explorador #${i + 1}`,
-      nivel: 10 + ((i * 3) % 15),
-      pericia: ["Combate", "Ciência", "Força", "Furtividade", "Exploração"][
-        i % 5
-      ],
-      avatar: "/images/explorador.png", // troque se tiver avatar real
-      corBorda: ["yellow", "blue", "red", "purple", "green"][i % 5],
-    }))
-  );
-
-  // Se a contagem subir/baixar externamente, reequilibra apenas se aumentar
-  useEffect(() => {
-    setAvailable((prev) => {
-      const diff = totalExploradores - (prev.length + assignedTotal);
-      if (diff <= 0) return prev;
-      const startIdx = prev.length + assignedTotal;
-      const novos = Array.from({ length: diff }, (_, k) => ({
-        id: String(startIdx + k + 1),
-        nome: `Explorador #${startIdx + k + 1}`,
-        nivel: 10 + (((startIdx + k) * 3) % 15),
-        pericia: ["Combate", "Ciência", "Força", "Furtividade", "Exploração"][
-          (startIdx + k) % 5
-        ],
-        avatar: "/images/explorador.png",
-        corBorda: ["yellow", "blue", "red", "purple", "green"][
-          (startIdx + k) % 5
-        ],
+  // Constrói a lista de disponíveis (status === "disponivel")
+  const buildAvailableFromState = () => {
+    const lista = estadoAtual?.exploradores || [];
+    return lista
+      .filter((exp) => exp?.status === "disponivel")
+      .map((exp) => ({
+        id: exp.id || String(Math.random()),
+        nome: exp.nickname || exp.name || "Explorador",
+        nivel: exp.level ?? 1,
+        avatar: exp.portrait || "/images/exploradores/default.png",
       }));
-      return [...prev, ...novos];
-    });
+  };
+
+  const [available, setAvailable] = useState(buildAvailableFromState);
+
+  // Reconstroi a lista quando o estado global mudar
+  useEffect(() => {
+    setAvailable(buildAvailableFromState());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalExploradores]);
+  }, [estadoAtual?.exploradores]);
 
   const missions = useMemo(
     () => [
@@ -55,7 +40,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         tagCor: "text-amber-400",
         dificuldade: "★★★★☆",
         diffBg: "bg-yellow-900 text-yellow-300",
-        img: "/images/missoes/templo.png", // substitua pelas suas imagens
+        img: "/images/missoes/templo.png",
         descricao:
           "Explore as ruínas ancestrais em busca do artefato sagrado. Cuidado com armadilhas antigas.",
         tags: ["Arqueologia", "Perigo", "Artefatos"],
@@ -115,7 +100,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     assignments.floresta.length;
 
   // UI/Modal
-  const [overMission, setOverMission] = useState(null); // id da missão que está com dragover
+  const [overMission, setOverMission] = useState(null); // id da missão com dragover
   const [pending, setPending] = useState(null); // { explorerId, missionId }
   const [showModal, setShowModal] = useState(false);
 
@@ -123,7 +108,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
   const handleDragStart = (e, id) => {
     e.dataTransfer.setData("text/plain", id);
     e.dataTransfer.effectAllowed = "move";
-    // efeito visual opcional
     setTimeout(() => {
       const el = e.target.closest(".explorer-item");
       if (el) el.classList.add("opacity-0");
@@ -162,20 +146,38 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
 
     const explorer = available[idx];
 
+    // Remove da lista local disponível…
     setAvailable((prev) => prev.filter((x) => x.id !== explorerId));
+    // …e adiciona na missão escolhida
     setAssignments((prev) => ({
       ...prev,
       [missionId]: [...prev[missionId], explorer],
     }));
 
-    // Decrementa no estado global
-    onEstadoChange?.((prev) => ({
-      ...prev,
-      populacao: {
-        ...prev.populacao,
-        exploradores: Math.max(0, (prev.populacao.exploradores ?? 0) - 1),
-      },
-    }));
+    // Atualiza o estado global:
+    // - marca o explorador como "emMissao" e define missionId
+    // - (opcional) decrementa contador de populacao.exploradores se você ainda usa esse número como “livres”
+    onEstadoChange?.((prev) => {
+      const novosExploradores = (prev.exploradores || []).map((ex) =>
+        ex.id === explorer.id
+          ? {
+              ...ex,
+              status: "emMissao",
+              missionId: missionId,
+              updatedAt: Date.now(),
+            }
+          : ex
+      );
+
+      return {
+        ...prev,
+        exploradores: novosExploradores,
+        populacao: {
+          ...prev.populacao,
+          exploradores: Math.max(0, (prev.populacao?.exploradores ?? 0) - 1),
+        },
+      };
+    });
 
     setPending(null);
     setShowModal(false);
@@ -228,7 +230,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                 <img
                   src={exp.avatar}
                   alt={exp.nome}
-                  className={`w-12 h-12 rounded-full mr-4 border-2 border-${exp.corBorda}-500 object-cover`}
+                  className="w-12 h-12 rounded-full mr-4 border-2 border-green-500 object-cover"
                   onError={(ev) => {
                     ev.currentTarget.src =
                       "data:image/svg+xml;utf8," +
@@ -239,9 +241,8 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                 />
                 <div>
                   <h5 className="font-medium text-slate-800">{exp.nome}</h5>
-                  <p className="text-xs text-slate-500">
-                    Nível {exp.nivel} | {exp.pericia}
-                  </p>
+                  {/* Apenas Nível (sem perícia) */}
+                  <p className="text-xs text-slate-500">Nível {exp.nivel}</p>
                 </div>
               </div>
             ))}
@@ -344,14 +345,15 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                               <img
                                 src={exp.avatar}
                                 alt={exp.nome}
-                                className={`w-8 h-8 rounded-full border-2 border-${exp.corBorda}-500 object-cover`}
+                                className="w-8 h-8 rounded-full border-2 border-blue-500 object-cover"
                               />
                               <div>
                                 <div className="text-xs font-medium text-slate-800">
                                   {exp.nome}
                                 </div>
+                                {/* Apenas Nível */}
                                 <div className="text-[10px] text-slate-500">
-                                  Nível {exp.nivel} · {exp.pericia}
+                                  Nível {exp.nivel}
                                 </div>
                               </div>
                             </div>
