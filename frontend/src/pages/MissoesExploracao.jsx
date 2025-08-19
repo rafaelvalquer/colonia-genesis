@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Drawer, IconButton, Badge, LinearProgress, Typography, Box } from "@mui/material";
+import ListIcon from "@mui/icons-material/List";
+import CloseIcon from "@mui/icons-material/Close";
 
 /**
  * Props:
- * - estadoAtual: objeto global (contém exploradores: [])
+ * - estadoAtual: objeto global (contém exploradores: [] e filaMissoes: [])
  * - onEstadoChange: fn(prev => novoEstado) para atualizar no pai
  */
 const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
   // total de exploradores cadastrados no sistema (independe do status)
   const totalExploradores = estadoAtual?.exploradores?.length ?? 0;
+
+  // Fila de missões do estado global
+  const filaMissoes = estadoAtual?.filaMissoes ?? [];
 
   // Constrói a lista de disponíveis (status === "disponivel")
   const buildAvailableFromState = () => {
@@ -44,7 +50,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         descricao:
           "Explore as ruínas ancestrais em busca do artefato sagrado. Cuidado com armadilhas antigas.",
         tags: ["Arqueologia", "Perigo", "Artefatos"],
-        turnos: 8, // 🔥 novo campo
+        turnos: 8,
         recompensas: [
           { label: "1500 Ouro", cor: "text-yellow-400" },
           { label: "+3 Relíquias", cor: "text-blue-400" },
@@ -62,7 +68,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         descricao:
           "Colete cristais de energia nas cavernas vulcânicas. Temperaturas extremas exigem preparo.",
         tags: ["Extremo", "Recursos", "Ciência"],
-        turnos: 12, // 🔥 novo campo
+        turnos: 12,
         recompensas: [
           { label: "3500 Ouro", cor: "text-yellow-400" },
           { label: "Cristais Energéticos", cor: "text-pink-400" },
@@ -80,7 +86,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
         descricao:
           "Investigue fenômenos misteriosos na floresta proibida. Encontre a fonte dos eventos.",
         tags: ["Mistério", "Investigação", "Sobrenatural"],
-        turnos: 6, // 🔥 novo campo
+        turnos: 6,
         recompensas: [
           { label: "1200 Ouro", cor: "text-yellow-400" },
           { label: "Amuleto Protetor", cor: "text-purple-400" },
@@ -91,6 +97,12 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     []
   );
 
+  // Mapa auxiliar para descobrir `turnos` a partir do id de missão base
+  const missionById = useMemo(() => {
+    const map = {};
+    missions.forEach((m) => (map[m.id] = m));
+    return map;
+  }, [missions]);
 
   const [assignments, setAssignments] = useState({
     templo: [],
@@ -107,6 +119,9 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
   const [overMission, setOverMission] = useState(null); // id da missão com dragover
   const [pending, setPending] = useState(null); // { explorerId, missionId }
   const [showModal, setShowModal] = useState(false);
+
+  // Drawer da fila de missões
+  const [drawerAberto, setDrawerAberto] = useState(false);
 
   // Drag & Drop handlers
   const handleDragStart = (e, id) => {
@@ -137,7 +152,7 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     setShowModal(true);
   };
 
-  // dentro de MissoesExploracao.jsx (no confirmAssign)
+  // Confirmar alocação
   const confirmAssign = async () => {
     if (!pending) return;
     const { explorerId, missionId } = pending;
@@ -173,16 +188,15 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
           : ex
       );
 
+      // Item rico (guarda info extra para UI/controle). Se preferir estrito ao schema, reduza aos 3 campos {id,nome,tempoRestante}
       const novaFilaMissoes = [
         ...(prev.filaMissoes || []),
         {
-          id: `miss_${Date.now()}`,     // id único da missão na fila
-          explorerId: explorer.id,      // quem está na missão
-          nome: explorer.nome,          // nome do explorador
-          missionId,                    // id da missão base (templo, vulcao…)
-          titulo: miss?.titulo || missionId,
-          turnosTotais: miss?.turnos ?? 1,
-          tempoRestante: miss?.turnos ?? 1,  // 🔴 importante: em turnos!
+          id: missionId,                    // <— o mesmo ID da missão
+          explorerId: explorer.id,          // opcional (útil para render/relatórios)
+          nome: miss?.titulo || missionId,  // label exibido
+          turnosTotais: miss?.turnos ?? 1,  // total de turnos da missão base
+          tempoRestante: miss?.turnos ?? 1, // sempre começa cheio
           status: "emAndamento",
         },
       ];
@@ -203,7 +217,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     setShowModal(false);
   };
 
-
   return (
     <motion.div
       key="missoes-exploracao"
@@ -214,13 +227,26 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
       className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
     >
       {/* Header */}
-      <div className="mb-6 text-center">
+      <div className="mb-6 text-center relative">
         <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-600">
           Comando de Missões — Exploração
         </h3>
         <p className="text-sm text-slate-500">
           Aloque exploradores para missões estratégicas e colete recompensas.
         </p>
+
+        {/* Botão Drawer (canto superior direito) */}
+        <div className="absolute right-0 top-0">
+          <Badge badgeContent={filaMissoes.length} color="error" showZero>
+            <IconButton
+              size="small"
+              onClick={() => setDrawerAberto(true)}
+              sx={{ color: "#334155", bgcolor: "rgba(148,163,184,.15)" }}
+            >
+              <ListIcon fontSize="small" />
+            </IconButton>
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -313,7 +339,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                       <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
                         {m.turnos} turnos
                       </span>
-
                     </div>
                   </div>
 
@@ -442,6 +467,67 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Drawer - Fila de Missões */}
+      <Drawer
+        anchor="right"
+        open={drawerAberto}
+        onClose={() => setDrawerAberto(false)}
+      >
+        <div className="w-80 p-4 bg-white h-full flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold text-slate-800">Fila de Missões</h2>
+            <IconButton onClick={() => setDrawerAberto(false)}>
+              <CloseIcon />
+            </IconButton>
+          </div>
+
+          {filaMissoes.length === 0 ? (
+            <p className="text-sm text-slate-600">Nenhuma missão em andamento.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {filaMissoes.map((item, index) => {
+                // missão base (pelo id da missão, que agora é o mesmo do item)
+                const meta = missionById[item.id];
+
+                // total de turnos → do item (se salvo) ou da missão base
+                const totalTurnosRaw = item.turnosTotais ?? meta?.turnos ?? 1;
+                const totalTurnos = Number.isFinite(+totalTurnosRaw) ? Math.max(1, +totalTurnosRaw) : 1;
+
+                // restante em turnos (sempre número >= 0)
+                const restanteRaw = Number.isFinite(+item.tempoRestante) ? +item.tempoRestante : 0;
+                const restante = Math.min(Math.max(0, restanteRaw), totalTurnos);
+
+                const progresso = ((totalTurnos - restante) / totalTurnos) * 100;
+
+                return (
+                  <li key={`${item.id}-${index}`} className="border p-3 rounded shadow bg-white">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <p className="font-semibold text-gray-800">
+                          {item.titulo || item.nome}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          ⏱️ {restante} turno(s) restante(s)
+                        </p>
+                      </div>
+
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box sx={{ flexGrow: 1 }}>
+                          <LinearProgress variant="determinate" value={progresso} />
+                        </Box>
+                        <Typography variant="body2" sx={{ color: "text.secondary", minWidth: 30 }}>
+                          {`${Math.round(progresso)}%`}
+                        </Typography>
+                      </Box>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </Drawer>
     </motion.div>
   );
 };
