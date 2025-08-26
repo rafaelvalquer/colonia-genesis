@@ -305,9 +305,11 @@ export function runSimulationTurn(
   // 4b. FILA DE MISSÕES (novo — por turnos)
   // -------------------
   // mapa de recompensas simples (ajuste conforme seu design real)
+  // 4b. FILA DE MISSÕES (por turnos)
+  // 4b. FILA DE MISSÕES (por turnos) — decremento inteiro, coersão numérica
   const missionRewards = {
-    templo:   { ouro: 1500, reliquias: 3, ciencia: 0, comida: 0, minerais: 0 },
-    vulcao:   { ouro: 3500, cristaisEnergeticos: 1, ciencia: 0, comida: 0, minerais: 0 },
+    templo: { ouro: 1500, reliquias: 3, ciencia: 0, comida: 0, minerais: 0 },
+    vulcao: { ouro: 3500, cristaisEnergeticos: 1, ciencia: 0, comida: 0, minerais: 0 },
     floresta: { ouro: 1200, amuleto: 1, ciencia: 0, comida: 0, minerais: 0 },
   };
 
@@ -318,18 +320,45 @@ export function runSimulationTurn(
   const missoesConcluidas = [];
   const filaMissoesNova = [];
 
+  // helper para garantir número inteiro seguro
+  const toInt = (v, fallback = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 0);
+  };
+
   for (const item of filaMissoesAtual) {
-    const rest = Math.max(0, (item.tempoRestante ?? item.turnosTotais ?? 1) - 1);
-    if (rest === 0) {
-      missoesConcluidas.push({ ...item, tempoRestante: 0, status: "concluida" });
+    // total de turnos da missão: prioriza o campo salvo; se não houver, usa o próprio tempoRestante; por último 1
+    const total = toInt(item.turnosTotais, item.tempoRestante || 1);
+
+    // turnos restantes atuais (coerção numérica)
+    const atual = toInt(item.tempoRestante, total);
+
+    // decrementa 1 turno inteiro por rodada
+    const rest = atual - 1;
+
+    if (rest <= 0) {
+      // missão termina neste turno
+      missoesConcluidas.push({
+        ...item,
+        missionId: item.id,       // id da missão base (templo/vulcao/floresta)
+        tempoRestante: 0,
+        turnosTotais: total,
+        status: "concluida",
+      });
     } else {
-      filaMissoesNova.push({ ...item, tempoRestante: rest, status: "emAndamento" });
+      // permanece na fila com rest atualizado
+      filaMissoesNova.push({
+        ...item,
+        missionId: item.id,
+        tempoRestante: rest,
+        turnosTotais: total,
+        status: "emAndamento",
+      });
     }
   }
 
-  // -------------------
-  // 5. Montar novo estado base antes de aplicar efeitos
-  // -------------------
+
+  // 5. Novo estado base
   const novoEstado = {
     _id,
     nome,
@@ -344,88 +373,76 @@ export function runSimulationTurn(
     sustentabilidade,
     integridadeEstrutural,
     ciencia,
-    construcoes: { ...currentState.construcoes }, // Inicializa corretamente
+    construcoes: { ...currentState.construcoes },
     pesquisa,
     filaConstrucoes: novaFila,
-    filaMissoes: filaMissoesNova,       // 🔥 mantém a fila atualizada
-    exploradores: [...(currentState.exploradores || [])], // para liberar depois
+    filaMissoes: filaMissoesNova,  // fila atualizada
+    exploradores: [...(currentState.exploradores || [])],
     relatoriosMissoes: [...(currentState.relatoriosMissoes || [])],
   };
 
-  construcoesFinalizadas.forEach((c) => {
-    const tipo = c.id;
-
-    const dadosConstrucao = buildings[tipo];
-    if (!dadosConstrucao) {
-      log.push(`Erro: construção com id "${tipo}" não encontrada.`);
-      return;
-    }
-
-    if (!novoEstado.construcoes[tipo]) {
-      novoEstado.construcoes[tipo] = 0;
-    }
-
-    novoEstado.construcoes[tipo] += 1;
-
-    if (dadosConstrucao.efeitos?.bonusComida) {
-      novoEstado.comida += dadosConstrucao.efeitos.bonusComida;
-    }
-
-    log.push(`🏗️ ${dadosConstrucao.nome} finalizada!`);
-  });
-
-  // -------------------
   // 6. Finalização de MISSÕES: liberar exploradores + recompensas
   // -------------------
   if (missoesConcluidas.length > 0) {
-    // liberar exploradores
+    // Libera os exploradores que terminaram:
+    // - preferencialmente casa por explorerId salvo na fila
+    // - fallback: casa por missionId no explorador (caso legado)
+    const concluidasPorExplorador = new Map();
+    for (const m of missoesConcluidas) {
+      if (m.explorerId) concluidasPorExplorador.set(m.explorerId, m);
+    }
+
     novoEstado.exploradores = (novoEstado.exploradores || []).map((ex) => {
-      const terminou = missoesConcluidas.find((m) => m.explorerId === ex.id);
-      if (!terminou) return ex;
+      const terminouPorId = concluidasPorExplorador.get(ex.id);
+      const terminouPorMissao =
+        !terminouPorId &&
+        ex.missionId &&
+        missoesConcluidas.some((m) => m.id === ex.missionId || m.missionId === ex.missionId);
+
+      if (!terminouPorId && !terminouPorMissao) return ex;
+
       return {
         ...ex,
         status: "disponivel",
         missionId: null,
         updatedAt: Date.now(),
-        // aqui daria para aplicar xp/stamina etc.
+        // aqui você pode aplicar xp/stamina, se quiser
       };
     });
 
-    // recalc livres em populacao.exploradores (conta “disponivel”)
+    // Recalcula "exploradores" livres na população (status === "disponivel")
     const livres = (novoEstado.exploradores || []).filter((e) => e.status === "disponivel").length;
     novoEstado.populacao = {
       ...novoEstado.populacao,
       exploradores: livres,
     };
 
-    // recompensas
+    // Recompensas (ajuste conforme seu design)
     for (const fin of missoesConcluidas) {
-      const r = missionRewards[fin.missionId] || {};
+      const r = missionRewards[fin.missionId || fin.id] || {};
       Object.entries(r).forEach(([recurso, qtd]) => {
         if (qtd == null) return;
         if (typeof novoEstado[recurso] === "number") {
           novoEstado[recurso] += qtd;
         } else if (novoEstado[recurso] == null) {
-          // cria o campo se não existir (ex.: ouro, reliquias etc.)
           novoEstado[recurso] = qtd;
-        } else {
-          // se for um tipo diferente, ignora silenciosamente
         }
       });
 
-      // relatório
+      // Relatório
       novoEstado.relatoriosMissoes.push({
-        id: `rel_${fin.id}`,
-        explorerId: fin.explorerId,
-        missionId: fin.missionId,
-        titulo: fin.titulo,
+        id: `rel_${fin.id}_${Date.now()}`,
+        explorerId: fin.explorerId ?? null,
+        missionId: fin.missionId || fin.id,
+        titulo: fin.titulo || fin.nome || fin.id,
         concluidaEm: Date.now(),
         resultado: "sucesso",
       });
 
-      log.push(`🧭 Missão concluída: ${fin.titulo} (Explorador ${fin.nome}).`);
+      log.push(`🧭 Missão concluída: ${fin.titulo || fin.id}${fin.explorerNome ? ` (Explorador ${fin.explorerNome})` : ""}.`);
     }
   }
+
 
   return {
     novoEstado,

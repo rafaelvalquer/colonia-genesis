@@ -360,8 +360,8 @@ function ParameterPanel({
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
                     className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${abaSelecionada === aba.id
-                        ? "border-blue-400 text-white font-semibold"
-                        : "border-transparent text-gray-400 hover:text-white"
+                      ? "border-blue-400 text-white font-semibold"
+                      : "border-transparent text-gray-400 hover:text-white"
                       } transition-colors`}
                   >
                     {aba.label}
@@ -786,13 +786,19 @@ function ParameterPanel({
                           color="error"
                           showZero
                         >
-                          <button
-                            onClick={() => setDrawerAberto(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            <List fontSize="small" />
-                            Ver Fila
-                          </button>
+                          {/* Botão Drawer (canto superior direito) */}
+                          <div className="absolute right-0 top-0">
+                            <Badge badgeContent={filaConstrucoes.length} color="error" showZero>
+                              <IconButton
+                                size="small"
+                                onClick={() => setDrawerAberto(true)}
+                                sx={{ color: "#334155", bgcolor: "rgba(148,163,184,.15)" }}
+                              >
+                                <List fontSize="small" />
+                              </IconButton>
+                            </Badge>
+                          </div>
+
                         </Badge>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -873,8 +879,8 @@ function ParameterPanel({
                                   onClick={() => handleConstruir(key)}
                                   disabled={!temRecursos}
                                   className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                                      ? "bg-green-600 text-white hover:bg-green-700"
-                                      : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                                    ? "bg-green-600 text-white hover:bg-green-700"
+                                    : "bg-gray-400 text-gray-700 cursor-not-allowed"
                                     } transition`}
                                 >
                                   Construir
@@ -967,8 +973,8 @@ function ParameterPanel({
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
                       className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                          ? "bg-purple-600 text-white hover:bg-purple-700"
-                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                        ? "bg-purple-600 text-white hover:bg-purple-700"
+                        : "bg-gray-400 text-gray-700 cursor-not-allowed"
                         } transition`}
                     >
                       Criar
@@ -1039,8 +1045,8 @@ function ParameterPanel({
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
                       className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                          ? "bg-yellow-600 text-white hover:bg-yellow-700"
-                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                        ? "bg-yellow-600 text-white hover:bg-yellow-700"
+                        : "bg-gray-400 text-gray-700 cursor-not-allowed"
                         } transition`}
                     >
                       Criar

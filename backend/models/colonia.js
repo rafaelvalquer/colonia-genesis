@@ -18,14 +18,34 @@ const filaConstrucaoSchema = new mongoose.Schema(
   { _id: false } // evita gerar um _id para cada item da fila
 );
 
+// backend/models/colonia.js
+
 const filaMissoesSchema = new mongoose.Schema(
   {
+    // id da missão base (ex.: "templo", "vulcao", "floresta")
     id: { type: String, required: true },
+
+    // título para exibir
     nome: { type: String, required: true },
+
+    // turnos restantes e totais para progresso
     tempoRestante: { type: Number, required: true },
+    turnosTotais: { type: Number, required: true },
+
+    // vínculo com o explorador alocado
+    explorerId: { type: String, required: true },
+    explorerNome: { type: String, required: true },
+
+    // estado da tarefa de missão
+    status: {
+      type: String,
+      enum: ["emAndamento", "concluida"],
+      default: "emAndamento",
+    },
   },
-  { _id: false } // evita gerar um _id para cada item da fila
+  { _id: false }
 );
+
 
 const hpSchema = new mongoose.Schema(
   {

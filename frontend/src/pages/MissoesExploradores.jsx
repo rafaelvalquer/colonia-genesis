@@ -128,7 +128,7 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
     () => (estadoAtual?.exploradores || []).map((e) => ({ ...e })),
     [estadoAtual?.exploradores]
   );
-
+console.log("!!!!!!!!!!!!!!" + JSON.stringify(estadoAtual.filaMissoes))
   const [explorers, setExplorers] = useState(initialExplorers);
   const [tab, setTab] = useState("all"); // all | available | mission
   const [toast, setToast] = useState(null);
