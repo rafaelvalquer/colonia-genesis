@@ -128,7 +128,7 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
     () => (estadoAtual?.exploradores || []).map((e) => ({ ...e })),
     [estadoAtual?.exploradores]
   );
-console.log("!!!!!!!!!!!!!!" + JSON.stringify(estadoAtual.filaMissoes))
+  console.log("!!!!!!!!!!!!!!" + JSON.stringify(estadoAtual.filaMissoes));
   const [explorers, setExplorers] = useState(initialExplorers);
   const [tab, setTab] = useState("all"); // all | available | mission
   const [toast, setToast] = useState(null);
@@ -352,28 +352,67 @@ console.log("!!!!!!!!!!!!!!" + JSON.stringify(estadoAtual.filaMissoes))
               </div>
 
               {/* Missão atual */}
-              {onMission && (
-                <div className="bg-orange-900/30 border border-orange-700 rounded-lg p-4 mb-6">
-                  <h3 className="text-lg font-semibold text-orange-400 mb-2">
-                    Missão Atual
-                  </h3>
-                  <p className="text-sm">
-                    {e.missionId
-                      ? `Missão #${e.missionId}`
-                      : "Em deslocamento..."}
-                  </p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-400">
-                      Progresso em andamento
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                      <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                      <div className="w-2 h-2 rounded-full bg-gray-600"></div>
+              {onMission &&
+                (() => {
+                  console.log(estadoAtual.filaMissoes);
+                  // pega a missão da fila vinculada a este explorador
+                  const m = (estadoAtual?.filaMissoes || []).find(
+                    (fm) => fm.explorerId === e.id && fm.status !== "concluida"
+                  );
+
+                  const total = Number.isFinite(m?.turnosTotais)
+                    ? m.turnosTotais
+                    : null;
+                  const rest = Number.isFinite(m?.tempoRestante)
+                    ? m.tempoRestante
+                    : null;
+
+                  // progresso seguro: 0..1
+                  const progress =
+                    total && rest != null ? (total - rest) / total : 0;
+                  const pctInt =
+                    total && rest != null ? Math.round(progress * 100) : null;
+
+                  return (
+                    <div className="bg-orange-900/30 border border-orange-700 rounded-lg p-4 mb-6">
+                      <h3 className="text-lg font-semibold text-orange-400 mb-2">
+                        Missão Atual
+                      </h3>
+
+                      <p className="text-sm">
+                        {e.missionId
+                          ? `Missão #${e.missionId}`
+                          : "Em deslocamento..."}
+                        {m?.nome ? ` — ${m.nome}` : null}
+                      </p>
+
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-gray-400">
+                          {total && rest != null
+                            ? `Progresso: ${total - rest}/${total} turnos` // turnos concluídos
+                            : "Coletando dados..."}
+                        </span>
+
+                        {/* Semáforo de 3 bolinhas com base no progresso (1/3, 2/3, 3/3) */}
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 3 }).map((_, i) => {
+                            const frac = (i + 1) / 3;
+                            const ativo = progress >= frac;
+                            return (
+                              <div
+                                key={i}
+                                className={`w-2 h-2 rounded-full transition ${
+                                  ativo ? "bg-orange-500" : "bg-gray-600"
+                                }`}
+                                title={pctInt != null ? `${pctInt}%` : ""}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  );
+                })()}
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-4 mb-6">

@@ -1,4 +1,6 @@
-import { useState } from "react";
+//ParameterPanel.jsx
+
+import { useMemo, useState } from "react";
 import {
   Switch,
   FormControlLabel,
@@ -121,6 +123,7 @@ function ParameterPanel({
   const [modalAguaAberto, setModalAguaAberto] = useState(false);
   const [aguaNecessaria, setAguaNecessaria] = useState(0);
   const [colonos, setColonos] = useState(10);
+  const [turnReport, setTurnReport] = useState(null);
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
     //defesa: 0,
@@ -168,10 +171,10 @@ function ParameterPanel({
       },
     },
     {
-      id: "arqueiro",
-      nome: "Arqueiro",
+      id: "sniper",
+      nome: "Sniper",
       descricao: "Unidade de ataque à distância.",
-      imagem: "/images/arqueiro.png",
+      imagem: "/images/sniper.png",
       custo: {
         comida: 25,
         agua: 15,
@@ -271,7 +274,11 @@ function ParameterPanel({
     }
   };
 
-  const handleSubmit = () => {
+  // formata + ou - com emoji
+  const fmt = (n, emoji) =>
+    n === 0 ? "0" : `${n > 0 ? `+${n}` : n} ${emoji || ""}`;
+
+  const handleSubmit = async () => {
     const consumo = consumoAguaOpcoes[aguaIndex].value;
     const aguaNecessaria =
       consumo === 0.5 ? 5 : consumo === 1 ? 10 : consumo === 1.5 ? 20 : 0;
@@ -282,23 +289,25 @@ function ParameterPanel({
       return;
     }
 
+    // aplica custo de água localmente
     estadoAtual.agua -= aguaNecessaria;
 
-    setLoading(true); // inicia carregamento
-
-    console.log("filaConstrucoes --- " + estadoAtual.filaConstrucoes);
-    setTimeout(() => {
-      onChange({
+    setLoading(true);
+    try {
+      // 👇 agora esperamos o report
+      const report = await onChange({
         distribuicao,
-        agua: consumoAguaOpcoes[aguaIndex].value,
+        agua: consumo,
         alocacaoColonos,
         filaConstrucoes: estadoAtual.filaConstrucoes,
         filaMissoes: estadoAtual.filaMissoes,
       });
 
-      setLoading(false); // encerra após aplicar
-      setModalAberto(true); // garante que só abre se passou a verificação
-    }, 500); // simula carregamento por 0.5s
+      setTurnReport(report); // <- guarda o relatório do turno
+      setModalAberto(true); // abre o modal já com dados reais
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleConstruir = (id) => {
@@ -321,26 +330,110 @@ function ParameterPanel({
     );
   }
 
-  const conteudoStep = [
-    <>
-      <h3 className="text-lg font-bold mb-2">
-        🔄 Coleta e Consumo de Recursos
-      </h3>
-      <p>- 💧 Água coletada: +20</p>
-      <p>- 🌾 Comida consumida: -35</p>
-      <p>- ⚡ Energia produzida: +50</p>
-    </>,
-    <>
-      <h3 className="text-lg font-bold mb-2">🌌 Eventos Prováveis</h3>
-      <p>⚠️ Tempestade solar: -10% energia</p>
-      <p>✅ Descoberta de minerais raros: +30 minerais</p>
-    </>,
-    <>
-      <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
-      <p>✅ Turno concluído com sucesso!</p>
-      <p>🎯 População satisfeita e produtiva</p>
-    </>,
-  ];
+  // monta os steps dinamicamente
+  const conteudoStep = useMemo(() => {
+    if (!turnReport) {
+      return [
+        <>
+          <h3 className="text-lg font-bold mb-2">
+            🔄 Coleta e Consumo de Recursos
+          </h3>
+          <p>- 💧 Água: aguardando simulação</p>
+          <p>- 🌾 Comida: aguardando simulação</p>
+          <p>- ⚡ Energia: aguardando simulação</p>
+        </>,
+        <>
+          <h3 className="text-lg font-bold mb-2">🌌 Eventos & Missões</h3>
+          <p>Sem dados (ainda).</p>
+        </>,
+        <>
+          <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
+          <p>Execute a simulação para ver o resumo.</p>
+        </>,
+      ];
+    }
+
+    const p = turnReport.producao || {};
+    const d = turnReport.deltas || {};
+    const eventos = turnReport.eventos || [];
+    const missoes = turnReport.missoesConcluidas || [];
+
+    return [
+      <>
+        <h3 className="text-lg font-bold mb-2">
+          🔄 Coleta e Consumo de Recursos
+        </h3>
+        <p>- 🌾 Comida líquida: {fmt(p.comidaLiquida, "🌾")}</p>
+        <p>- ⚡ Energia gerada: {fmt(p.energiaGerada, "⚡")}</p>
+        <p>- ⛏️ Minerais produzidos: {fmt(p.mineraisProduzidos, "⛏️")}</p>
+        <p>- 🧪 Ciência gerada: {fmt(p.cienciaProduzida, "🧪")}</p>
+        <p>- 🛠️ Reparo aplicado: {fmt(p.reparoAplicado, "🛠️")}</p>
+        <p>- 🏥 Saúde (ganho): {fmt(p.ganhoSaude, "🏥")}</p>
+        <p>
+          - 🌿 Sustentabilidade (ganho): {fmt(p.ganhoSustentabilidade, "🌿")}
+        </p>
+      </>,
+      <>
+        <h3 className="text-lg font-bold mb-2">🌌 Eventos & Missões</h3>
+
+        <div className="mb-3">
+          <p className="font-semibold mb-1">Eventos:</p>
+          {eventos.length === 0 ? (
+            <p className="text-sm text-slate-600">Nenhum evento ocorrido.</p>
+          ) : (
+            <ul className="list-disc pl-5 text-sm">
+              {eventos.map((ev, i) => (
+                <li key={i}>{ev}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="font-semibold mb-1">Missões concluídas:</p>
+          {missoes.length === 0 ? (
+            <p className="text-sm text-slate-600">
+              Nenhuma missão concluída neste turno.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {missoes.map((m, i) => (
+                <li key={i} className="bg-slate-100 rounded p-2">
+                  <div className="font-medium">
+                    🧭 {m.titulo}{" "}
+                    {m.explorerNome ? (
+                      <span className="text-slate-500">— {m.explorerNome}</span>
+                    ) : null}
+                  </div>
+                  {Array.isArray(m.recompensasRaw) &&
+                    m.recompensasRaw.length > 0 && (
+                      <ul className="text-sm text-slate-700 mt-1 list-disc pl-5">
+                        {m.recompensasRaw.map((r, idx) => (
+                          <li key={idx}>{r.label || JSON.stringify(r)}</li>
+                        ))}
+                      </ul>
+                    )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </>,
+      <>
+        <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
+        <ul className="text-sm">
+          <li>🌾 Comida: {fmt(d.comida)}</li>
+          <li>⚡ Energia: {fmt(d.energia)}</li>
+          <li>⛏️ Minerais: {fmt(d.minerais)}</li>
+          <li>🧪 Ciência: {fmt(d.ciencia)}</li>
+          <li>💧 Água: {estadoAtual.agua}</li>
+          <li>🏥 Saúde: {fmt(d.saude)}</li>
+          <li>🌿 Sustentabilidade: {fmt(d.sustentabilidade)}</li>
+          <li>🏗️ Integridade Estrutural: {fmt(d.integridadeEstrutural)}</li>
+        </ul>
+      </>,
+    ];
+  }, [turnReport]);
 
   const navigate = useNavigate();
 
@@ -359,10 +452,11 @@ function ParameterPanel({
                 <li key={aba.id}>
                   <button
                     onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${abaSelecionada === aba.id
-                      ? "border-blue-400 text-white font-semibold"
-                      : "border-transparent text-gray-400 hover:text-white"
-                      } transition-colors`}
+                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${
+                      abaSelecionada === aba.id
+                        ? "border-blue-400 text-white font-semibold"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    } transition-colors`}
                   >
                     {aba.label}
                   </button>
@@ -773,124 +867,131 @@ function ParameterPanel({
                   "energia",
                   "agua",
                 ].includes(abaConstrucao) && (
-                    <>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold">
-                          Construções - Setor{" "}
-                          {abaConstrucao.charAt(0).toUpperCase() +
-                            abaConstrucao.slice(1)}
-                        </h3>
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Construções - Setor{" "}
+                        {abaConstrucao.charAt(0).toUpperCase() +
+                          abaConstrucao.slice(1)}
+                      </h3>
 
-                        <Badge
-                          badgeContent={filaConstrucoes.length}
-                          color="error"
-                          showZero
-                        >
-                          {/* Botão Drawer (canto superior direito) */}
-                          <div className="absolute right-0 top-0">
-                            <Badge badgeContent={filaConstrucoes.length} color="error" showZero>
-                              <IconButton
-                                size="small"
-                                onClick={() => setDrawerAberto(true)}
-                                sx={{ color: "#334155", bgcolor: "rgba(148,163,184,.15)" }}
-                              >
-                                <List fontSize="small" />
-                              </IconButton>
-                            </Badge>
-                          </div>
+                      <Badge
+                        badgeContent={filaConstrucoes.length}
+                        color="error"
+                        showZero
+                      >
+                        {/* Botão Drawer (canto superior direito) */}
+                        <div className="absolute right-0 top-0">
+                          <Badge
+                            badgeContent={filaConstrucoes.length}
+                            color="error"
+                            showZero
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => setDrawerAberto(true)}
+                              sx={{
+                                color: "#334155",
+                                bgcolor: "rgba(148,163,184,.15)",
+                              }}
+                            >
+                              <List fontSize="small" />
+                            </IconButton>
+                          </Badge>
+                        </div>
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {Object.entries(buildings)
+                        .filter(([_, item]) => item.categoria === abaConstrucao)
+                        .map(([key, item]) => {
+                          const temRecursos = Object.entries(item.custo).every(
+                            ([recurso, valor]) => estadoAtual[recurso] >= valor
+                          );
 
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Object.entries(buildings)
-                          .filter(([_, item]) => item.categoria === abaConstrucao)
-                          .map(([key, item]) => {
-                            const temRecursos = Object.entries(item.custo).every(
-                              ([recurso, valor]) => estadoAtual[recurso] >= valor
-                            );
-
-                            return (
-                              <div
-                                key={key}
-                                className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
-                              >
-                                {item.imagem && (
-                                  <div className="relative mb-3">
-                                    <motion.img
-                                      src={item.imagem}
-                                      alt={`Imagem de ${item.nome}`}
-                                      className="w-full h-40 object-cover rounded"
-                                      whileHover={{
-                                        scale: 1.1,
-                                        height: "180px",
-                                      }}
-                                      transition={{ duration: 0.3 }}
-                                    />
-                                    <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-                                      x{estadoAtual.construcoes?.[key] || 0}
-                                    </div>
+                          return (
+                            <div
+                              key={key}
+                              className="bg-white text-slate-900 rounded-lg shadow-lg p-4 flex flex-col justify-between transition hover:scale-[1.02]"
+                            >
+                              {item.imagem && (
+                                <div className="relative mb-3">
+                                  <motion.img
+                                    src={item.imagem}
+                                    alt={`Imagem de ${item.nome}`}
+                                    className="w-full h-40 object-cover rounded"
+                                    whileHover={{
+                                      scale: 1.1,
+                                      height: "180px",
+                                    }}
+                                    transition={{ duration: 0.3 }}
+                                  />
+                                  <div className="absolute top-2 right-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                                    x{estadoAtual.construcoes?.[key] || 0}
                                   </div>
+                                </div>
+                              )}
+
+                              <h4 className="text-lg font-bold mb-1">
+                                {item.nome}
+                              </h4>
+                              <p className="text-sm text-gray-700 mb-2">
+                                {item.descricao}
+                              </p>
+
+                              <ul className="text-sm text-gray-600 mb-2">
+                                {Object.entries(item.custo).map(
+                                  ([recurso, val]) => {
+                                    const construidas =
+                                      estadoAtual.construcoes?.[key] || 0;
+                                    // Conta apenas as construções na fila que são do mesmo tipo (key)
+                                    const naFila = filaConstrucoes.filter(
+                                      (fc) => fc.id === key
+                                    ).length;
+                                    const multiplicador = construidas + naFila;
+                                    const total = val * 2 ** multiplicador;
+                                    const valorFinal =
+                                      recurso === "agua"
+                                        ? Math.min(total, 100)
+                                        : total;
+
+                                    return (
+                                      <li key={recurso}>
+                                        💰 <strong>{recurso}</strong>:{" "}
+                                        {valorFinal}
+                                      </li>
+                                    );
+                                  }
                                 )}
+                              </ul>
 
-                                <h4 className="text-lg font-bold mb-1">
-                                  {item.nome}
-                                </h4>
-                                <p className="text-sm text-gray-700 mb-2">
-                                  {item.descricao}
+                              <p className="text-sm text-gray-700 mb-2">
+                                ⏱️ Tempo de construção: {item.tempo} turno(s)
+                              </p>
+
+                              {item.efeitos?.bonusComida && (
+                                <p className="text-sm text-green-700 mb-4">
+                                  🍽️ Bônus: +{item.efeitos.bonusComida} comida
                                 </p>
+                              )}
 
-                                <ul className="text-sm text-gray-600 mb-2">
-                                  {Object.entries(item.custo).map(
-                                    ([recurso, val]) => {
-                                      const construidas =
-                                        estadoAtual.construcoes?.[key] || 0;
-                                      // Conta apenas as construções na fila que são do mesmo tipo (key)
-                                      const naFila = filaConstrucoes.filter(
-                                        (fc) => fc.id === key
-                                      ).length;
-                                      const multiplicador = construidas + naFila;
-                                      const total = val * 2 ** multiplicador;
-                                      const valorFinal =
-                                        recurso === "agua"
-                                          ? Math.min(total, 100)
-                                          : total;
-
-                                      return (
-                                        <li key={recurso}>
-                                          💰 <strong>{recurso}</strong>:{" "}
-                                          {valorFinal}
-                                        </li>
-                                      );
-                                    }
-                                  )}
-                                </ul>
-
-                                <p className="text-sm text-gray-700 mb-2">
-                                  ⏱️ Tempo de construção: {item.tempo} turno(s)
-                                </p>
-
-                                {item.efeitos?.bonusComida && (
-                                  <p className="text-sm text-green-700 mb-4">
-                                    🍽️ Bônus: +{item.efeitos.bonusComida} comida
-                                  </p>
-                                )}
-
-                                <button
-                                  onClick={() => handleConstruir(key)}
-                                  disabled={!temRecursos}
-                                  className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
+                              <button
+                                onClick={() => handleConstruir(key)}
+                                disabled={!temRecursos}
+                                className={`mt-auto px-4 py-2 rounded font-semibold ${
+                                  temRecursos
                                     ? "bg-green-600 text-white hover:bg-green-700"
                                     : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                                    } transition`}
-                                >
-                                  Construir
-                                </button>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </>
-                  )}
+                                } transition`}
+                              >
+                                Construir
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
               </motion.div>
             </AnimatePresence>
             <></>
@@ -972,10 +1073,11 @@ function ParameterPanel({
                     <button
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                        ? "bg-purple-600 text-white hover:bg-purple-700"
-                        : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                        } transition`}
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${
+                        temRecursos
+                          ? "bg-purple-600 text-white hover:bg-purple-700"
+                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                      } transition`}
                     >
                       Criar
                     </button>
@@ -1044,10 +1146,11 @@ function ParameterPanel({
                     <button
                       onClick={() => handleCriarTropa(item)}
                       disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${temRecursos
-                        ? "bg-yellow-600 text-white hover:bg-yellow-700"
-                        : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                        } transition`}
+                      className={`mt-auto px-4 py-2 rounded font-semibold ${
+                        temRecursos
+                          ? "bg-yellow-600 text-white hover:bg-yellow-700"
+                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
+                      } transition`}
                     >
                       Criar
                     </button>

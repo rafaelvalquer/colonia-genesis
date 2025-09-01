@@ -1,0 +1,53 @@
+[
+  {
+    "id": "ruinasAlienigenas",
+    "titulo": "Ruínas Alienígenas",
+    "cor": "bg-indigo-600",
+    "tagCor": "text-indigo-400",
+    "dificuldade": "★★★★☆",
+    "diffBg": "bg-indigo-900 text-indigo-300",
+    "img": "/images/missoes/ruinas.png",
+    "descricao": "Explore ruínas antigas deixadas por uma civilização alienígena desaparecida. Segredos e tecnologias esquecidas aguardam.",
+    "tags": ["Exploração", "Tecnologia", "Arqueologia"],
+    "turnos": 1,
+    "recompensas": [
+      { "label": "+1 Colono", "cor": "text-yellow-400", "colono": 200 },
+      { "label": "+200 Comida", "cor": "text-blue-400", "comida": 5000 },
+      { "label": "+100 Minerais", "cor": "text-purple-400", "minerais": 5000 }
+    ]
+  },
+  {
+    "id": "craterasCristalinas",
+    "titulo": "Cristais da Cratera",
+    "cor": "bg-red-600",
+    "tagCor": "text-orange-400",
+    "dificuldade": "★★★★★",
+    "diffBg": "bg-red-900 text-red-300",
+    "img": "/images/missoes/cratera.png",
+    "descricao": "Extraia cristais de energia em crateras instáveis. Radiação intensa e instabilidade geológica representam grandes riscos.",
+    "tags": ["Radiação", "Recursos", "Energia"],
+    "turnos": 2,
+    "recompensas": [
+      { "label": "3500 Créditos", "cor": "text-yellow-400" },
+      { "label": "Cristais Energéticos", "cor": "text-pink-400" },
+      { "label": "+5 Energia Base", "cor": "text-green-400" }
+    ]
+  },
+  {
+    "id": "florestaBioluminescente",
+    "titulo": "Floresta Bioluminescente",
+    "cor": "bg-green-600",
+    "tagCor": "text-green-400",
+    "dificuldade": "★★★☆☆",
+    "diffBg": "bg-green-900 text-green-300",
+    "img": "/images/missoes/floresta.png",
+    "descricao": "Adentre uma floresta viva, repleta de fauna bioluminescente. Descubra a origem dos estranhos sinais detectados.",
+    "tags": ["Mistério", "Investigação", "Vida Alienígena"],
+    "turnos": 2,
+    "recompensas": [
+      { "label": "1200 Créditos", "cor": "text-yellow-400" },
+      { "label": "Amuleto Xenobiológico", "cor": "text-purple-400" },
+      { "label": "Dados Científicos", "cor": "text-blue-400" }
+    ]
+  }
+]

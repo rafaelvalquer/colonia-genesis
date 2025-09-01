@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Drawer, IconButton, Badge, LinearProgress, Typography, Box } from "@mui/material";
+import {
+  Drawer,
+  IconButton,
+  Badge,
+  LinearProgress,
+  Typography,
+  Box,
+} from "@mui/material";
 import ListIcon from "@mui/icons-material/List";
 import CloseIcon from "@mui/icons-material/Close";
 import coloniaService from "../services/coloniaService";
-
+import missions from "../data/missions.json";
 
 /**
  * Props:
@@ -17,6 +24,9 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
 
   // Fila de missões do estado global
   const filaMissoes = estadoAtual?.filaMissoes ?? [];
+
+  console.log(estadoAtual.filaMissoes);
+  console.log(estadoAtual.exploradores);
 
   // Constrói a lista de disponíveis (status === "disponivel")
   const buildAvailableFromState = () => {
@@ -40,67 +50,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estadoAtual?.exploradores]);
 
-const missions = useMemo(
-  () => [
-    {
-      id: "ruinasAlienigenas",
-      titulo: "Ruínas Alienígenas",
-      cor: "bg-indigo-600",
-      tagCor: "text-indigo-400",
-      dificuldade: "★★★★☆",
-      diffBg: "bg-indigo-900 text-indigo-300",
-      img: "/images/missoes/ruinas.png",
-      descricao:
-        "Explore ruínas antigas deixadas por uma civilização alienígena desaparecida. Segredos e tecnologias esquecidas aguardam.",
-      tags: ["Exploração", "Tecnologia", "Arqueologia"],
-      turnos: 2,
-      recompensas: [
-        { label: "1500 Créditos", cor: "text-yellow-400" },
-        { label: "+3 Relíquias Alienígenas", cor: "text-blue-400" },
-        { label: "Esquema Tecnológico", cor: "text-purple-400" },
-      ],
-    },
-    {
-      id: "craterasCristalinas",
-      titulo: "Cristais da Cratera",
-      cor: "bg-red-600",
-      tagCor: "text-orange-400",
-      dificuldade: "★★★★★",
-      diffBg: "bg-red-900 text-red-300",
-      img: "/images/missoes/cratera.png",
-      descricao:
-        "Extraia cristais de energia em crateras instáveis. Radiação intensa e instabilidade geológica representam grandes riscos.",
-      tags: ["Radiação", "Recursos", "Energia"],
-      turnos: 2,
-      recompensas: [
-        { label: "3500 Créditos", cor: "text-yellow-400" },
-        { label: "Cristais Energéticos", cor: "text-pink-400" },
-        { label: "+5 Energia Base", cor: "text-green-400" },
-      ],
-    },
-    {
-      id: "florestaBioluminescente",
-      titulo: "Floresta Bioluminescente",
-      cor: "bg-green-600",
-      tagCor: "text-green-400",
-      dificuldade: "★★★☆☆",
-      diffBg: "bg-green-900 text-green-300",
-      img: "/images/missoes/floresta.png",
-      descricao:
-        "Adentre uma floresta viva, repleta de fauna bioluminescente. Descubra a origem dos estranhos sinais detectados.",
-      tags: ["Mistério", "Investigação", "Vida Alienígena"],
-      turnos: 2,
-      recompensas: [
-        { label: "1200 Créditos", cor: "text-yellow-400" },
-        { label: "Amuleto Xenobiológico", cor: "text-purple-400" },
-        { label: "Dados Científicos", cor: "text-blue-400" },
-      ],
-    },
-  ],
-  []
-);
-
-
   // Mapa: id da missão base -> definição
   const missionById = useMemo(() => {
     const map = {};
@@ -113,7 +62,9 @@ const missions = useMemo(
   const activeMissionItemById = useMemo(() => {
     const map = {};
     for (const item of filaMissoes) {
-      const rest = Number.isFinite(item?.tempoRestante) ? item.tempoRestante : 0;
+      const rest = Number.isFinite(item?.tempoRestante)
+        ? item.tempoRestante
+        : 0;
       if (rest > 0 && !map[item.id]) {
         map[item.id] = item; // 1 por missão
       }
@@ -208,13 +159,15 @@ const missions = useMemo(
     );
 
     const novoItemFila = {
-      id: missionId,                                  // id da missão base
+      id: missionId, // id da missão base
       nome: miss?.titulo || missionId,
       tempoRestante: Number(miss?.turnos ?? 1),
       turnosTotais: Number(miss?.turnos ?? 1),
-      explorerId: explorer.id,                        // vínculo com explorador
+      explorerId: explorer.id, // vínculo com explorador
       explorerNome: explorer.nome,
       status: "emAndamento",
+      // 👇 leve as recompensas cruas do JSON p/ a fila
+      recompensasRaw: Array.isArray(miss?.recompensas) ? miss.recompensas : [],
     };
 
     const nextState = {
@@ -222,7 +175,10 @@ const missions = useMemo(
       exploradores: novosExploradores,
       populacao: {
         ...estadoAtual.populacao,
-        exploradores: Math.max(0, (estadoAtual.populacao?.exploradores ?? 0) - 1),
+        exploradores: Math.max(
+          0,
+          (estadoAtual.populacao?.exploradores ?? 0) - 1
+        ),
       },
       filaMissoes: [...(estadoAtual.filaMissoes || []), novoItemFila],
     };
@@ -248,7 +204,6 @@ const missions = useMemo(
       setShowModal(false);
     }
   };
-
 
   return (
     <motion.div
@@ -367,10 +322,14 @@ const missions = useMemo(
 
                   <div className="flex-grow">
                     <div className="flex items-start justify-between mb-2">
-                      <h5 className="text-xl font-bold text-slate-900">{m.titulo}</h5>
+                      <h5 className="text-xl font-bold text-slate-900">
+                        {m.titulo}
+                      </h5>
 
                       <div className="flex gap-2">
-                        <span className={`${m.diffBg} text-xs px-2 py-1 rounded-full`}>
+                        <span
+                          className={`${m.diffBg} text-xs px-2 py-1 rounded-full`}
+                        >
                           Dificuldade: {m.dificuldade}
                         </span>
                         <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
@@ -410,11 +369,16 @@ const missions = useMemo(
                         onDragEnter={() => setOverMission(m.id)}
                         onDragLeave={() => setOverMission(null)}
                         onDrop={(e) => handleDrop(e, m.id)}
-                        className={`drop-zone rounded-lg p-4 border border-dashed transition ${overMission === m.id && !ocupado
+                        className={`drop-zone rounded-lg p-4 border border-dashed transition ${
+                          overMission === m.id && !ocupado
                             ? "bg-green-50 border-green-300"
                             : "bg-slate-100 border-slate-300"
-                          }`}
-                        title={ocupado ? "Missão já em andamento" : "Arraste exploradores até aqui"}
+                        }`}
+                        title={
+                          ocupado
+                            ? "Missão já em andamento"
+                            : "Arraste exploradores até aqui"
+                        }
                         style={{ opacity: ocupado ? 0.6 : 1 }}
                       >
                         {!ocupado ? (
@@ -429,12 +393,18 @@ const missions = useMemo(
                                   expAlocado?.portrait ||
                                   "/images/exploradores/default.png"
                                 }
-                                alt={expAlocado?.nickname || expAlocado?.name || "Explorador"}
+                                alt={
+                                  expAlocado?.nickname ||
+                                  expAlocado?.name ||
+                                  "Explorador"
+                                }
                                 className="w-8 h-8 rounded-full border-2 border-blue-500 object-cover"
                               />
                               <div>
                                 <div className="text-xs font-medium text-slate-800">
-                                  {expAlocado?.nickname || expAlocado?.name || "Explorador"}
+                                  {expAlocado?.nickname ||
+                                    expAlocado?.name ||
+                                    "Explorador"}
                                 </div>
                                 <div className="text-[10px] text-slate-500">
                                   Nível {expAlocado?.level ?? 1}
@@ -499,7 +469,6 @@ const missions = useMemo(
                 >
                   {saving ? "Enviando..." : "Confirmar"}
                 </button>
-
               </div>
             </motion.div>
           </motion.div>
@@ -514,14 +483,18 @@ const missions = useMemo(
       >
         <div className="w-80 p-4 bg-white h-full flex flex-col">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold text-slate-800">Fila de Missões</h2>
+            <h2 className="text-lg font-bold text-slate-800">
+              Fila de Missões
+            </h2>
             <IconButton onClick={() => setDrawerAberto(false)}>
               <CloseIcon />
             </IconButton>
           </div>
 
           {filaMissoes.length === 0 ? (
-            <p className="text-sm text-slate-600">Nenhuma missão em andamento.</p>
+            <p className="text-sm text-slate-600">
+              Nenhuma missão em andamento.
+            </p>
           ) : (
             <ul className="flex flex-col gap-3">
               {filaMissoes.map((item, index) => {
@@ -533,26 +506,48 @@ const missions = useMemo(
 
                 const progresso = Math.max(
                   0,
-                  Math.min(100, ((tempoTotal - item.tempoRestante) / tempoTotal) * 100)
+                  Math.min(
+                    100,
+                    ((tempoTotal - item.tempoRestante) / tempoTotal) * 100
+                  )
                 );
 
                 return (
-                  <li key={`${item.id}-${index}`} className="border p-3 rounded shadow bg-white">
+                  <li
+                    key={`${item.id}-${index}`}
+                    className="border p-3 rounded shadow bg-white"
+                  >
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between items-center">
                         <p className="font-semibold text-gray-800">
                           {item.titulo || item.nome}
                         </p>
                         <p className="text-sm text-gray-600">
-                          ⏱️ {item.tempoRestante} turno(s) restante(s)
+                          ⏱️ {item.tempoRestante} turno(s)
                         </p>
                       </div>
 
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      {/* 👇 Nome do explorador em missão */}
+                      <p className="text-xs text-slate-500">
+                        👨‍🚀 Explorador:{" "}
+                        <span className="font-medium text-slate-700">
+                          {item.explorerNome}
+                        </span>
+                      </p>
+
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         <Box sx={{ flexGrow: 1 }}>
-                          <LinearProgress variant="determinate" value={progresso} />
+                          <LinearProgress
+                            variant="determinate"
+                            value={progresso}
+                          />
                         </Box>
-                        <Typography variant="body2" sx={{ color: "text.secondary", minWidth: 30 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary", minWidth: 30 }}
+                        >
                           {`${Math.round(progresso)}%`}
                         </Typography>
                       </Box>

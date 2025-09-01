@@ -42,10 +42,22 @@ const filaMissoesSchema = new mongoose.Schema(
       enum: ["emAndamento", "concluida"],
       default: "emAndamento",
     },
+    // 👇 recompensas vindas do JSON da missão
+    recompensasRaw: {
+      type: [
+        {
+          label: { type: String }, // texto para exibição
+          cor: { type: String }, // cor do texto no front
+          // quaisquer campos extras como colono, comida, minerais etc
+          // ficam em formato flexível
+          _meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+        },
+      ],
+      default: [],
+    },
   },
   { _id: false }
 );
-
 
 const hpSchema = new mongoose.Schema(
   {

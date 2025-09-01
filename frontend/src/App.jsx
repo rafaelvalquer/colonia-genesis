@@ -40,28 +40,34 @@ function GamePage({
   }, []);
 
   const handleParametrosChange = async (parametrosSelecionados) => {
-    const resultado = runSimulationTurn(
-      estadoAtual,
-      parametrosSelecionados,
-      scenarioList[0],
-      parametrosSelecionados.filaConstrucoes,
-      buildings,
-      parametrosSelecionados.filaMissoes
-    );
-
-    setEstadoAtual(resultado.novoEstado);
-    setFilaConstrucoes(resultado.novaFila);
-
-    console.log(JSON.stringify(resultado));
-
-    // Envia para o backend (supondo que você tenha o id da colônia salvo em `coloniaId`)
     try {
-      await coloniaService.atualizarColonia(
-        estadoAtual._id,
-        resultado.novoEstado
+      const {
+        novoEstado,
+        novaFila,
+        turnReport, // <- relatório do turno para o ParameterPanel
+      } = runSimulationTurn(
+        estadoAtual,
+        parametrosSelecionados,
+        scenarioList?.[0],
+        parametrosSelecionados.filaConstrucoes ?? estadoAtual.filaConstrucoes,
+        buildings
       );
+
+      // Atualiza estados locais
+      setEstadoAtual(novoEstado);
+      setFilaConstrucoes(novaFila);
+
+      // Persiste no backend
+      await coloniaService.atualizarColonia(
+        novoEstado._id ?? estadoAtual._id,
+        novoEstado
+      );
+
+      // Retorna o relatório para quem chamou (ParameterPanel vai usar nos steps)
+      return turnReport;
     } catch (err) {
-      console.error("Erro ao atualizar colônia no backend:", err);
+      console.error("Erro ao simular/atualizar colônia:", err);
+      throw err; // permite que o chamador trate o erro (ex.: mostrar toast)
     }
   };
 

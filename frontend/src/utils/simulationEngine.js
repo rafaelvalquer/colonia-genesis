@@ -1,3 +1,5 @@
+//simulationEngine.js
+
 export function runSimulationTurn(
   currentState,
   parametros,
@@ -24,6 +26,19 @@ export function runSimulationTurn(
     construcoes,
     pesquisa,
   } = currentState;
+
+  // 👇 baseline para calcular deltas no fim
+  const baseline = {
+    comida,
+    energia,
+    minerais,
+    ciencia,
+    agua,
+    saude,
+    sustentabilidade,
+    integridadeEstrutural,
+    colonos: populacao.colonos,
+  };
 
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
 
@@ -63,15 +78,6 @@ export function runSimulationTurn(
   comida = comida + comidaProduzida;
   console.log("comidaProduzida = " + comidaProduzida);
 
-  /* Defesa
-
-  var defesaBase = alocacaoColonos.defesa;
-
-  if (pontos.defesa == 1) {
-    defesaBase = defesaBase + 15; // Aumenta a defesaBase em 15%
-  }
-  console.log("defesaBase = " + defesaBase); */
-
   //Minas
 
   var mineraisProduzidos = quantidadePorSetor.minas * 10 * consumoAgua;
@@ -79,6 +85,8 @@ export function runSimulationTurn(
   if (pontos.minas == 1) {
     mineraisProduzidos = mineraisProduzidos * 2;
   }
+
+  minerais = minerais + mineraisProduzidos;
 
   console.log("Produção de Minas = " + mineraisProduzidos);
 
@@ -189,7 +197,6 @@ export function runSimulationTurn(
     log.push("Baixa sustentabilidade (<= 25): Eficiência reduzida em 10%");
   } else if (sustentabilidade <= 50) {
     comidaProduzida = Math.floor(comidaProduzida * 0.95); // -5%
-    //defesaBase = Math.floor(defesaBase * 0.95);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.95);
     reparo = Math.floor(reparo * 0.95);
     energia = Math.floor(energia * 0.95);
@@ -198,7 +205,6 @@ export function runSimulationTurn(
     log.push("Sustentabilidade moderada (<= 50): Eficiência reduzida em 5%");
   } else if (sustentabilidade < 100) {
     comidaProduzida = Math.floor(comidaProduzida * 1.05); // +5%
-    //defesaBase = Math.floor(defesaBase * 1.05);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.05);
     reparo = Math.floor(reparo * 1.05);
     energia = Math.floor(energia * 1.05);
@@ -207,7 +213,6 @@ export function runSimulationTurn(
     log.push("Boa sustentabilidade (51 a 99): Eficiência aumentada em 5%");
   } else if (sustentabilidade === 100) {
     comidaProduzida = Math.floor(comidaProduzida * 1.1); // +10%
-    //defesaBase = Math.floor(defesaBase * 1.1);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 1.1);
     reparo = Math.floor(reparo * 1.1);
     energia = Math.floor(energia * 1.1);
@@ -306,12 +311,74 @@ export function runSimulationTurn(
   // -------------------
   // mapa de recompensas simples (ajuste conforme seu design real)
   // 4b. FILA DE MISSÕES (por turnos)
-  // 4b. FILA DE MISSÕES (por turnos) — decremento inteiro, coersão numérica
-  const missionRewards = {
-    templo: { ouro: 1500, reliquias: 3, ciencia: 0, comida: 0, minerais: 0 },
-    vulcao: { ouro: 3500, cristaisEnergeticos: 1, ciencia: 0, comida: 0, minerais: 0 },
-    floresta: { ouro: 1200, amuleto: 1, ciencia: 0, comida: 0, minerais: 0 },
+
+  const REWARD_KEY_TO_PATH = {
+    // populacao
+    colono: "populacao.colonos",
+
+    // recursos "raiz"
+    comida: "comida",
+    minerais: "minerais",
+    energia: "energia",
+    agua: "agua",
+    ciencia: "ciencia",
+    creditos: "creditos", // use "ouro" se for o seu campo
+    ouro: "ouro", // deixe os dois, se quiser aceitar ambos
+    saude: "saude",
+    sustentabilidade: "sustentabilidade",
+
+    // exemplos extras
+    reliquias: "reliquias",
+    cristaisEnergeticos: "cristaisEnergeticos",
+    amuleto: "amuletos",
   };
+
+  // seta (ou cria) caminho aninhado tipo "populacao.colonos" somando delta
+  function addToPath(obj, path, delta) {
+    if (!path) return;
+    const parts = path.split(".");
+    let ref = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const p = parts[i];
+      if (typeof ref[p] !== "object" || ref[p] === null) {
+        ref[p] = {};
+      }
+      ref = ref[p];
+    }
+    const last = parts[parts.length - 1];
+    const cur = Number(ref[last]) || 0;
+    ref[last] = cur + (Number(delta) || 0);
+  }
+
+  // normaliza um item de recompensa em um map { chave: soma }
+  function extractRewardsMap(recompensasRaw = []) {
+    const acc = {};
+    for (const it of recompensasRaw) {
+      if (!it || typeof it !== "object") continue;
+      for (const [k, v] of Object.entries(it)) {
+        if (k === "label" || k === "cor") continue;
+        const n = Number(v);
+        if (!Number.isFinite(n) || n === 0) continue;
+        acc[k] = (acc[k] || 0) + n;
+      }
+    }
+    return acc;
+  }
+
+  // aplica recompensas vindas de um array de objetos
+  // ex.: [{ label: "+1 Colono", cor: "...", colono: 1 }, { comida: 200 }, ...]
+  function applyMissionRewardsFromJson(novoEstado, recompensasRaw = []) {
+    for (const item of recompensasRaw) {
+      if (!item || typeof item !== "object") continue;
+      for (const [k, v] of Object.entries(item)) {
+        if (k === "label" || k === "cor") continue;
+        const delta = Number(v);
+        if (!Number.isFinite(delta) || delta === 0) continue;
+        const path = REWARD_KEY_TO_PATH[k] || k;
+        addToPath(novoEstado, path, delta);
+      }
+    }
+  }
 
   const filaMissoesAtual = Array.isArray(currentState.filaMissoes)
     ? currentState.filaMissoes.map((f) => ({ ...f }))
@@ -323,7 +390,9 @@ export function runSimulationTurn(
   // helper para garantir número inteiro seguro
   const toInt = (v, fallback = 0) => {
     const n = Number(v);
-    return Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 0);
+    return Number.isFinite(n)
+      ? Math.trunc(n)
+      : Math.trunc(Number(fallback) || 0);
   };
 
   for (const item of filaMissoesAtual) {
@@ -340,7 +409,7 @@ export function runSimulationTurn(
       // missão termina neste turno
       missoesConcluidas.push({
         ...item,
-        missionId: item.id,       // id da missão base (templo/vulcao/floresta)
+        missionId: item.id, // id da missão base (templo/vulcao/floresta)
         tempoRestante: 0,
         turnosTotais: total,
         status: "concluida",
@@ -356,7 +425,6 @@ export function runSimulationTurn(
       });
     }
   }
-
 
   // 5. Novo estado base
   const novoEstado = {
@@ -376,17 +444,50 @@ export function runSimulationTurn(
     construcoes: { ...currentState.construcoes },
     pesquisa,
     filaConstrucoes: novaFila,
-    filaMissoes: filaMissoesNova,  // fila atualizada
+    filaMissoes: filaMissoesNova,
     exploradores: [...(currentState.exploradores || [])],
     relatoriosMissoes: [...(currentState.relatoriosMissoes || [])],
   };
 
-  // 6. Finalização de MISSÕES: liberar exploradores + recompensas
-  // -------------------
+  construcoesFinalizadas.forEach((c) => {
+    const tipo = c.id;
+
+    const dadosConstrucao = buildings[tipo];
+    if (!dadosConstrucao) {
+      log.push(`Erro: construção com id "${tipo}" não encontrada.`);
+      return;
+    }
+
+    if (!novoEstado.construcoes[tipo]) {
+      novoEstado.construcoes[tipo] = 0;
+    }
+
+    novoEstado.construcoes[tipo] += 1;
+
+    if (dadosConstrucao.efeitos?.bonusComida) {
+      novoEstado.comida += dadosConstrucao.efeitos.bonusComida;
+    }
+
+    log.push(`🏗️ ${dadosConstrucao.nome} finalizada!`);
+  });
+
+  // ---- resumo de produção deste turno (valores que você já calcula) ----
+  const producaoResumo = {
+    comidaLiquida: typeof comidaProduzida === "number" ? comidaProduzida : 0, // já desconta consumo, conforme seu código
+    energiaGerada: typeof energiaGerada === "number" ? energiaGerada : 0,
+    mineraisProduzidos:
+      typeof mineraisProduzidos === "number" ? mineraisProduzidos : 0,
+    cienciaProduzida:
+      typeof cienciaProduzida === "number" ? cienciaProduzida : 0,
+    reparoAplicado: typeof reparo === "number" ? reparo : 0,
+    ganhoSaude: typeof ganhoSaude === "number" ? ganhoSaude : 0,
+    ganhoSustentabilidade:
+      typeof ganhoSustentabilidade === "number" ? ganhoSustentabilidade : 0,
+  };
+
+  // ---- Finalização de missões: liberar + recompensas + resumo de recompensas ----
+  const rewardsSummary = []; // <- para o Stepper
   if (missoesConcluidas.length > 0) {
-    // Libera os exploradores que terminaram:
-    // - preferencialmente casa por explorerId salvo na fila
-    // - fallback: casa por missionId no explorador (caso legado)
     const concluidasPorExplorador = new Map();
     for (const m of missoesConcluidas) {
       if (m.explorerId) concluidasPorExplorador.set(m.explorerId, m);
@@ -397,7 +498,9 @@ export function runSimulationTurn(
       const terminouPorMissao =
         !terminouPorId &&
         ex.missionId &&
-        missoesConcluidas.some((m) => m.id === ex.missionId || m.missionId === ex.missionId);
+        missoesConcluidas.some(
+          (m) => m.id === ex.missionId || m.missionId === ex.missionId
+        );
 
       if (!terminouPorId && !terminouPorMissao) return ex;
 
@@ -406,30 +509,27 @@ export function runSimulationTurn(
         status: "disponivel",
         missionId: null,
         updatedAt: Date.now(),
-        // aqui você pode aplicar xp/stamina, se quiser
       };
     });
 
-    // Recalcula "exploradores" livres na população (status === "disponivel")
-    const livres = (novoEstado.exploradores || []).filter((e) => e.status === "disponivel").length;
-    novoEstado.populacao = {
-      ...novoEstado.populacao,
-      exploradores: livres,
-    };
+    const livres = (novoEstado.exploradores || []).filter(
+      (e) => e.status === "disponivel"
+    ).length;
+    novoEstado.populacao = { ...novoEstado.populacao, exploradores: livres };
 
-    // Recompensas (ajuste conforme seu design)
     for (const fin of missoesConcluidas) {
-      const r = missionRewards[fin.missionId || fin.id] || {};
-      Object.entries(r).forEach(([recurso, qtd]) => {
-        if (qtd == null) return;
-        if (typeof novoEstado[recurso] === "number") {
-          novoEstado[recurso] += qtd;
-        } else if (novoEstado[recurso] == null) {
-          novoEstado[recurso] = qtd;
-        }
+      // aplica e também extrai resumo
+      applyMissionRewardsFromJson(novoEstado, fin.recompensasRaw);
+      const rewardsMap = extractRewardsMap(fin.recompensasRaw);
+
+      rewardsSummary.push({
+        missionId: fin.missionId || fin.id,
+        titulo: fin.titulo || fin.nome || fin.id,
+        explorerNome: fin.explorerNome || null,
+        recompensas: rewardsMap, // ex.: { colono: 1, comida: 200, minerais: 100 }
+        recompensasRaw: fin.recompensasRaw, // útil pra exibir os labels bonitinhos
       });
 
-      // Relatório
       novoEstado.relatoriosMissoes.push({
         id: `rel_${fin.id}_${Date.now()}`,
         explorerId: fin.explorerId ?? null,
@@ -439,15 +539,44 @@ export function runSimulationTurn(
         resultado: "sucesso",
       });
 
-      log.push(`🧭 Missão concluída: ${fin.titulo || fin.id}${fin.explorerNome ? ` (Explorador ${fin.explorerNome})` : ""}.`);
+      log.push(
+        `🧭 Missão concluída: ${fin.titulo || fin.id}${
+          fin.explorerNome ? ` (Explorador ${fin.explorerNome})` : ""
+        } — recompensas aplicadas.`
+      );
     }
   }
 
+  // ---- deltas finais (comparando com baseline) ----
+  const deltas = {
+    comida: (novoEstado.comida ?? comida) - baseline.comida,
+    energia: (novoEstado.energia ?? energia) - baseline.energia,
+    minerais: (novoEstado.minerais ?? minerais) - baseline.minerais,
+    ciencia: (novoEstado.ciencia ?? ciencia) - baseline.ciencia,
+    agua: (novoEstado.agua ?? agua) - baseline.agua,
+    saude: (novoEstado.saude ?? saude) - baseline.saude,
+    sustentabilidade:
+      (novoEstado.sustentabilidade ?? sustentabilidade) -
+      baseline.sustentabilidade,
+    integridadeEstrutural:
+      (novoEstado.integridadeEstrutural ?? integridadeEstrutural) -
+      baseline.integridadeEstrutural,
+  };
+
+  // 👇 objeto que o front usará no Stepper
+  const turnReport = {
+    producao: producaoResumo,
+    deltas,
+    eventos: eventosOcorridos, // do seu código
+    missoesConcluidas: rewardsSummary,
+    logs: log,
+  };
 
   return {
     novoEstado,
     eventosOcorridos,
     log,
-    novaFila,
+    novaFila: /* sua novaFila */ [],
+    turnReport, // 👈 NOVO
   };
 }
