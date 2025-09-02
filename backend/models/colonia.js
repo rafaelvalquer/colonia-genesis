@@ -121,6 +121,34 @@ const exploradorSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
+const pacienteSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true }, // ex.: 'pac_123'
+    tipo: { type: String, enum: ["colono", "explorador"], required: true },
+    refId: { type: String, default: null }, // se explorador, id do explorador
+    severidade: { type: String, enum: ["leve", "grave"], required: true },
+    entrouEm: { type: Number, required: true }, // timestamp
+    turnosRestantes: { type: Number, min: 0, required: true },
+    origem: { type: String, default: null }, // 'evento' | 'missao' | 'fome' | ...
+    status: {
+      type: String,
+      enum: ["fila", "internado", "alta", "obito"],
+      default: "fila",
+    },
+  },
+  { _id: false }
+);
+
+const hospitalSchema = new mongoose.Schema(
+  {
+    fila: { type: [pacienteSchema], default: [] },
+    internados: { type: [pacienteSchema], default: [] },
+    historicoAltas: { type: [mongoose.Schema.Types.Mixed], default: [] }, // opcional
+  },
+  { _id: false }
+);
+
 /** ---------------------------------------------- */
 
 const coloniaSchema = new mongoose.Schema({
@@ -160,6 +188,12 @@ const coloniaSchema = new mongoose.Schema({
     reatorGeotermico: { type: Number, default: 0 },
     estacaoDeTratamento: { type: Number, default: 0 },
     coletorAtmosferico: { type: Number, default: 0 },
+  },
+
+  /** NOVO: módulo hospital */
+  hospital: {
+    type: hospitalSchema,
+    default: () => ({ fila: [], internados: [], historicoAltas: [] }),
   },
 
   filaConstrucoes: [filaConstrucaoSchema],

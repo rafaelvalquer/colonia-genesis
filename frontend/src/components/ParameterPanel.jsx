@@ -66,11 +66,7 @@ const abas = [
   {
     grupo: "Parâmetros",
     icone: <IconParametros />,
-    itens: [
-      { id: "distribuicao", label: "Skill Points" },
-      { id: "agua", label: "Consumo de Água" },
-      { id: "colonos", label: "Alocação de Colonos" },
-    ],
+    itens: [{ id: "parametros", label: "Parâmetros" }],
   },
   {
     grupo: "Desenvolvimento",
@@ -112,6 +108,7 @@ function ParameterPanel({
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
+  const [abaParametros, setAbaParametros] = useState("skill");
   const [abaInternaCentral, setAbaInternaCentral] = useState("recursos");
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -228,6 +225,24 @@ function ParameterPanel({
   });
 
   const [tempAlocacao, setTempAlocacao] = useState(alocacaoColonos);
+
+  // --- HOSPITAL: números para o tooltip ---
+  const posto = estadoAtual?.construcoes?.postoMedico ?? 0;
+  const hosp = estadoAtual?.construcoes?.hospitalCentral ?? 0;
+
+  // mesma regra do engine: cada posto = 3, cada hospital = 8
+  const capacidadeHospital = posto * 3 + hosp * 8;
+
+  const internadosArr = estadoAtual?.hospital?.internados ?? [];
+  const internados = internadosArr.length;
+
+  // slots ocupados (grave = 2, leve = 1)
+  const slotsOcupados = internadosArr.reduce(
+    (acc, p) => acc + (p?.severidade === "grave" ? 2 : 1),
+    0
+  );
+
+  const filaHospital = estadoAtual?.hospital?.fila?.length ?? 0;
 
   const steps = ["Recursos", "Eventos", "Resultado Final"];
 
@@ -357,6 +372,7 @@ function ParameterPanel({
     const d = turnReport.deltas || {};
     const eventos = turnReport.eventos || [];
     const missoes = turnReport.missoesConcluidas || [];
+    const hosp = turnReport.hospital || {};
 
     return [
       <>
@@ -373,13 +389,16 @@ function ParameterPanel({
           - 🌿 Sustentabilidade (ganho): {fmt(p.ganhoSustentabilidade, "🌿")}
         </p>
       </>,
+
+      // STEP 2
+
       <>
         <h3 className="text-lg font-bold mb-2">🌌 Eventos & Missões</h3>
 
         <div className="mb-3">
           <p className="font-semibold mb-1">Eventos:</p>
           {eventos.length === 0 ? (
-            <p className="text-sm text-slate-600">Nenhum evento ocorrido.</p>
+            <p className="text-sm text-slate-600">Nenhum evento neste turno.</p>
           ) : (
             <ul className="list-disc pl-5 text-sm">
               {eventos.map((ev, i) => (
@@ -389,7 +408,7 @@ function ParameterPanel({
           )}
         </div>
 
-        <div>
+        <div className="mb-3">
           <p className="font-semibold mb-1">Missões concluídas:</p>
           {missoes.length === 0 ? (
             <p className="text-sm text-slate-600">
@@ -418,7 +437,23 @@ function ParameterPanel({
             </ul>
           )}
         </div>
+
+        <div>
+          <p className="font-semibold mb-1">Hospital:</p>
+          <ul className="text-sm">
+            <li>🏥 Capacidade: {hosp.capacidade ?? 0}</li>
+            <li>
+              🧑‍⚕️ Internados: {hosp.internados ?? 0} | 🕒 Fila: {hosp.fila ?? 0}
+            </li>
+            <li>
+              ✅ Altas: {hosp.altas ?? 0} | ☠️ Óbitos: {hosp.obitos ?? 0} | ➕
+              Novos: {hosp.novosPacientes ?? 0}
+            </li>
+          </ul>
+        </div>
       </>,
+
+      // STEP 3
       <>
         <h3 className="text-lg font-bold mb-2">📊 Resumo Final</h3>
         <ul className="text-sm">
@@ -576,7 +611,61 @@ function ParameterPanel({
                       <li>🌾 Comida: {estadoAtual.comida}</li>
                       <li>⛏️ Minerais: {estadoAtual.minerais}</li>
                       <li>🧪 Ciência: {estadoAtual.ciencia}</li>
-                      <li>🏥 Saúde: {estadoAtual.saude}%</li>
+                      <li className="group relative inline-block">
+                        <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
+                          <span className="mr-1">🏥</span>
+                          Saúde: {estadoAtual.saude}%
+                        </div>
+
+                        {/* Tooltip Hospital */}
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl
+               opacity-0 invisible group-hover:opacity-100 group-hover:visible
+               transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+               border border-gray-700 text-white"
+                        >
+                          <div className="text-sm space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-6 text-center">🏨</span>
+                                <span>Capacidade (slots):</span>
+                              </div>
+                              <span>
+                                {slotsOcupados}/{capacidadeHospital}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-6 text-center">🧑‍⚕️</span>
+                                <span>Internados:</span>
+                              </div>
+                              <span>{internados}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-6 text-center">⏳</span>
+                                <span>Fila:</span>
+                              </div>
+                              <span>{filaHospital}</span>
+                            </div>
+
+                            {/* (Opcional) mostrar prédios que compõem a capacidade */}
+                            <div className="border-t border-gray-600 pt-2 mt-1 text-xs text-slate-300">
+                              <div className="flex items-center justify-between">
+                                <span>Postos Médicos:</span>
+                                <span>{posto}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Hospitais Centrais:</span>
+                                <span>{hosp}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+
                       <li>
                         🌿 Sustentabilidade: {estadoAtual.sustentabilidade}%
                       </li>
@@ -657,150 +746,213 @@ function ParameterPanel({
           </>
         )}
 
-        {abaSelecionada === "distribuicao" && (
-          <motion.div
-            key="distribuicao"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
-          >
-            {/* Linha superior - Animação e título */}
-            <div className="flex items-center mb-4">
-              <div className="mr-4 mb-4">
-                <FireLottie speed={totalUsado} />
-              </div>
-              <h2 className="text-xl font-semibold">
-                Skill Points (Máx: {MAX_PONTOS})
-              </h2>
-            </div>
-            <p className="mb-4 text-sm text-gray-500">
-              Total usado: {totalUsado} / {MAX_PONTOS}
-            </p>
+        {abaSelecionada === "parametros" && (
+          <>
+            <h2 className="text-xl font-semibold mb-4">Parâmetros</h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.keys(distribuicao).map((campo) => (
-                <div
-                  key={campo}
-                  className="bg-slate-100 rounded-md p-3 shadow-sm"
-                >
-                  <Tooltip title={tooltips[campo]} arrow placement="right">
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={distribuicao[campo] === 1}
-                          onChange={() => handleSwitchToggle(campo)}
-                          disabled={
-                            distribuicao[campo] === 0 &&
-                            totalUsado >= MAX_PONTOS
-                          }
+            {/* Menu de abas horizontal (mesmo visual de Construções) */}
+            <Tabs
+              value={abaParametros}
+              onChange={(_, v) => setAbaParametros(v)}
+              variant="scrollable"
+              scrollButtons
+              allowScrollButtonsMobile
+              aria-label="tabs de parâmetros"
+              className="mb-4"
+              sx={{
+                "& .MuiTabs-indicator": {
+                  backgroundColor: "#38bdf8", // cyan-400 (Tailwind)
+                  height: 4,
+                },
+                "& .MuiTab-root": {
+                  color: "#cbd5e1", // slate-300
+                  fontWeight: "bold",
+                  transition: "color 0.2s ease",
+                },
+                "& .Mui-selected": {
+                  color: "#38bdf8", // cyan-400
+                },
+              }}
+            >
+              {[
+                { id: "skill", label: "Skill Points" },
+                { id: "agua", label: "Consumo de Água" },
+                { id: "alocacao", label: "Alocação de Colonos" },
+              ].map((t) => (
+                <Tab key={t.id} value={t.id} label={t.label} />
+              ))}
+            </Tabs>
+
+            {/* Card com conteúdo animado da aba (mesma pegada da de Construções) */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={abaParametros}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
+              >
+                {/* === Skill Points === */}
+                {abaParametros === "skill" && (
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Parâmetros — Skill Points
+                      </h3>
+                    </div>
+
+                    {/* Linha superior - Animação e título */}
+                    <div className="flex items-center mb-4">
+                      <div className="mr-4 mb-4">
+                        <FireLottie speed={totalUsado} />
+                      </div>
+                      <h4 className="text-lg font-semibold">
+                        Skill Points (Máx: {MAX_PONTOS})
+                      </h4>
+                    </div>
+
+                    <p className="mb-4 text-sm text-gray-500">
+                      Total usado: {totalUsado} / {MAX_PONTOS}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Object.keys(distribuicao).map((campo) => (
+                        <div
+                          key={campo}
+                          className="bg-slate-100 rounded-md p-3 shadow-sm"
+                        >
+                          <Tooltip
+                            title={tooltips[campo]}
+                            arrow
+                            placement="right"
+                          >
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={distribuicao[campo] === 1}
+                                  onChange={() => handleSwitchToggle(campo)}
+                                  disabled={
+                                    distribuicao[campo] === 0 &&
+                                    totalUsado >= MAX_PONTOS
+                                  }
+                                />
+                              }
+                              label={
+                                campo.charAt(0).toUpperCase() + campo.slice(1)
+                              }
+                            />
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* === Consumo de Água === */}
+                {abaParametros === "agua" && (
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Parâmetros — Consumo de Água
+                      </h3>
+                    </div>
+
+                    {/* Linha superior - Animação e título */}
+                    <div className="flex items-center mb-4">
+                      <div className="mr-4">
+                        <WaterLottie
+                          speed={consumoAguaOpcoes[aguaIndex].value}
                         />
-                      }
-                      label={campo.charAt(0).toUpperCase() + campo.slice(1)}
-                    />
-                  </Tooltip>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
+                      </div>
+                      <h4 className="text-lg font-semibold">Consumo de Água</h4>
+                    </div>
 
-        {abaSelecionada === "agua" && (
-          <motion.div
-            key="agua"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
-          >
-            {/* Linha superior - Animação e título */}
-            <div className="flex items-center mb-4">
-              <div className="mr-4">
-                <WaterLottie speed={consumoAguaOpcoes[aguaIndex].value} />
-              </div>
-              <h2 className="text-xl font-semibold">Consumo de Água</h2>
-            </div>
+                    <ButtonGroup
+                      variant="outlined"
+                      aria-label="Consumo de Água"
+                    >
+                      {consumoAguaOpcoes.map((opcao, idx) => (
+                        <Button
+                          key={opcao.label}
+                          color={aguaIndex === idx ? opcao.color : undefined}
+                          variant={aguaIndex === idx ? "contained" : "outlined"}
+                          onClick={() => setAguaIndex(idx)}
+                        >
+                          {opcao.label}
+                        </Button>
+                      ))}
+                    </ButtonGroup>
 
-            <ButtonGroup variant="outlined" aria-label="Consumo de Água">
-              {consumoAguaOpcoes.map((opcao, idx) => (
-                <Button
-                  key={opcao.label}
-                  color={aguaIndex === idx ? opcao.color : undefined}
-                  variant={aguaIndex === idx ? "contained" : "outlined"}
-                  onClick={() => setAguaIndex(idx)}
-                >
-                  {opcao.label}
-                </Button>
-              ))}
-            </ButtonGroup>
+                    <div className="mt-4 text-sm text-gray-600 font-medium">
+                      💧 Consumo atual:{" "}
+                      <span className="text-blue-600 font-bold">
+                        {(consumoAguaOpcoes[aguaIndex].value * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </>
+                )}
 
-            <div className="mt-4 text-sm text-gray-600 font-medium">
-              💧 Consumo atual:{" "}
-              <span className="text-blue-600 font-bold">
-                {(consumoAguaOpcoes[aguaIndex].value * 100).toFixed(0)}%
-              </span>
-            </div>
-          </motion.div>
-        )}
+                {/* === Alocação de Colonos === */}
+                {abaParametros === "alocacao" && (
+                  <>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">
+                        Parâmetros — Alocação de Colonos
+                      </h3>
+                    </div>
 
-        {abaSelecionada === "colonos" && (
-          <motion.div
-            key="colonos"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white rounded-xl shadow-lg p-6 text-slate-800"
-          >
-            {/* Linha superior - Animação e título */}
-            <div className="flex items-center mb-4">
-              <div className="mr-1 mb-4">
-                <PopulationLottie />
-              </div>
-              <h2 className="text-xl font-bold mb-2 text-slate-800">
-                Alocação de Colonos (100%)
-              </h2>
-            </div>
+                    {/* Linha superior - Animação e título */}
+                    <div className="flex items-center mb-4">
+                      <div className="mr-1 mb-4">
+                        <PopulationLottie />
+                      </div>
+                      <h4 className="text-lg font-semibold">
+                        Alocação de Colonos (100%)
+                      </h4>
+                    </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {setoresOrdem.map((campo) => (
-                <div
-                  key={campo}
-                  className="bg-slate-100 p-4 rounded-lg shadow-inner border border-slate-200"
-                >
-                  <h4 className="text-md font-semibold mb-2 capitalize text-slate-700">
-                    {campo}
-                  </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {setoresOrdem.map((campo) => (
+                        <div
+                          key={campo}
+                          className="bg-slate-100 p-4 rounded-lg shadow-inner border border-slate-200"
+                        >
+                          <h5 className="text-md font-semibold mb-2 capitalize text-slate-700">
+                            {campo}
+                          </h5>
 
-                  <Slider
-                    value={tempAlocacao[campo]}
-                    min={0}
-                    max={100}
-                    step={1}
-                    onChange={(_, value) => handleSliderChange(campo, value)}
-                    onChangeCommitted={(_, value) =>
-                      handleSliderChangeCommitted(campo, value)
-                    }
-                    sx={{
-                      color: "#3b82f6", // Tailwind blue-500
-                    }}
-                  />
+                          <Slider
+                            value={tempAlocacao[campo]}
+                            min={0}
+                            max={100}
+                            step={1}
+                            onChange={(_, value) =>
+                              handleSliderChange(campo, value)
+                            }
+                            onChangeCommitted={(_, value) =>
+                              handleSliderChangeCommitted(campo, value)
+                            }
+                            sx={{ color: "#3b82f6" }}
+                          />
 
-                  <div className="text-sm text-slate-600 mt-1 flex justify-between">
-                    <span>{tempAlocacao[campo]}%</span>
-                    <span className="font-medium text-blue-600">
-                      {Math.round(
-                        (tempAlocacao[campo] / 100) * populacao.colonos
-                      )}{" "}
-                      colonos
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+                          <div className="text-sm text-slate-600 mt-1 flex justify-between">
+                            <span>{tempAlocacao[campo]}%</span>
+                            <span className="font-medium text-blue-600">
+                              {Math.round(
+                                (tempAlocacao[campo] / 100) * populacao.colonos
+                              )}{" "}
+                              colonos
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </>
         )}
 
         {abaSelecionada === "construcoes" && (

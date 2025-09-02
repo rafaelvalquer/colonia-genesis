@@ -281,6 +281,7 @@ function App() {
   const [estadoAtual, setEstadoAtual] = useState(null); // começa sem colônia
   const [filaConstrucoes, setFilaConstrucoes] = useState([]);
   const [snackbarQueue, setSnackbarQueue] = useState([]);
+  const [turnReport, setTurnReport] = useState(null);
 
   const showSnackbar = (mensagem, tipo = "info") => {
     const id = Date.now();
