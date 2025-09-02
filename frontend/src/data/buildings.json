@@ -2,7 +2,7 @@
   "fazenda": {
     "nome": "Fazenda",
     "categoria": "fazenda",
-    "descricao": "Produz comida básica para sustentar sua colônia.",
+    "descricao": "Cada Fazenda gera +5 de comida por turno.",
     "imagem": "/images/fazenda.png",
     "tempo": 2,
     "custo": {
@@ -11,13 +11,13 @@
       "agua": 5
     },
     "efeitos": {
-      "bonusComida": 5
+      "bonusComida": 10
     }
   },
   "sistemaDeIrrigacao": {
     "nome": "Sistema de Irrigação",
     "categoria": "fazenda",
-    "descricao": "Melhora a produção de comida com menos água.",
+    "descricao": "Aumenta em 10% a produção das Fazendas (apenas sobre o bônus das Fazendas)",
     "imagem": "/images/irrigacao.png",
     "tempo": 3,
     "custo": {
@@ -26,7 +26,7 @@
       "agua": 5
     },
     "efeitos": {
-      "bonusComida": 10
+      "bonusComida": 20
     }
   },
   "torreDeVigilancia": {
@@ -122,7 +122,7 @@
   "postoMedico": {
     "nome": "Posto Médico",
     "categoria": "saude",
-    "descricao": "Atende emergências e reduz doenças na colônia.",
+    "descricao": "Atende emergências e fornece 3 leitos.",
     "imagem": "/images/posto-medico.png",
     "tempo": 2,
     "custo": {
@@ -137,7 +137,7 @@
   "hospitalCentral": {
     "nome": "Hospital Central",
     "categoria": "saude",
-    "descricao": "Infraestrutura de saúde completa para manter os colonos saudáveis.",
+    "descricao": "Infraestrutura de saúde avançada com 8 leitos",
     "imagem": "/images/hospital-central.png",
     "tempo": 4,
     "custo": {

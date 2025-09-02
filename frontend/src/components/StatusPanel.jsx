@@ -30,11 +30,7 @@ function StatusPanel({ estado }) {
   const internadosArr = estado?.hospital?.internados ?? [];
   const internados = internadosArr.length;
 
-  // slots ocupados (grave = 2, leve = 1)
-  const slotsOcupados = internadosArr.reduce(
-    (acc, p) => acc + (p?.severidade === "grave" ? 2 : 1),
-    0
-  );
+  const slotsOcupados = internadosArr.length;
 
   const filaHospital = estado?.hospital?.fila?.length ?? 0;
 
@@ -86,7 +82,91 @@ function StatusPanel({ estado }) {
     },
     { label: "Energia", value: estado.energia, icon: <FaBolt /> },
 
-    { label: "Comida", value: estado.comida, icon: <FaDrumstickBite /> },
+    {
+      label: "Comida",
+      value: estado.comida,
+      icon: <FaDrumstickBite />,
+      tooltip: (
+        <div className="text-sm space-y-2">
+          {(() => {
+            // Consumo
+            const colonos = estado.populacao?.colonos ?? 0;
+            const exploradores = estado.populacao?.exploradores ?? 0;
+            const marines = estado.populacao?.marines ?? 0;
+
+            const consumoColonos = colonos * 1;
+            const consumoExploradores = exploradores * 2;
+            const consumoMarines = marines * 2;
+            const consumoTotal =
+              consumoColonos + consumoExploradores + consumoMarines;
+
+            // Produção (somente de construções)
+            const fazendas = estado.construcoes?.fazenda ?? 0;
+            const irrigadores = estado.construcoes?.sistemaDeIrrigacao ?? 0;
+
+            const bonusFazendasFlat = fazendas * 5; // +5 por fazenda
+            const irrigPct = irrigadores * 10; // +10% por irrigador (apenas sobre bônus das fazendas)
+            const bonusFazendasComIrrig = Math.floor(
+              bonusFazendasFlat * (1 + 0.1 * irrigadores)
+            );
+
+            return (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🏭</span>
+                    <span>Produção (fazendas):</span>
+                  </div>
+                  <span>+{bonusFazendasComIrrig}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">💧</span>
+                    <span>Bônus irrigação:</span>
+                  </div>
+                  <span>+{irrigPct}%</span>
+                </div>
+
+                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                <div className="font-semibold text-slate-200">Consumo</div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🏠</span>
+                    <span>Colonos:</span>
+                  </div>
+                  <span>-{consumoColonos}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🔍</span>
+                    <span>Exploradores:</span>
+                  </div>
+                  <span>-{consumoExploradores}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">⚔️</span>
+                    <span>Marines:</span>
+                  </div>
+                  <span>-{consumoMarines}</span>
+                </div>
+
+                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
+                  <span>Total (consumo):</span>
+                  <span>-{consumoTotal}</span>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      ),
+    },
+
     { label: "Minerais", value: estado.minerais, icon: <FaHammer /> },
     { label: "Ciência", value: estado.ciencia, icon: <FaFlask /> },
     {

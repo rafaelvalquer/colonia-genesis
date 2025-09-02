@@ -86,7 +86,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       setEnergia(atual.energia);
       energiaRef.current = atual.energia;
     }
-    console.log("atualizado = " + JSON.stringify(atualizado));
 
     if (sincronizarBackend) {
       try {
@@ -399,7 +398,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
           console.log("ENERGIA = " + energiaRef.current);
 
-          if (onda == 2) {
+          if (onda == 1) {
             //LIMITE_DE_ONDAS) {
 
             // Para o loop
@@ -409,42 +408,103 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             // 1️⃣ Contar tropas que estão em campo
             const tropasEmCampo = gameRef.current.tropas;
             const tropasParaRetornar = {};
+            const novosPacientes = [];
 
-            tropasEmCampo.forEach((tropa) => {
+            tropasEmCampo.forEach((tropa, idx) => {
               const tipo = tropa.tipo;
-              const config = troopTypes[tipo];
-              // só conta quem tem retornaAoFinal = true
-              if (config?.retornaAoFinal) {
-                tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
+              const cfg = troopTypes[tipo];
+              if (!cfg?.retornaAoFinal) return; // só retorna quem deve voltar
+
+              // hp e maxHp são números simples no objeto da tropa
+              const hpAtual = Number.isFinite(tropa.hp)
+                ? tropa.hp
+                : tropa.hp?.current ?? 0;
+
+              const hpMax = Number.isFinite(tropa.maxHp)
+                ? tropa.maxHp
+                : tropa.hp?.max ?? tropa.config?.hp ?? 1;
+
+              const ratio = hpMax > 0 ? hpAtual / hpMax : 1;
+
+              // todos contam como "retornaram" para a colônia
+              tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
+
+              // 100% = normal | [50%, 99%] => leve | (<50%) => grave
+              if (ratio < 1) {
+                const severidade = ratio >= 0.5 ? "leve" : "grave";
+
+                novosPacientes.push({
+                  id: `pac_${estadoAtual.turno}_${Date.now()}_${idx}`,
+                  tipo: "colono", // schema aceita "colono"|"explorador"; mantemos "colono"
+                  refId: null,
+                  severidade, // "leve" ou "grave"
+                  entrouEm: Date.now(),
+                  turnosRestantes: severidade === "grave" ? 3 : 1,
+                  origem: `combate_${tipo}`, // preserva o tipo real da tropa para relatórios
+                  status: "fila",
+                });
               }
             });
 
-            // 2️⃣ Atualizar população (sem mutar estadoAtual diretamente)
+            // 2) Atualizar hospital (empurra só para a fila; admissão acontece na simulação/turno)
+            const hospitalAtual = estadoAtual.hospital ?? {
+              fila: [],
+              internados: [],
+              historicoAltas: [],
+            };
+            const novoHospital = {
+              ...hospitalAtual,
+              fila: [...(hospitalAtual.fila || []), ...novosPacientes],
+            };
+
+            // 3) Atualizar população e estado (eles voltam para a colônia, mesmo que feridos)
             const novaPopulacao = { ...estadoAtual.populacao };
-            Object.entries(tropasParaRetornar).forEach(([tipo, qtd]) => {
-              if (tipo === "colono") {
-                novaPopulacao.colonos += qtd;
-              }
-              if (tipo === "marine") {
-                novaPopulacao.marines += qtd;
-              }
+            Object.entries(tropasParaRetornar).forEach(([t, qtd]) => {
+              if (t === "colono") novaPopulacao.colonos += qtd;
+              if (t === "marine") novaPopulacao.marines += qtd;
+              // se tiver outros tipos, trate aqui
             });
 
             const novoEstado = {
               ...estadoAtual,
               energia: energiaRef.current,
               populacao: novaPopulacao,
+              hospital: novoHospital,
             };
 
             await atualizarEstado(novoEstado, true);
 
-            // 3️⃣ Limpar campo de batalha
-            gameRef.current.tropas = [];
+            // 4) Agregar dados para o diálogo
+            const feridosLeves = novosPacientes.filter(
+              (p) => p.severidade === "leve"
+            ).length;
+            const feridosGraves = novosPacientes.filter(
+              (p) => p.severidade === "grave"
+            ).length;
 
-            // 4️⃣ Guardar dados para o Dialog
+            const feridosPorTipo = novosPacientes.reduce((acc, p) => {
+              let t = "desconhecido";
+              if (
+                typeof p.origem === "string" &&
+                p.origem.startsWith("combate_")
+              ) {
+                t = p.origem.replace("combate_", "");
+              }
+              if (!acc[t]) acc[t] = { leve: 0, grave: 0, total: 0 };
+              acc[t][p.severidade] += 1;
+              acc[t].total += 1;
+              return acc;
+            }, {});
+
             setDadosVitoria({
               inimigosMortos: inimigosTotaisRef.current,
               tropasRetornadas: tropasParaRetornar,
+              feridos: {
+                total: feridosLeves + feridosGraves,
+                leve: feridosLeves,
+                grave: feridosGraves,
+              },
+              feridosPorTipo,
             });
 
             // 5️⃣ Abrir o Dialog (não navegar ainda)
@@ -501,7 +561,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     }
 
     gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
-    console.log("ENERGIA == " + JSON.stringify(energiaRef));
 
     const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
     const novaPopulacao = { ...estadoAtual.populacao };
@@ -840,6 +899,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         >
           🏆 Vitória Épica! 🎮
         </DialogTitle>
+
         <DialogContent>
           <Typography gutterBottom>
             Você sobreviveu a todas as ondas e derrotou{" "}
@@ -866,7 +926,43 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                 </ul>
               </>
             )}
+
+          {/* NOVO: resumo de atendimento médico */}
+          {dadosVitoria.feridos && dadosVitoria.feridos.total > 0 && (
+            <>
+              <Typography sx={{ mt: 2 }} gutterBottom>
+                🏥 <strong>Atendimento médico</strong>
+              </Typography>
+              <Typography gutterBottom>
+                Encaminhados ao hospital:{" "}
+                <strong>{dadosVitoria.feridos.total}</strong>{" "}
+                {`(leve: ${dadosVitoria.feridos.leve}, grave: ${dadosVitoria.feridos.grave})`}
+              </Typography>
+
+              {/* Opcional: detalhar por tipo (marine, colono, etc.) se houver */}
+              {dadosVitoria.feridosPorTipo &&
+                Object.keys(dadosVitoria.feridosPorTipo).length > 0 && (
+                  <>
+                    <Typography gutterBottom>Detalhe por tropa:</Typography>
+                    <ul>
+                      {Object.entries(dadosVitoria.feridosPorTipo).map(
+                        ([tipo, stats]) => (
+                          <li key={tipo}>
+                            <Typography>
+                              {tipo.charAt(0).toUpperCase() + tipo.slice(1)}:{" "}
+                              <strong>{stats.total}</strong>{" "}
+                              {`(leve: ${stats.leve}, grave: ${stats.grave})`}
+                            </Typography>
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  </>
+                )}
+            </>
+          )}
         </DialogContent>
+
         <DialogActions>
           <Button
             variant="contained"

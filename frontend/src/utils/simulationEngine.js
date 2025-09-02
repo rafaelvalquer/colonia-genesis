@@ -40,6 +40,8 @@ export function runSimulationTurn(
     colonos: populacao.colonos,
   };
 
+  let prodPenalty = 0;
+
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
 
   const quantidadePorSetor = Object.fromEntries(
@@ -52,11 +54,9 @@ export function runSimulationTurn(
   // ====== HOSPITAL: helpers ======
   function calcHospitalCapacity(construcoes) {
     const { postoMedico = 0, hospitalCentral = 0 } = construcoes || {};
-    // ajuste os pesos como preferir
     return postoMedico * 3 + hospitalCentral * 8;
   }
 
-  // turnos por severidade: leve = 1, grave = 3
   function turnosPorSeveridade(severidade) {
     return severidade === "grave" ? 3 : 1;
   }
@@ -80,7 +80,37 @@ export function runSimulationTurn(
     };
   }
 
-  /** Processa 1 turno de tratamento: decrementa 1 para QUEM JÁ ESTAVA internado */
+  /** move da fila para internados respeitando capacidade (1 slot por paciente) */
+  function admitFromQueue(hospital, capacidade) {
+    const internados = [...(hospital.internados || [])];
+    const fila = [...(hospital.fila || [])];
+
+    const used = internados.length;
+    let free = Math.max(0, capacidade - used);
+
+    const admitted = [];
+    const keptQueue = [];
+
+    for (const p of fila) {
+      const cost = 1; // grave e leve ocupam 1 slot agora
+      if (free >= cost) {
+        p.status = "internado";
+        p.turnosRestantes = turnosPorSeveridade(p.severidade); // (re)garante duração ao internar
+        admitted.push(p);
+        free -= cost;
+      } else {
+        keptQueue.push(p);
+      }
+    }
+
+    return {
+      internados: internados.concat(admitted),
+      fila: keptQueue,
+      admittedCount: admitted.length,
+    };
+  }
+
+  /** processa 1 turno de tratamento: decrementa 1 para QUEM JÁ ESTAVA internado */
   function tickHospital(hospital) {
     const internados = [];
     const altas = [];
@@ -92,7 +122,7 @@ export function runSimulationTurn(
         turnosRestantes: Math.max(0, p.turnosRestantes - 1),
       };
       if (next.turnosRestantes <= 0) {
-        // chance de óbito opcional (mantenha 0 se não quiser)
+        // chance de óbito no fim do tratamento (grave 5%, leve 0%)
         const chanceObito = next.severidade === "grave" ? 0.05 : 0.0;
         if (Math.random() < chanceObito) {
           next.status = "obito";
@@ -109,34 +139,27 @@ export function runSimulationTurn(
     return { internados, altas, obitos };
   }
 
-  /** Admite da FILA para INTERNADOS respeitando a capacidade; TODO paciente ocupa 1 slot */
-  function admitFromQueue(hospital, capacidade) {
-    const internados = [...(hospital.internados || [])];
-    const fila = [...(hospital.fila || [])];
+  /** aplica risco de óbito em fila SE hospital estiver lotado (5%) */
+  function applyQueueDeathRisk(hospital, capacidade, chance = 0.05) {
+    const internadosCount = (hospital.internados || []).length;
+    if (internadosCount < capacidade) return { obitosFila: [] };
 
-    let free = Math.max(0, capacidade - internados.length);
-
-    const admitted = [];
-    const keptQueue = [];
-
-    for (const p of fila) {
-      const cost = 1; // leve e grave ocupam 1 slot
-      if (free >= cost) {
-        p.status = "internado";
-        // quando entra, (re)inicializa a duração completa do tratamento
-        p.turnosRestantes = turnosPorSeveridade(p.severidade);
-        admitted.push(p);
-        free -= cost;
+    const survivors = [];
+    const obitosFila = [];
+    for (const p of hospital.fila || []) {
+      if (Math.random() < chance) {
+        obitosFila.push({
+          ...p,
+          status: "obito",
+          origem: "filaLotada",
+          obitoEm: Date.now(),
+        });
       } else {
-        keptQueue.push(p);
+        survivors.push(p);
       }
     }
-
-    return {
-      internados: internados.concat(admitted),
-      fila: keptQueue,
-      admittedCount: admitted.length,
-    };
+    hospital.fila = survivors;
+    return { obitosFila };
   }
 
   // ====== HOSPITAL: integração no turno ======
@@ -146,7 +169,7 @@ export function runSimulationTurn(
     )
   );
 
-  // (1) Primeiro: trata quem JÁ estava internado (pode gerar altas/óbito neste turno)
+  // (1) Primeiro: processar altas/óbito de QUEM JÁ ESTAVA internado
   const { internados: internadosTick, altas, obitos } = tickHospital(hospital);
   hospital.internados = internadosTick;
   hospital.historicoAltas = [
@@ -155,7 +178,7 @@ export function runSimulationTurn(
     ...obitos,
   ];
 
-  // (2) Agora: gera NOVOS pacientes do turno e coloca NA FILA
+  // (2) Chegam novos pacientes neste turno (até 10% dos colonos; mais graves se saúde baixa)
   const maxNovos = Math.floor((populacao.colonos || 0) * 0.1);
   const severidadeBias = saude < 40 ? 0.5 : 0.25; // mais graves quando saúde baixa
   const quantidadeNovos = Math.max(
@@ -175,18 +198,36 @@ export function runSimulationTurn(
     );
   }
 
-  // (3) Em seguida: ADMITIR da fila, respeitando a capacidade
+  // (3) Admitir da fila até ocupar a capacidade
   const capacidade = calcHospitalCapacity(construcoes);
   const {
     internados: internadosAposAdmissao,
     fila: filaAposAdmissao,
     admittedCount,
   } = admitFromQueue(hospital, capacidade);
-
   hospital.internados = internadosAposAdmissao;
   hospital.fila = filaAposAdmissao;
 
-  // (4) Dados para UI / turnReport
+  // (4) Risco de morte NA FILA se hospital estiver lotado (5%)
+  const { obitosFila } = applyQueueDeathRisk(hospital, capacidade, 0.05);
+  if (obitosFila.length > 0) {
+    hospital.historicoAltas = [
+      ...(hospital.historicoAltas || []),
+      ...obitosFila,
+    ];
+    log.push(
+      `⚠️ ${obitosFila.length} paciente(s) faleceram aguardando vaga no hospital.`
+    );
+  }
+
+  // (5) Impacto produtivo opcional (internados tiram gente da produção)
+  // >>> Só calcula a penalidade aqui; aplicamos mais tarde,
+  const internadosColonos = (hospital.internados || []).filter(
+    (p) => p.tipo === "colono"
+  ).length;
+  prodPenalty = Math.min(0.2, internadosColonos * 0.005);
+
+  // (6) Report do hospital (inclui óbitos na fila)
   const hospitalReport = {
     capacidade,
     fila: hospital.fila.length,
@@ -194,14 +235,9 @@ export function runSimulationTurn(
     novosPacientes: quantidadeNovos,
     admitidos: admittedCount,
     altas: altas.length,
-    obitos: obitos.length,
+    obitos: obitos.length + obitosFila.length, // total do turno
+    obitosFila: obitosFila.length, // detalhado
   };
-
-  // (5) Fator de penalidade produtiva baseado nos COLONOS internados (aplique depois)
-  const internadosColonos = hospital.internados.filter(
-    (p) => p.tipo === "colono"
-  ).length;
-  const prodPenalty = Math.min(0.2, internadosColonos * 0.005); // máx -20%
 
   // -------------------
   // 1. Produções básicas (calcular valores brutos SEM somar ainda)
@@ -209,12 +245,47 @@ export function runSimulationTurn(
   const pontos = distribuicao;
 
   // COMIDA (cálculo base)
-  let comidaProduzida = quantidadePorSetor.fazenda * 2 * consumoAgua;
-  if (pontos.agricultura === 1) comidaProduzida *= 2;
-  if (construcoes.fazenda > 0) comidaProduzida += construcoes.fazenda * 5;
-  if (construcoes.sistemaDeIrrigacao > 0)
-    comidaProduzida += construcoes.sistemaDeIrrigacao * 10;
-  comidaProduzida -= populacao.colonos;
+  const workersFarm = quantidadePorSetor.fazenda;
+
+  // 1) Produção dos colonos na fazenda
+  let farmWorkersProd = workersFarm * 2 * consumoAgua;
+  if (pontos.agricultura === 1) {
+    // dobra apenas a parte dos trabalhadores
+    farmWorkersProd *= 2;
+  }
+
+  // 2) Bônus fixo por fazendas construídas (entra na irrigação)
+  const bonusFazendasFlat = (construcoes.fazenda || 0) * 5;
+
+  // 3) Irrigação: +10% por irrigador, apenas sobre o bônus das fazendas
+  const irrigadores = construcoes.sistemaDeIrrigacao || 0;
+  const bonusFazendasComIrrig = Math.floor(
+    bonusFazendasFlat * (1 + 0.1 * irrigadores)
+  );
+
+  // 4) Custo de energia dos irrigadores (30 por unidade)
+  const custoEnergiaIrrigacao = irrigadores * 30;
+  energia -= custoEnergiaIrrigacao;
+
+  // 5) Total bruto de comida
+  const comidaBruta = farmWorkersProd + bonusFazendasComIrrig;
+
+  // 6) Consumo da população
+  const consumoPop =
+    (populacao.colonos || 0) * 1 +
+    (populacao.exploradores || 0) * 2 +
+    (populacao.marines || 0) * 2;
+
+  // 7) Resultado líquido deste turno
+  let comidaProduzida = Math.floor(comidaBruta - consumoPop);
+
+  // 8) Logs úteis
+  log.push(
+    `🌾 Comida — trab:${farmWorkersProd} | fazendas:+${bonusFazendasComIrrig} (irr:${irrigadores}) | consumo:-${consumoPop} ⇒ líquido:${comidaProduzida}.`
+  );
+  if (custoEnergiaIrrigacao > 0) {
+    log.push(`💡 Irrigação consumiu ${custoEnergiaIrrigacao} de energia.`);
+  }
 
   // MINERAIS
   let mineraisProduzidos = quantidadePorSetor.minas * 10 * consumoAgua;
@@ -231,7 +302,7 @@ export function runSimulationTurn(
   log.push(`Oficina de Construção restaurou ${reparo} de integridade.`);
 
   // SAÚDE (base; aplicar no estado depois de penalidades)
-  let ganhoSaude = Math.floor(quantidadePorSetor.saude / 10) * consumoAgua;
+  let ganhoSaude = Math.floor(quantidadePorSetor.saude / 100) * consumoAgua;
   if (pontos.saude === 1) ganhoSaude *= 2;
 
   // ENERGIA
@@ -247,6 +318,7 @@ export function runSimulationTurn(
     ganhoSaude -= 2;
     log.push("Falta de energia reduziu o ganho de saúde.");
   }
+
   if (sustentabilidade <= 25) {
     ganhoSaude -= 2;
     log.push("Baixa sustentabilidade (<= 25) reduziu muito a saúde.");
@@ -285,7 +357,7 @@ export function runSimulationTurn(
     ganhoSustentabilidade += 1;
   }
 
-  // Sustentabilidade impacta a eficiência geral
+  // --- Sustentabilidade impacta eficiência (como você já tinha) ---
   if (sustentabilidade <= 25) {
     comidaProduzida = Math.floor(comidaProduzida * 0.9);
     mineraisProduzidos = Math.floor(mineraisProduzidos * 0.9);
@@ -536,6 +608,15 @@ export function runSimulationTurn(
     log.push(`🏗️ ${dadosConstrucao.nome} finalizada!`);
   });
 
+  const construcoesFinalizadasResumo = construcoesFinalizadas.map((c) => {
+    const meta = buildings?.[c.id];
+    return {
+      id: c.id,
+      nome: c.nome || meta?.nome || c.id,
+      categoria: meta?.categoria || null,
+    };
+  });
+
   // Resumo de produção deste turno
   const producaoResumo = {
     comidaLiquida: typeof comidaProduzida === "number" ? comidaProduzida : 0,
@@ -632,6 +713,7 @@ export function runSimulationTurn(
     missoesConcluidas: rewardsSummary,
     logs: log,
     hospital: hospitalReport,
+    construcoesFinalizadas: construcoesFinalizadasResumo,
   };
 
   return {

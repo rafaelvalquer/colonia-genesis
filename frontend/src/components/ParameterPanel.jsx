@@ -236,11 +236,7 @@ function ParameterPanel({
   const internadosArr = estadoAtual?.hospital?.internados ?? [];
   const internados = internadosArr.length;
 
-  // slots ocupados (grave = 2, leve = 1)
-  const slotsOcupados = internadosArr.reduce(
-    (acc, p) => acc + (p?.severidade === "grave" ? 2 : 1),
-    0
-  );
+  const slotsOcupados = internadosArr.length;
 
   const filaHospital = estadoAtual?.hospital?.fila?.length ?? 0;
 
@@ -374,6 +370,16 @@ function ParameterPanel({
     const missoes = turnReport.missoesConcluidas || [];
     const hosp = turnReport.hospital || {};
 
+    const builds = turnReport?.construcoesFinalizadas ?? [];
+    const buildsGrouped = Object.values(
+      builds.reduce((acc, c) => {
+        const key = c.id;
+        if (!acc[key]) acc[key] = { nome: c.nome || key, count: 0 };
+        acc[key].count += 1;
+        return acc;
+      }, {})
+    );
+
     return [
       <>
         <h3 className="text-lg font-bold mb-2">
@@ -466,6 +472,23 @@ function ParameterPanel({
           <li>🌿 Sustentabilidade: {fmt(d.sustentabilidade)}</li>
           <li>🏗️ Integridade Estrutural: {fmt(d.integridadeEstrutural)}</li>
         </ul>
+
+        <div className="mt-3">
+          <p className="font-semibold mb-1">🏗️ Construções finalizadas:</p>
+          {builds.length === 0 ? (
+            <p className="text-sm text-slate-600">
+              Nenhuma construção concluída neste turno.
+            </p>
+          ) : (
+            <ul className="list-disc pl-5 text-sm">
+              {buildsGrouped.map((b, i) => (
+                <li key={i}>
+                  {b.nome} <span className="text-slate-500">×{b.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </>,
     ];
   }, [turnReport]);
@@ -608,7 +631,103 @@ function ParameterPanel({
                       <li>
                         💧 Água: {estadoAtual.agua}/{estadoAtual.maxAgua}
                       </li>
-                      <li>🌾 Comida: {estadoAtual.comida}</li>
+                      <li className="group relative inline-block">
+                        <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
+                          <span className="mr-1">🌾</span>
+                          Comida: {estadoAtual.comida}
+                        </div>
+
+                        {/* Tooltip Comida */}
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl 
+               opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+               transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+               border border-gray-700 text-white"
+                        >
+                          {(() => {
+                            // --- cálculos para exibir no tooltip ---
+                            const colonos = estadoAtual.populacao?.colonos || 0;
+                            const exploradores =
+                              estadoAtual.populacao?.exploradores || 0;
+                            const marines = estadoAtual.populacao?.marines || 0;
+
+                            const consumoColonos = colonos * 1;
+                            const consumoExploradores = exploradores * 2;
+                            const consumoMarines = marines * 2;
+                            const consumoTotal =
+                              consumoColonos +
+                              consumoExploradores +
+                              consumoMarines;
+
+                            const fazendas =
+                              estadoAtual.construcoes?.fazenda || 0;
+                            const irrigadores =
+                              estadoAtual.construcoes?.sistemaDeIrrigacao || 0;
+
+                            const bonusFazendasFlat = fazendas * 5; // +5 por fazenda
+                            const irrigPct = irrigadores * 10; // +10% por irrigador (apenas sobre o bônus das fazendas)
+                            const bonusFazendasComIrrig = Math.floor(
+                              bonusFazendasFlat * (1 + 0.1 * irrigadores)
+                            );
+
+                            return (
+                              <div className="text-sm space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🏭</span>
+                                    <span>Produção (fazendas):</span>
+                                  </div>
+                                  <span>+{bonusFazendasComIrrig}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">💧</span>
+                                    <span>Bônus irrigação:</span>
+                                  </div>
+                                  <span>+{irrigPct}%</span>
+                                </div>
+
+                                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                                <div className="font-semibold text-slate-200">
+                                  Consumo
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🏠</span>
+                                    <span>Colonos:</span>
+                                  </div>
+                                  <span>-{consumoColonos}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🔍</span>
+                                    <span>Exploradores:</span>
+                                  </div>
+                                  <span>-{consumoExploradores}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⚔️</span>
+                                    <span>Marines:</span>
+                                  </div>
+                                  <span>-{consumoMarines}</span>
+                                </div>
+
+                                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
+                                  <span>Total (consumo):</span>
+                                  <span>-{consumoTotal}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </li>
+
                       <li>⛏️ Minerais: {estadoAtual.minerais}</li>
                       <li>🧪 Ciência: {estadoAtual.ciencia}</li>
                       <li className="group relative inline-block">
