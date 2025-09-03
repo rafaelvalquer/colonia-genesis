@@ -169,14 +169,23 @@ export function runSimulationTurn(
     )
   );
 
+  // helper para acrescentar no histórico e manter apenas as últimas N entradas
+  function pushHistoricoAltas(items, max = 200) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    if (!Array.isArray(hospital.historicoAltas)) hospital.historicoAltas = [];
+    hospital.historicoAltas.push(...items);
+
+    // se exceder o limite, remove as mais antigas (começo do array)
+    const excedente = hospital.historicoAltas.length - max;
+    if (excedente > 0) {
+      hospital.historicoAltas.splice(0, excedente);
+    }
+  }
+
   // (1) Primeiro: processar altas/óbito de QUEM JÁ ESTAVA internado
   const { internados: internadosTick, altas, obitos } = tickHospital(hospital);
   hospital.internados = internadosTick;
-  hospital.historicoAltas = [
-    ...(hospital.historicoAltas || []),
-    ...altas,
-    ...obitos,
-  ];
+  pushHistoricoAltas([...altas, ...obitos]);
 
   // (2) Chegam novos pacientes neste turno (até 10% dos colonos; mais graves se saúde baixa)
   const maxNovos = Math.floor((populacao.colonos || 0) * 0.1);
@@ -211,10 +220,7 @@ export function runSimulationTurn(
   // (4) Risco de morte NA FILA se hospital estiver lotado (5%)
   const { obitosFila } = applyQueueDeathRisk(hospital, capacidade, 0.05);
   if (obitosFila.length > 0) {
-    hospital.historicoAltas = [
-      ...(hospital.historicoAltas || []),
-      ...obitosFila,
-    ];
+    pushHistoricoAltas(obitosFila);
     log.push(
       `⚠️ ${obitosFila.length} paciente(s) faleceram aguardando vaga no hospital.`
     );
@@ -254,21 +260,19 @@ export function runSimulationTurn(
     farmWorkersProd *= 2;
   }
 
-  // 2) Bônus fixo por fazendas construídas (entra na irrigação)
-  const bonusFazendasFlat = (construcoes.fazenda || 0) * 5;
+  // 2) Bônus fixo por fazendas construídas (mantém como está)
+  const bonusFazendas = (construcoes.fazenda || 0) * 5;
 
-  // 3) Irrigação: +10% por irrigador, apenas sobre o bônus das fazendas
+  // 3) Irrigação: +15 de comida por irrigador (flat)
   const irrigadores = construcoes.sistemaDeIrrigacao || 0;
-  const bonusFazendasComIrrig = Math.floor(
-    bonusFazendasFlat * (1 + 0.1 * irrigadores)
-  );
+  const bonusIrrigacaoFlat = irrigadores * 15;
 
   // 4) Custo de energia dos irrigadores (30 por unidade)
   const custoEnergiaIrrigacao = irrigadores * 30;
   energia -= custoEnergiaIrrigacao;
 
   // 5) Total bruto de comida
-  const comidaBruta = farmWorkersProd + bonusFazendasComIrrig;
+  const comidaBruta = farmWorkersProd + bonusFazendas + bonusIrrigacaoFlat;
 
   // 6) Consumo da população
   const consumoPop =
@@ -281,14 +285,15 @@ export function runSimulationTurn(
 
   // 8) Logs úteis
   log.push(
-    `🌾 Comida — trab:${farmWorkersProd} | fazendas:+${bonusFazendasComIrrig} (irr:${irrigadores}) | consumo:-${consumoPop} ⇒ líquido:${comidaProduzida}.`
+    `🌾 Comida — trab:${farmWorkersProd} | fazendas:+${bonusFazendas} | irrigação:+${bonusIrrigacaoFlat} (${irrigadores}×15) | consumo:-${consumoPop} ⇒ líquido:${comidaProduzida}.`
   );
   if (custoEnergiaIrrigacao > 0) {
-    log.push(`💡 Irrigação consumiu ${custoEnergiaIrrigacao} de energia.`);
+    log.push(
+      `💡 Irrigação consumiu ${custoEnergiaIrrigacao} de energia (${irrigadores}×30).`
+    );
   }
-
   // MINERAIS
-  let mineraisProduzidos = quantidadePorSetor.minas * 10 * consumoAgua;
+  let mineraisProduzidos = quantidadePorSetor.minas * consumoAgua;
   if (pontos.minas === 1) mineraisProduzidos *= 2;
 
   // CIÊNCIA
@@ -305,11 +310,54 @@ export function runSimulationTurn(
   let ganhoSaude = Math.floor(quantidadePorSetor.saude / 100) * consumoAgua;
   if (pontos.saude === 1) ganhoSaude *= 2;
 
-  // ENERGIA
-  let energiaGerada = quantidadePorSetor.energia * 3;
-  if (pontos.energia === 1) energiaGerada = Math.floor(energiaGerada * 1.15);
+  // === ENERGIA (novo) ===
+  // 1) Trabalhadores: 1 energia por colono alocado
+  let energiaTrabalhadores = quantidadePorSetor.energia || 0;
+  if (pontos.energia === 1) {
+    energiaTrabalhadores = Math.floor(energiaTrabalhadores * 1.15); // +15% só nos workers
+  }
+
+  // 2) Geradores Solares: +12 cada e +⌊solares/2⌋ de ganho de sustentabilidade (calculado depois)
+  const solares = construcoes.geradorSolar || 0;
+  const energiaSolar = solares * 12;
+  const bonusSustentabilidadeSolar = Math.floor(solares / 2);
+
+  // 3) Reatores Geotérmicos: +30 cada, –2 minerais/unidade, –1 sustentabilidade/unidade
+  const reatores = construcoes.reatorGeotermico || 0;
+  const energiaGeo = reatores * 30;
+  const custoManutencaoGeo = reatores * 2;
+  minerais -= custoManutencaoGeo; // manutenção em minerais
+  const penaltySustentabilidadeGeo = reatores; // –1 por reator
+
+  // 3b) Microvazamentos: 10% de chance por reator; cada ocorrência tira –3 de integridade
+  let vazamentos = 0;
+  for (let i = 0; i < reatores; i++) {
+    if (Math.random() < 0.1) vazamentos++;
+  }
+  if (vazamentos > 0) {
+    const dano = 3 * vazamentos;
+    integridadeEstrutural -= dano;
+    log.push(
+      `⚠️ Microvazamento térmico em ${vazamentos} reator(es): Integridade −${dano}.`
+    );
+  }
+
+  // 4) Energia total gerada no turno (antes de custos como irrigação)
+  let energiaGerada = energiaTrabalhadores + energiaSolar + energiaGeo;
+
+  // Logs
+  log.push(
+    `⚡ Energia — workers:${energiaTrabalhadores} | solar:+${energiaSolar} (x${solares}) | geo:+${energiaGeo} (x${reatores}) ⇒ total:+${energiaGerada}.`
+  );
+  if (custoManutencaoGeo > 0) {
+    log.push(`🛠️ Manutenção geotérmica: −${custoManutencaoGeo} minerais.`);
+  }
 
   // Penalidades para ganhoSaude
+  if (comida <= 0) {
+    ganhoSaude -= 2;
+    log.push("Falta de comida reduziu o ganho de saúde.");
+  }
   if (agua <= 0) {
     ganhoSaude -= 2;
     log.push("Falta de água reduziu o ganho de saúde.");
@@ -332,29 +380,36 @@ export function runSimulationTurn(
 
   // SUSTENTABILIDADE (base + penalidades/bonificações)
   let ganhoSustentabilidade = 1;
+
+  ganhoSustentabilidade += bonusSustentabilidadeSolar; // +⌊solares/2⌋
+  ganhoSustentabilidade -= penaltySustentabilidadeGeo; // −reatores
+
+  if (bonusSustentabilidadeSolar > 0) {
+    log.push(
+      `🌞 Sustentabilidade: +${bonusSustentabilidadeSolar} (geradores solares).`
+    );
+  }
+  if (penaltySustentabilidadeGeo > 0) {
+    log.push(
+      `🌋 Sustentabilidade: −${penaltySustentabilidadeGeo} (reatores geotérmicos).`
+    );
+  }
+
   if (agua <= 0) {
     ganhoSustentabilidade -= 2;
     log.push("Falta de água reduziu o ganho de Sustentabilidade.");
-  } else {
-    ganhoSustentabilidade += 1;
   }
   if (energia <= 0) {
     ganhoSustentabilidade -= 2;
     log.push("Falta de energia reduziu o ganho de Sustentabilidade.");
-  } else {
-    ganhoSustentabilidade += 1;
   }
   if (comida <= 0) {
-    ganhoSustentabilidade -= 2;
+    ganhoSustentabilidade -= 5;
     log.push("Falta de comida reduziu o ganho de Sustentabilidade.");
-  } else {
-    ganhoSustentabilidade += 1;
   }
   if (saude <= 0) {
     ganhoSustentabilidade -= 2;
     log.push("Saúde precária reduziu o ganho de Sustentabilidade.");
-  } else {
-    ganhoSustentabilidade += 1;
   }
 
   // --- Sustentabilidade impacta eficiência (como você já tinha) ---
@@ -396,6 +451,7 @@ export function runSimulationTurn(
   comidaProduzida = Math.floor(comidaProduzida * (1 - prodPenalty));
   mineraisProduzidos = Math.floor(mineraisProduzidos * (1 - prodPenalty));
   cienciaProduzida = Math.floor(cienciaProduzida * (1 - prodPenalty));
+  energiaGerada = Math.floor(energiaGerada * (1 - prodPenalty));
   // (se quiser, pode aplicar também a energiaGerada)
 
   // *** Só agora some as produções no estado ***
@@ -689,6 +745,7 @@ export function runSimulationTurn(
     }
   }
 
+  console.log(log);
   // ---- deltas finais (comparando com baseline) ----
   const deltas = {
     comida: (novoEstado.comida ?? comida) - baseline.comida,

@@ -17,7 +17,7 @@
   "sistemaDeIrrigacao": {
     "nome": "Sistema de Irrigação",
     "categoria": "fazenda",
-    "descricao": "Aumenta em 10% a produção das Fazendas (apenas sobre o bônus das Fazendas)",
+    "descricao": "Gera +15 de comida por sistema de irrigação e consome 30 de energia.",
     "imagem": "/images/irrigacao.png",
     "tempo": 3,
     "custo": {
@@ -29,11 +29,11 @@
       "bonusComida": 20
     }
   },
-  "torreDeVigilancia": {
-    "nome": "Torre de Vigilância",
+  "matrizDeGravidade": {
+    "nome": "Matriz De Gravidade",
     "categoria": "defesa",
-    "descricao": "Permite detectar ataques com antecedência, reduzindo o impacto.",
-    "imagem": "/images/torre-vigilancia.png",
+    "descricao": "Campo gravitacional de solo que desacelera inimigos.",
+    "imagem": "/images/matriz-de-gravidade.png",
     "tempo": 2,
     "custo": {
       "minerais": 25,
@@ -152,7 +152,7 @@
   "geradorSolar": {
     "nome": "Gerador Solar",
     "categoria": "energia",
-    "descricao": "Gera energia limpa e constante durante o dia.",
+    "descricao": "Produz +12 ⚡/turno. A cada 2 geradores concede +1 🌿 de sustentabilidade/turno. Fonte limpa e estável.",
     "imagem": "/images/gerador-solar.png",
     "tempo": 2,
     "custo": {
@@ -167,7 +167,7 @@
   "reatorGeotermico": {
     "nome": "Reator Geotérmico",
     "categoria": "energia",
-    "descricao": "Fonte avançada de energia usando o calor da crosta planetária.",
+    "descricao": "Gera +30 ⚡/turno. Custa −2 ⛏️ minerais por reator/turno e aplica −1 🌿 de sustentabilidade/turno. 10%/reator de microvazamento causando −3% de integridade no turno.",
     "imagem": "/images/reator-geotermico.jpg",
     "tempo": 5,
     "custo": {

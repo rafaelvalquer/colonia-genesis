@@ -80,19 +80,109 @@ function StatusPanel({ estado }) {
         </div>
       ),
     },
-    { label: "Energia", value: estado.energia, icon: <FaBolt /> },
+    {
+      label: "Energia",
+      value: estado.energia,
+      icon: <FaBolt />,
+      tooltip: (
+        <div
+          className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl 
+opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+border border-gray-700 text-white"
+        >
+          {(() => {
+            const sol = estado.construcoes?.geradorSolar || 0;
+            const geo = estado.construcoes?.reatorGeotermico || 0;
 
+            // Energia por construção
+            const energiaSolar = sol * 12; // +12 por gerador
+            const energiaGeo = geo * 30; // +30 por reator
+
+            // Sustentabilidade por construção
+            const sustSolar = Math.floor(sol / 2); // +1 a cada 2 geradores
+            const sustGeo = -geo; // -1 por reator
+            const sustTotal = sustSolar + sustGeo;
+
+            return (
+              <div className="text-sm space-y-2">
+                <div className="font-semibold text-slate-200">Produção</div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">☀️</span>
+                    <span>Geradores Solares (x{sol}):</span>
+                  </div>
+                  <span>+{energiaSolar}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🌋</span>
+                    <span>Reatores Geotérmicos (x{geo}):</span>
+                  </div>
+                  <span>+{energiaGeo}</span>
+                </div>
+
+                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                <div className="font-semibold text-slate-200">
+                  Sustentabilidade
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">☀️</span>
+                    <span>Solar (+1 a cada 2):</span>
+                  </div>
+                  <span>+{sustSolar}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🌋</span>
+                    <span>Geotérmico (−1 por reator):</span>
+                  </div>
+                  <span>{sustGeo}</span>
+                </div>
+
+                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
+                  <span>Total/turno:</span>
+                  <span
+                    className={
+                      sustTotal >= 0 ? "text-green-400" : "text-red-400"
+                    }
+                  >
+                    {sustTotal >= 0 ? "+" : ""}
+                    {sustTotal}
+                  </span>
+                </div>
+
+                <div className="text-xs text-slate-400 pt-1">
+                  Reator: custo de manutenção −2 ⛏️ por reator/turno.
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ),
+    },
     {
       label: "Comida",
       value: estado.comida,
       icon: <FaDrumstickBite />,
       tooltip: (
-        <div className="text-sm space-y-2">
+        <div
+          className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl 
+    opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+    transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+    border border-gray-700 text-white"
+        >
           {(() => {
-            // Consumo
-            const colonos = estado.populacao?.colonos ?? 0;
-            const exploradores = estado.populacao?.exploradores ?? 0;
-            const marines = estado.populacao?.marines ?? 0;
+            // --- cálculos para exibir no tooltip ---
+            const colonos = estado.populacao?.colonos || 0;
+            const exploradores = estado.populacao?.exploradores || 0;
+            const marines = estado.populacao?.marines || 0;
 
             const consumoColonos = colonos * 1;
             const consumoExploradores = exploradores * 2;
@@ -100,32 +190,37 @@ function StatusPanel({ estado }) {
             const consumoTotal =
               consumoColonos + consumoExploradores + consumoMarines;
 
-            // Produção (somente de construções)
-            const fazendas = estado.construcoes?.fazenda ?? 0;
-            const irrigadores = estado.construcoes?.sistemaDeIrrigacao ?? 0;
+            const fazendas = estado.construcoes?.fazenda || 0;
+            const irrigadores = estado.construcoes?.sistemaDeIrrigacao || 0;
 
-            const bonusFazendasFlat = fazendas * 5; // +5 por fazenda
-            const irrigPct = irrigadores * 10; // +10% por irrigador (apenas sobre bônus das fazendas)
-            const bonusFazendasComIrrig = Math.floor(
-              bonusFazendasFlat * (1 + 0.1 * irrigadores)
-            );
+            const prodFazendas = fazendas * 5; // +5 por fazenda
+            const prodIrrigacao = irrigadores * 15; // +15 por irrigador
+            const energiaIrrigacao = irrigadores * 30; // -30 de energia
 
             return (
-              <>
+              <div className="text-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <span className="w-6 text-center">🏭</span>
                     <span>Produção (fazendas):</span>
                   </div>
-                  <span>+{bonusFazendasComIrrig}</span>
+                  <span>+{prodFazendas}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-slate-300">
                   <div className="flex items-center">
                     <span className="w-6 text-center">💧</span>
-                    <span>Bônus irrigação:</span>
+                    <span>Produção irrigação:</span>
                   </div>
-                  <span>+{irrigPct}%</span>
+                  <span>+{prodIrrigacao}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">⚡</span>
+                    <span>Consumo de energia:</span>
+                  </div>
+                  <span>-{energiaIrrigacao}</span>
                 </div>
 
                 <div className="border-t border-gray-600 pt-2 mt-1" />
@@ -160,7 +255,7 @@ function StatusPanel({ estado }) {
                   <span>Total (consumo):</span>
                   <span>-{consumoTotal}</span>
                 </div>
-              </>
+              </div>
             );
           })()}
         </div>

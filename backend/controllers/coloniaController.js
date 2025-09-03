@@ -35,7 +35,7 @@ exports.criarColonia = async (req, res) => {
       construcoes: {
         fazenda: 0,
         sistemaDeIrrigacao: 0,
-        torreDeVigilancia: 0,
+        matrizDeGravidade: 0,
         muralhaReforcada: 0,
         minaDeCarvao: 0,
         minaProfunda: 0,

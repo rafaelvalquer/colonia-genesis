@@ -627,7 +627,117 @@ function ParameterPanel({
                           </div>
                         </div>
                       </li>
-                      <li>⚡ Energia: {estadoAtual.energia}</li>
+
+                      <li className="group relative block w-full">
+                        <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
+                          <span className="mr-1">⚡</span>
+                          Energia: {estadoAtual.energia}
+                        </div>
+
+                        {/* Tooltip Energia (igual ao que você já tem) */}
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl 
+  opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+  transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+  border border-gray-700 text-white"
+                        >
+                          {(() => {
+                            const sol =
+                              estadoAtual.construcoes?.geradorSolar || 0;
+                            const geo =
+                              estadoAtual.construcoes?.reatorGeotermico || 0;
+                            const energiaSolar = sol * 12;
+                            const energiaGeo = geo * 30;
+                            const energiaTotalConstrucoes =
+                              energiaSolar + energiaGeo;
+                            const sustSolar = Math.floor(sol / 2);
+                            const sustGeo = -geo;
+                            const sustTotal = sustSolar + sustGeo;
+                            const manutMinerais = geo * 2;
+
+                            return (
+                              <div className="text-sm space-y-2">
+                                <div className="font-semibold text-slate-200">
+                                  Produção (construções)
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">☀️</span>
+                                    <span>Geradores Solares (x{sol}):</span>
+                                  </div>
+                                  <span>+{energiaSolar}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🌋</span>
+                                    <span>Reatores Geotérmicos (x{geo}):</span>
+                                  </div>
+                                  <span>+{energiaGeo}</span>
+                                </div>
+
+                                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                                <div className="font-semibold text-slate-200">
+                                  Sustentabilidade
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">☀️</span>
+                                    <span>Solar (+1 / 2 unid.):</span>
+                                  </div>
+                                  <span>+{sustSolar}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🌋</span>
+                                    <span>Geotérmico (−1 / unid.):</span>
+                                  </div>
+                                  <span>{sustGeo}</span>
+                                </div>
+
+                                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
+                                  <span>Total Sustentabilidade/turno:</span>
+                                  <span
+                                    className={
+                                      sustTotal >= 0
+                                        ? "text-green-400"
+                                        : "text-red-400"
+                                    }
+                                  >
+                                    {sustTotal >= 0 ? "+" : ""}
+                                    {sustTotal}
+                                  </span>
+                                </div>
+
+                                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⛏️</span>
+                                    <span>Manutenção (reatores):</span>
+                                  </div>
+                                  <span>-{manutMinerais} minerais</span>
+                                </div>
+
+                                <div className="text-xs text-slate-400">
+                                  * Reatores podem causar microvazamentos
+                                  térmicos raros (−3% integridade).
+                                </div>
+
+                                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between text-slate-200">
+                                  <span>Energia total (construções):</span>
+                                  <span>+{energiaTotalConstrucoes}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </li>
+
                       <li>
                         💧 Água: {estadoAtual.agua}/{estadoAtual.maxAgua}
                       </li>
@@ -640,9 +750,9 @@ function ParameterPanel({
                         {/* Tooltip Comida */}
                         <div
                           className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl 
-               opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-               transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
-               border border-gray-700 text-white"
+    opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+    transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+    border border-gray-700 text-white"
                         >
                           {(() => {
                             // --- cálculos para exibir no tooltip ---
@@ -664,11 +774,9 @@ function ParameterPanel({
                             const irrigadores =
                               estadoAtual.construcoes?.sistemaDeIrrigacao || 0;
 
-                            const bonusFazendasFlat = fazendas * 5; // +5 por fazenda
-                            const irrigPct = irrigadores * 10; // +10% por irrigador (apenas sobre o bônus das fazendas)
-                            const bonusFazendasComIrrig = Math.floor(
-                              bonusFazendasFlat * (1 + 0.1 * irrigadores)
-                            );
+                            const prodFazendas = fazendas * 5; // +5 por fazenda
+                            const prodIrrigacao = irrigadores * 15; // +15 por irrigador
+                            const energiaIrrigacao = irrigadores * 30; // -30 de energia
 
                             return (
                               <div className="text-sm space-y-2">
@@ -677,15 +785,23 @@ function ParameterPanel({
                                     <span className="w-6 text-center">🏭</span>
                                     <span>Produção (fazendas):</span>
                                   </div>
-                                  <span>+{bonusFazendasComIrrig}</span>
+                                  <span>+{prodFazendas}</span>
                                 </div>
 
                                 <div className="flex items-center justify-between text-slate-300">
                                   <div className="flex items-center">
                                     <span className="w-6 text-center">💧</span>
-                                    <span>Bônus irrigação:</span>
+                                    <span>Produção irrigação:</span>
                                   </div>
-                                  <span>+{irrigPct}%</span>
+                                  <span>+{prodIrrigacao}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-400">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⚡</span>
+                                    <span>Consumo de energia:</span>
+                                  </div>
+                                  <span>-{energiaIrrigacao}</span>
                                 </div>
 
                                 <div className="border-t border-gray-600 pt-2 mt-1" />

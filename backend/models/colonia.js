@@ -176,7 +176,7 @@ const coloniaSchema = new mongoose.Schema({
   construcoes: {
     fazenda: { type: Number, default: 0 },
     sistemaDeIrrigacao: { type: Number, default: 0 },
-    torreDeVigilancia: { type: Number, default: 0 },
+    matrizDeGravidade: { type: Number, default: 0 },
     muralhaReforcada: { type: Number, default: 0 },
     minaDeCarvao: { type: Number, default: 0 },
     minaProfunda: { type: Number, default: 0 },
