@@ -2,56 +2,140 @@
 import React, { memo, useState } from "react";
 import { Handle, Position, getBezierPath, NodeToolbar } from "@xyflow/react";
 
+const groupColors = {
+  agricultura: "#22c55e",
+  defesa: "#f59e0b",
+  mineracao: "#eab308",
+  laboratorio: "#7c3aed",
+  saude: "#ef4444",
+  energia: "#f97316",
+  agua: "#38bdf8",
+  default: "#3b82f6",
+};
+
 export const CustomNode = memo(({ id, data }) => {
-  const isInicio = id === "1";
+  const isInicio = data?.isRoot === true;
   const [showTooltip, setShowTooltip] = useState(false);
+  const color = groupColors[data?.grupo] || groupColors.default;
 
   return (
     <div
       className={`relative transition-opacity duration-300 ${
-        data.inactive ? "opacity-40" : "opacity-100"
+        data?.inactive ? "opacity-40" : "opacity-100"
       }`}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
       {/* === TOOLTIP (somente se não for nó inicial) === */}
       {!isInicio && (
-        <NodeToolbar isVisible={showTooltip} position={Position.Top}>
-          {typeof data.cienciaNecessaria === "number" ? (
-            <div className="bg-white text-black text-sm px-3 py-1 rounded shadow border border-blue-500">
-              🔬 Ciência necessária: {data.cienciaNecessaria}
+        <NodeToolbar
+          isVisible={showTooltip}
+          position={Position.Top}
+          className="z-[1000]"
+        >
+          <div
+            className="relative max-w-[340px] rounded-lg shadow-xl border overflow-hidden"
+            style={{ borderColor: color, background: "#ffffff" }}
+          >
+            {/* Cabeçalho colorido */}
+            <div
+              className="px-3 py-2 text-white text-xs font-bold tracking-wide uppercase"
+              style={{ backgroundColor: color }}
+            >
+              {data.grupo?.toUpperCase() || "UPGRADE"}
             </div>
-          ) : (
-            <div className="bg-white text-black text-sm px-3 py-1 rounded shadow border border-gray-400">
-              Nenhuma ciência necessária
+
+            {/* Conteúdo */}
+            <div className="p-3 space-y-2 text-black">
+              {/* Custo de ciência */}
+              {typeof data.cienciaNecessaria === "number" ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-sm"
+                    style={{
+                      color,
+                      borderColor: color,
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                  >
+                    🔬 Ciência: <b>{data.cienciaNecessaria}</b>
+                  </span>
+                </div>
+              ) : (
+                <div className="text-sm px-2 py-1 rounded border border-gray-300 bg-gray-50 text-gray-700">
+                  Sem custo de ciência
+                </div>
+              )}
+
+              {/* Efeito */}
+              {data.efeito ? (
+                <div className="text-sm">
+                  <div className="font-semibold mb-1 flex items-center gap-2">
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    Efeito
+                  </div>
+                  <div className="leading-snug text-gray-800">
+                    {data.efeito}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  Sem efeito descrito
+                </div>
+              )}
             </div>
-          )}
+
+            {/* “Setinha” do tooltip */}
+            <div
+              className="absolute left-1/2 -bottom-2 h-4 w-4 -translate-x-1/2 rotate-45 bg-white"
+              style={{
+                borderRight: `1px solid ${color}`,
+                borderBottom: `1px solid ${color}`,
+              }}
+            />
+          </div>
         </NodeToolbar>
       )}
 
       {/* === ESTILO DO NÓ === */}
       {isInicio ? (
-        <div className="rounded-lg border-2 border-blue-400 bg-gradient-to-r from-blue-700 to-blue-900 w-44 text-white shadow-md">
+        <div
+          className="rounded-lg border-2 w-48 text-white shadow-md"
+          style={{
+            borderColor: color,
+            background:
+              "linear-gradient(90deg, rgba(0,0,0,.2), rgba(0,0,0,.4))",
+          }}
+        >
           <div className="text-center text-sm py-4 px-2 font-bold uppercase tracking-wide">
             {data.label}
           </div>
           <Handle
             type="source"
             id="output"
-            position={Position.Right}
+            position={Position.Bottom}
             style={{
-              background: "#60a5fa",
-              width: "10px",
-              height: "10px",
-              borderRadius: "9999px",
+              background: color,
+              width: 10,
+              height: 10,
+              borderRadius: 9999,
             }}
           />
         </div>
       ) : (
-        <div className="rounded-lg border-2 border-blue-700 bg-blue-950 w-44 text-white shadow-md">
-          {/* Cabeçalho com ciência */}
-          <div className="bg-blue-800 text-xs font-semibold px-2 py-1 rounded-t-lg text-left">
-            🔬 Ciência: {data.cienciaNecessaria ?? 0}
+        <div
+          className="rounded-lg border-2 w-48 text-white shadow-md"
+          style={{ borderColor: color, backgroundColor: "#0b1220" }}
+        >
+          <div
+            className="text-xs font-semibold px-2 py-1 rounded-t-lg text-left"
+            style={{ backgroundColor: color }}
+          >
+            {data.grupo?.toUpperCase() || "UPGRADE"} • 🔬{" "}
+            {data.cienciaNecessaria ?? 0}
           </div>
 
           {/* Label central */}
@@ -59,29 +143,28 @@ export const CustomNode = memo(({ id, data }) => {
             {data.label}
           </div>
 
-          {/* Handle de entrada */}
           <Handle
             type="target"
-            id="input" // ✅ obrigatório para múltiplas conexões
-            position={Position.Left}
+            id="input"
+            position={Position.Top}
             style={{
-              background: "#3b82f6",
-              width: "10px",
-              height: "10px",
-              borderRadius: "9999px",
+              background: color,
+              width: 10,
+              height: 10,
+              borderRadius: 9999,
             }}
           />
 
-          {/* Handle de saída: sempre presente */}
+          {/* SOURCE: Bottom */}
           <Handle
             type="source"
-            id="output" // ✅ obrigatório para múltiplas conexões
-            position={Position.Right}
+            id="output"
+            position={Position.Bottom}
             style={{
-              background: "#3b82f6",
-              width: "10px",
-              height: "10px",
-              borderRadius: "9999px",
+              background: color,
+              width: 10,
+              height: 10,
+              borderRadius: 9999,
             }}
           />
         </div>

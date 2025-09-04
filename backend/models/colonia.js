@@ -136,6 +136,7 @@ const pacienteSchema = new mongoose.Schema(
       enum: ["fila", "internado", "alta", "obito"],
       default: "fila",
     },
+    turnosNaFila: { type: Number, min: 0, default: 0 },
   },
   { _id: false }
 );

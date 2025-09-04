@@ -77,6 +77,7 @@ export function runSimulationTurn(
       turnosRestantes: turnosPorSeveridade(severidade),
       origem,
       status: "fila", // "fila" | "internado" | "alta" | "obito"
+      turnosNaFila: 0,
     };
   }
 
@@ -108,6 +109,35 @@ export function runSimulationTurn(
       fila: keptQueue,
       admittedCount: admitted.length,
     };
+  }
+
+  /** Incrementa 1 turno de espera para quem continua na fila.
+   *  Se passar de 3 turnos esperando, vai a óbito por "esperaFila".
+   */
+  function tickQueueWait(hospital, maxWait = 3) {
+    const survivors = [];
+    const obitosFilaTempo = [];
+
+    for (const p of hospital.fila || []) {
+      const tnf = (p.turnosNaFila ?? 0) + 1; // incrementa
+      const next = { ...p, turnosNaFila: tnf };
+
+      // "mais de 3 turnos" => morre no 4º turno de espera
+      if (tnf > maxWait) {
+        obitosFilaTempo.push({
+          ...next,
+          status: "obito",
+          origem: p.origem ? `${p.origem}_fila` : "fila",
+          obitoEm: Date.now(),
+          motivoObito: "esperaFila",
+        });
+      } else {
+        survivors.push(next);
+      }
+    }
+
+    hospital.fila = survivors;
+    return { obitosFilaTempo };
   }
 
   /** processa 1 turno de tratamento: decrementa 1 para QUEM JÁ ESTAVA internado */
@@ -217,6 +247,15 @@ export function runSimulationTurn(
   hospital.internados = internadosAposAdmissao;
   hospital.fila = filaAposAdmissao;
 
+  // (3.1) Tic da fila: quem exceder 3 turnos esperando morre
+  const { obitosFilaTempo } = tickQueueWait(hospital, 3);
+  if (obitosFilaTempo.length > 0) {
+    pushHistoricoAltas(obitosFilaTempo); // mantém seu histórico aparado a 200
+    log.push(
+      `☠️ ${obitosFilaTempo.length} paciente(s) faleceram por excesso de espera na fila (> 3 turnos).`
+    );
+  }
+
   // (4) Risco de morte NA FILA se hospital estiver lotado (5%)
   const { obitosFila } = applyQueueDeathRisk(hospital, capacidade, 0.05);
   if (obitosFila.length > 0) {
@@ -275,10 +314,11 @@ export function runSimulationTurn(
   const comidaBruta = farmWorkersProd + bonusFazendas + bonusIrrigacaoFlat;
 
   // 6) Consumo da população
-  const consumoPop =
-    (populacao.colonos || 0) * 1 +
-    (populacao.exploradores || 0) * 2 +
-    (populacao.marines || 0) * 2;
+  const consumoColonos = Math.floor((populacao.colonos || 0) * 0.5); // 0.5 por colono, arredonda p/ baixo
+  const consumoExploradores = (populacao.exploradores || 0) * 2;
+  const consumoMarines = (populacao.marines || 0) * 2;
+
+  const consumoPop = consumoColonos + consumoExploradores + consumoMarines;
 
   // 7) Resultado líquido deste turno
   let comidaProduzida = Math.floor(comidaBruta - consumoPop);
@@ -492,7 +532,7 @@ export function runSimulationTurn(
 
   if (comida < populacao.colonos) {
     populacao.colonos -= 5;
-    saude -= 10;
+    saude -= 5;
     log.push("Fome! A população e saúde caíram.");
   } else {
     populacao.colonos += 2;

@@ -985,7 +985,6 @@ function ParameterPanel({
           <>
             <h2 className="text-xl font-semibold mb-4">Parâmetros</h2>
 
-            {/* Menu de abas horizontal (mesmo visual de Construções) */}
             <Tabs
               value={abaParametros}
               onChange={(_, v) => setAbaParametros(v)}
@@ -996,17 +995,15 @@ function ParameterPanel({
               className="mb-4"
               sx={{
                 "& .MuiTabs-indicator": {
-                  backgroundColor: "#38bdf8", // cyan-400 (Tailwind)
+                  backgroundColor: "#38bdf8",
                   height: 4,
                 },
                 "& .MuiTab-root": {
-                  color: "#cbd5e1", // slate-300
+                  color: "#cbd5e1",
                   fontWeight: "bold",
                   transition: "color 0.2s ease",
                 },
-                "& .Mui-selected": {
-                  color: "#38bdf8", // cyan-400
-                },
+                "& .Mui-selected": { color: "#38bdf8" },
               }}
             >
               {[
@@ -1018,7 +1015,6 @@ function ParameterPanel({
               ))}
             </Tabs>
 
-            {/* Card com conteúdo animado da aba (mesma pegada da de Construções) */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={abaParametros}
@@ -1037,7 +1033,6 @@ function ParameterPanel({
                       </h3>
                     </div>
 
-                    {/* Linha superior - Animação e título */}
                     <div className="flex items-center mb-4">
                       <div className="mr-4 mb-4">
                         <FireLottie speed={totalUsado} />
@@ -1093,7 +1088,6 @@ function ParameterPanel({
                       </h3>
                     </div>
 
-                    {/* Linha superior - Animação e título */}
                     <div className="flex items-center mb-4">
                       <div className="mr-4">
                         <WaterLottie
@@ -1129,62 +1123,225 @@ function ParameterPanel({
                 )}
 
                 {/* === Alocação de Colonos === */}
-                {abaParametros === "alocacao" && (
-                  <>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-xl font-bold">
-                        Parâmetros — Alocação de Colonos
-                      </h3>
-                    </div>
+                {abaParametros === "alocacao" &&
+                  (() => {
+                    const consumoAgua = 1;
+                    const totalColonos = populacao.colonos || 0;
 
-                    {/* Linha superior - Animação e título */}
-                    <div className="flex items-center mb-4">
-                      <div className="mr-1 mb-4">
-                        <PopulationLottie />
-                      </div>
-                      <h4 className="text-lg font-semibold">
-                        Alocação de Colonos (100%)
-                      </h4>
-                    </div>
+                    const format = (v) =>
+                      Math.abs(v) < 1 && v !== 0
+                        ? v.toFixed(2)
+                        : Number.isInteger(v)
+                        ? v
+                        : v.toFixed(1);
+                    const alloc = (campo) =>
+                      Math.round(
+                        ((tempAlocacao[campo] || 0) / 100) * totalColonos
+                      );
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {setoresOrdem.map((campo) => (
-                        <div
-                          key={campo}
-                          className="bg-slate-100 p-4 rounded-lg shadow-inner border border-slate-200"
-                        >
-                          <h5 className="text-md font-semibold mb-2 capitalize text-slate-700">
-                            {campo}
-                          </h5>
+                    const previewBySetor = (setor, n) => {
+                      switch (setor) {
+                        case "fazenda": {
+                          const out = n * 2 * consumoAgua;
+                          return {
+                            valor: out,
+                            unidade: "comida/turno",
+                            detalhe: `${n}×2×água(${consumoAgua})`,
+                          };
+                        }
+                        case "minas": {
+                          const out = n * 1 * consumoAgua;
+                          return {
+                            valor: out,
+                            unidade: "minerais/turno",
+                            detalhe: `${n}×1×água(${consumoAgua})`,
+                          };
+                        }
+                        case "laboratorio": {
+                          const out = n * 0.5;
+                          return {
+                            valor: out,
+                            unidade: "ciência/turno",
+                            detalhe: `${n}×0.5`,
+                          };
+                        }
+                        case "construcao": {
+                          const reparoPct = Math.floor(n / 10);
+                          return {
+                            valor: reparoPct,
+                            unidade: "% de reparo/turno",
+                            detalhe: `${n}↦${reparoPct}%`,
+                          };
+                        }
+                        case "saude": {
+                          const out = (n / 100) * consumoAgua;
+                          return {
+                            valor: out,
+                            unidade: "saúde/turno",
+                            detalhe: `${n}/100×água(${consumoAgua})`,
+                          };
+                        }
+                        case "energia": {
+                          const out = n * 1;
+                          return {
+                            valor: out,
+                            unidade: "energia/turno",
+                            detalhe: `${n}×1`,
+                          };
+                        }
+                        default:
+                          return { valor: 0, unidade: "", detalhe: "" };
+                      }
+                    };
 
-                          <Slider
-                            value={tempAlocacao[campo]}
-                            min={0}
-                            max={100}
-                            step={1}
-                            onChange={(_, value) =>
-                              handleSliderChange(campo, value)
-                            }
-                            onChangeCommitted={(_, value) =>
-                              handleSliderChangeCommitted(campo, value)
-                            }
-                            sx={{ color: "#3b82f6" }}
-                          />
+                    const nFaz = alloc("fazenda");
+                    const nMin = alloc("minas");
+                    const nLab = alloc("laboratorio");
+                    const nCon = alloc("construcao");
+                    const nSau = alloc("saude");
+                    const nEne = alloc("energia");
 
-                          <div className="text-sm text-slate-600 mt-1 flex justify-between">
-                            <span>{tempAlocacao[campo]}%</span>
-                            <span className="font-medium text-blue-600">
-                              {Math.round(
-                                (tempAlocacao[campo] / 100) * populacao.colonos
-                              )}{" "}
-                              colonos
-                            </span>
+                    const totalComida = nFaz * 2 * consumoAgua;
+                    const totalMinerais = nMin * 1 * consumoAgua;
+                    const totalCiencia = nLab * 0.5;
+                    const totalReparoPct = Math.floor(nCon / 10);
+                    const totalSaude = (nSau / 100) * consumoAgua;
+                    const totalEnergia = nEne * 1;
+
+                    return (
+                      <>
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-xl font-bold">
+                            Parâmetros — Alocação de Colonos
+                          </h3>
+                        </div>
+
+                        <div className="flex items-center mb-4">
+                          <div className="mr-1 mb-4">
+                            <PopulationLottie />
+                          </div>
+                          <h4 className="text-lg font-semibold">
+                            Alocação de Colonos (100%)
+                          </h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {setoresOrdem.map((campo) => {
+                            const nColonos = alloc(campo);
+                            const prev = previewBySetor(campo, nColonos);
+
+                            return (
+                              <div
+                                key={campo}
+                                className="bg-slate-100 p-4 rounded-lg shadow-inner border border-slate-200"
+                              >
+                                <h5 className="text-md font-semibold mb-2 capitalize text-slate-700">
+                                  {campo}
+                                </h5>
+
+                                <Slider
+                                  value={tempAlocacao[campo]}
+                                  min={0}
+                                  max={100}
+                                  step={1}
+                                  onChange={(_, value) =>
+                                    handleSliderChange(campo, value)
+                                  }
+                                  onChangeCommitted={(_, value) =>
+                                    handleSliderChangeCommitted(campo, value)
+                                  }
+                                  sx={{ color: "#3b82f6" }}
+                                />
+
+                                <div className="text-sm text-slate-600 mt-1 flex justify-between">
+                                  <span>{tempAlocacao[campo]}%</span>
+                                  <span className="font-medium text-blue-600">
+                                    {nColonos} colonos
+                                  </span>
+                                </div>
+
+                                <div className="mt-2 text-xs text-slate-700">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500">
+                                      Produção (colonos):
+                                    </span>
+                                    <span className="font-semibold">
+                                      +{format(prev.valor)} {prev.unidade}
+                                    </span>
+                                  </div>
+                                  {prev.detalhe && (
+                                    <div className="text-[11px] text-slate-500 mt-0.5">
+                                      {prev.detalhe}
+                                      {["fazenda", "minas", "saude"].includes(
+                                        campo
+                                      ) && (
+                                        <span className="ml-1 opacity-70">
+                                          • depende de água
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="text-[11px] text-slate-400 mt-1">
+                                    *Não inclui bônus de
+                                    construções/tecnologias.
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                          <div className="font-semibold text-slate-700 mb-2">
+                            📦 Resumo (somente colonos)
+                          </div>
+                          <ul className="grid grid-cols-2 md:grid-cols-3 gap-y-1 text-sm text-slate-700">
+                            <li>
+                              🌾 Comida:{" "}
+                              <span className="font-semibold">
+                                +{format(totalComida)}
+                              </span>
+                            </li>
+                            <li>
+                              ⛏️ Minerais:{" "}
+                              <span className="font-semibold">
+                                +{format(totalMinerais)}
+                              </span>
+                            </li>
+                            <li>
+                              🧪 Ciência:{" "}
+                              <span className="font-semibold">
+                                +{format(totalCiencia)}
+                              </span>
+                            </li>
+                            <li>
+                              🛠️ Reparo:{" "}
+                              <span className="font-semibold">
+                                +{totalReparoPct}%
+                              </span>
+                            </li>
+                            <li>
+                              🏥 Saúde:{" "}
+                              <span className="font-semibold">
+                                +{format(totalSaude)}
+                              </span>
+                            </li>
+                            <li>
+                              ⚡ Energia:{" "}
+                              <span className="font-semibold">
+                                +{format(totalEnergia)}
+                              </span>
+                            </li>
+                          </ul>
+                          <div className="text-[11px] text-slate-500 mt-1">
+                            *Prévia dos colonos; não inclui bônus de
+                            construções/tecnologias. Itens com 💧 dependem da
+                            água (atual: {consumoAgua}).
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+                      </>
+                    );
+                  })()}
               </motion.div>
             </AnimatePresence>
           </>
