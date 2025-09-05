@@ -44,6 +44,9 @@ export function runSimulationTurn(
 
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
 
+  console.log("@@@@@@@@@@@@@@");
+  console.log(parametros);
+
   const quantidadePorSetor = Object.fromEntries(
     Object.entries(alocacaoColonos).map(([setor, porcentagem]) => [
       setor,
@@ -287,7 +290,7 @@ export function runSimulationTurn(
   // -------------------
   // 1. Produções básicas (calcular valores brutos SEM somar ainda)
   // -------------------
-  const pontos = distribuicao;
+  const pontos = normalizeDistribuicao(distribuicao);
 
   // COMIDA (cálculo base)
   const workersFarm = quantidadePorSetor.fazenda;
@@ -334,7 +337,7 @@ export function runSimulationTurn(
   }
   // MINERAIS
   let mineraisProduzidos = quantidadePorSetor.minas * consumoAgua;
-  if (pontos.minas === 1) mineraisProduzidos *= 2;
+  if (pontos.mineracao === 1) mineraisProduzidos *= 2;
 
   // CIÊNCIA
   let cienciaProduzida = Math.floor(quantidadePorSetor.laboratorio / 2);
@@ -618,6 +621,21 @@ export function runSimulationTurn(
     }
   }
 
+  function to01(v) {
+    return v ? 1 : 0;
+  }
+
+  function normalizeDistribuicao(d = {}) {
+    return {
+      agricultura: to01(d.agricultura),
+      mineracao: to01(d.mineracao ?? d.minas ?? d["mineração"]),
+      laboratorio: to01(d.laboratorio ?? d["laboratório"]),
+      construcao: to01(d.construcao ?? d["construção"]),
+      saude: to01(d.saude ?? d["saúde"]),
+      energia: to01(d.energia),
+    };
+  }
+
   const filaMissoesAtual = Array.isArray(currentState.filaMissoes)
     ? currentState.filaMissoes.map((f) => ({ ...f }))
     : [];
@@ -686,6 +704,12 @@ export function runSimulationTurn(
     exploradores: [...(currentState.exploradores || [])],
     relatoriosMissoes: [...(currentState.relatoriosMissoes || [])],
     hospital: { ...hospital },
+    skillsDistribuicao: pontos, // 👈 persistente, sem acentos
+    parametrosSnapshot: {
+      // (opcional) útil pra auditoria/UX
+      ...parametros,
+      distribuicao: pontos, // já normalizado
+    },
   };
 
   // Aplicar construções finalizadas

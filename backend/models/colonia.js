@@ -150,6 +150,18 @@ const hospitalSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const skillDistribuicaoSchema = new mongoose.Schema(
+  {
+    agricultura: { type: Number, min: 0, max: 1, default: 0 },
+    mineracao: { type: Number, min: 0, max: 1, default: 0 },
+    laboratorio: { type: Number, min: 0, max: 1, default: 0 },
+    construcao: { type: Number, min: 0, max: 1, default: 0 },
+    saude: { type: Number, min: 0, max: 1, default: 0 },
+    energia: { type: Number, min: 0, max: 1, default: 0 },
+  },
+  { _id: false }
+);
+
 /** ---------------------------------------------- */
 
 const coloniaSchema = new mongoose.Schema({
@@ -190,6 +202,8 @@ const coloniaSchema = new mongoose.Schema({
     estacaoDeTratamento: { type: Number, default: 0 },
     coletorAtmosferico: { type: Number, default: 0 },
   },
+
+  skillsDistribuicao: { type: skillDistribuicaoSchema, default: () => ({}) },
 
   /** NOVO: módulo hospital */
   hospital: {

@@ -1,6 +1,6 @@
 //ParameterPanel.jsx
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Switch,
   FormControlLabel,
@@ -54,6 +54,19 @@ const setoresOrdem = [
   "saude",
   "energia",
 ];
+
+// === Helpers p/ normalizar skills (UI <-> DB) ===
+const to01 = (v) => (v ? 1 : 0);
+const normalizeDistrib = (d = {}) => ({
+  agricultura: to01(d.agricultura),
+  mineracao: to01(d.mineracao ?? d.minas ?? d["mineração"]),
+  laboratorio: to01(d.laboratorio ?? d["laboratório"]),
+  construcao: to01(d.construcao ?? d["construção"]),
+  saude: to01(d.saude ?? d["saúde"]),
+  energia: to01(d.energia),
+});
+const dbToUi = (src = {}) => normalizeDistrib(src);
+const uiToDb = (ui = {}) => normalizeDistrib(ui);
 
 //const minhasConexoes = estadoAtual.pesquisa;
 
@@ -123,13 +136,11 @@ function ParameterPanel({
   const [turnReport, setTurnReport] = useState(null);
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
-    //defesa: 0,
-    minas: 0,
+    mineracao: 0,
     laboratorio: 0,
     construcao: 0,
     saude: 0,
     energia: 0,
-    exploracao: 0,
   });
 
   const populacoes = [
@@ -191,17 +202,24 @@ function ParameterPanel({
     },
   ];
 
+  useEffect(() => {
+    // prioridade: o que veio salvo no estado -> snapshot de parâmetros -> params antigos
+    const fromDb = estadoAtual?.skillsDistribuicao;
+    const fromSnap = estadoAtual?.parametrosSnapshot?.distribuicao;
+    const fromParams = estadoAtual?.parametros?.distribuicao;
+    const hydrated = dbToUi(fromDb || fromSnap || fromParams || {});
+    setDistribuicao(hydrated);
+  }, [estadoAtual]);
+
   console.log("filaConstrucoes ====", filaConstrucoes); // debugger
 
   const tooltips = {
     agricultura: "Aumenta a produção de alimentos para sua população",
-    defesa: "Fortalecer suas defesas contra ataques inimigos",
-    minas: "Extrair mais recursos minerais para construção",
+    mineracao: "Extrair mais recursos minerais para construção",
     laboratorio: "Pesquisa tecnológica para avanços científicos",
     construcao: "Acelera a construção de novas estruturas",
     saude: "Melhora a qualidade de vida e produtividade dos cidadãos",
     energia: "Gera mais energia para alimentar suas estruturas",
-    exploracao: "Desbloqueia novas áreas e recursos para exploração",
   };
 
   const totalUsado = Object.values(distribuicao).reduce(
@@ -305,17 +323,33 @@ function ParameterPanel({
 
     setLoading(true);
     try {
-      // 👇 agora esperamos o report
+      // 1) salva skillsDistribuicao no backend antes da simulação
+      const skillsDistribuicao = uiToDb(distribuicao);
+      try {
+        await coloniaService.atualizarColonia(estadoAtual._id, {
+          skillsDistribuicao,
+        });
+        // reflete imediatamente na UI do pai (evita "sumir" ao voltar)
+        onEstadoChange?.({
+          ...estadoAtual,
+          skillsDistribuicao,
+        });
+      } catch (e) {
+        console.error("Falha ao salvar skillsDistribuicao:", e);
+        // segue mesmo assim — o engine também devolve salvo após simular
+      }
+
+      // 2) roda a simulação (manda a distribuição atual)
       const report = await onChange({
-        distribuicao,
+        distribuicao: skillsDistribuicao,
         agua: consumo,
         alocacaoColonos,
         filaConstrucoes: estadoAtual.filaConstrucoes,
         filaMissoes: estadoAtual.filaMissoes,
       });
 
-      setTurnReport(report); // <- guarda o relatório do turno
-      setModalAberto(true); // abre o modal já com dados reais
+      setTurnReport(report);
+      setModalAberto(true);
     } finally {
       setLoading(false);
     }
@@ -340,6 +374,12 @@ function ParameterPanel({
       </Box>
     );
   }
+
+  const startMinigame = () => {
+    setModalAberto(false);
+    setStepAtual(0);
+    navigate("/minigame", { state: { estadoAtual } });
+  };
 
   // monta os steps dinamicamente
   const conteudoStep = useMemo(() => {
@@ -761,7 +801,9 @@ function ParameterPanel({
                               estadoAtual.populacao?.exploradores || 0;
                             const marines = estadoAtual.populacao?.marines || 0;
 
-                            const consumoColonos = colonos * 1;
+                            const consumoColonos = Math.floor(
+                              (colonos || 0) * 0.5
+                            ); // 0.5 por colono, arredonda p/ baixo
                             const consumoExploradores = exploradores * 2;
                             const consumoMarines = marines * 2;
                             const consumoTotal =
@@ -1125,8 +1167,8 @@ function ParameterPanel({
                 {/* === Alocação de Colonos === */}
                 {abaParametros === "alocacao" &&
                   (() => {
-                    const consumoAgua = 1;
-                    const totalColonos = populacao.colonos || 0;
+                    const consumoAgua = consumoAguaOpcoes[aguaIndex].value; // usa o selecionado
+                    const totalColonos = estadoAtual?.populacao?.colonos || 0; // pega do estado real
 
                     const format = (v) =>
                       Math.abs(v) < 1 && v !== 0
@@ -1786,7 +1828,11 @@ function ParameterPanel({
         </Drawer>
         <Dialog
           open={modalAberto}
-          onClose={() => setModalAberto(false)}
+          onClose={(_, reason) => {
+            if (reason === "backdropClick" || reason === "escapeKeyDown") {
+              startMinigame();
+            }
+          }}
           fullWidth
           maxWidth="sm"
         >
@@ -1814,9 +1860,7 @@ function ParameterPanel({
                   size="small"
                   onClick={() => {
                     if (stepAtual === steps.length - 1) {
-                      setModalAberto(false); // fecha o modal no fim
-                      setStepAtual(0); // reseta para o próximo uso
-                      navigate("/minigame", { state: { estadoAtual } }); // redireciona para o jogo
+                      startMinigame(); // fecha e navega
                     } else {
                       setStepAtual((prev) => prev + 1);
                     }

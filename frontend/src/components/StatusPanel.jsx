@@ -184,7 +184,7 @@ border border-gray-700 text-white"
             const exploradores = estado.populacao?.exploradores || 0;
             const marines = estado.populacao?.marines || 0;
 
-            const consumoColonos = colonos * 1;
+            const consumoColonos = Math.floor((colonos || 0) * 0.5); // 0.5 por colono, arredonda p/ baixo
             const consumoExploradores = exploradores * 2;
             const consumoMarines = marines * 2;
             const consumoTotal =
