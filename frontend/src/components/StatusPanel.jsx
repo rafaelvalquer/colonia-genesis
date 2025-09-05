@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   FaRegHeart,
   FaBolt,
@@ -7,14 +7,76 @@ import {
   FaHammer,
   FaUsers,
   FaLeaf,
-  FaCoins,
   FaClock,
   FaShieldAlt,
   FaFlask,
 } from "react-icons/fa";
 
-function StatusPanel({ estado }) {
-  console.log(estado);
+// ⬇️ IMPORTS MUI p/ avatar + dialog
+import Avatar from "@mui/material/Avatar";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import Grid from "@mui/material/Grid";
+import ButtonBase from "@mui/material/ButtonBase";
+
+import coloniaService from "../services/coloniaService.js";
+
+function StatusPanel({ estado, onEstadoChange }) {
+  // ===== AVATAR =====
+  const AVATAR_SIZE = 64;
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // pega do backend se vier; senão, localStorage; senão, 1
+  const [avatarIndex, setAvatarIndex] = useState(() => {
+    if (Number.isFinite(estado?.avatarIndex)) return estado.avatarIndex;
+    const saved = Number(localStorage.getItem("avatarIndex"));
+    return Number.isFinite(saved) && saved >= 1 && saved <= 10 ? saved : 1;
+  });
+
+  // se o backend mandar um valor novo depois, sincroniza
+  useEffect(() => {
+    if (
+      Number.isFinite(estado?.avatarIndex) &&
+      estado.avatarIndex !== avatarIndex
+    ) {
+      setAvatarIndex(estado.avatarIndex);
+      localStorage.setItem("avatarIndex", String(estado.avatarIndex));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado?.avatarIndex]);
+
+  const avatarSrc = `/images/avatar/${avatarIndex}.png`;
+
+  const handleSelectAvatar = async (idx) => {
+    if (saving) return;
+    const prev = avatarIndex;
+
+    // optimistic update
+    setAvatarIndex(idx);
+    localStorage.setItem("avatarIndex", String(idx));
+    setSaving(true);
+
+    try {
+      await coloniaService.atualizarColonia(estado._id, { avatarIndex: idx });
+      // avisa o pai para re-renderizar com o novo estado (opcional, mas recomendado)
+      onEstadoChange?.({ ...estado, avatarIndex: idx });
+      setAvatarOpen(false);
+    } catch (err) {
+      console.error("Falha ao salvar avatar:", err);
+      // rollback visual/local
+      setAvatarIndex(prev);
+      localStorage.setItem("avatarIndex", String(prev));
+      // mantém o dialog aberto para tentar de novo
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ===== RESTO DO STATUS =====
   const somaPopulacao = Object.values(estado.populacao).reduce(
     (acc, valor) => acc + valor,
     0
@@ -279,7 +341,6 @@ border border-gray-700 text-white"
               {slotsOcupados}/{capacidadeHospital}
             </span>
           </div>
-
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <span className="w-6 text-center">🧑‍⚕️</span>
@@ -287,7 +348,6 @@ border border-gray-700 text-white"
             </div>
             <span>{internados}</span>
           </div>
-
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <span className="w-6 text-center">⏳</span>
@@ -310,7 +370,6 @@ border border-gray-700 text-white"
         </div>
       ),
     },
-
     {
       label: "Sustentabilidade",
       value: `${estado.sustentabilidade}%`,
@@ -318,29 +377,106 @@ border border-gray-700 text-white"
     },
   ];
 
+  const [turnoItem, ...restStatus] = statusList;
+
   return (
-    <div className="flex flex-wrap justify-center gap-3 bg-slate-800 p-3 rounded-lg shadow-inner">
-      {statusList.map((item, index) => (
-        <div
-          key={index}
-          className="relative flex items-center gap-1 bg-slate-700 text-white px-3 py-2 rounded-md shadow-sm text-sm hover:bg-slate-600 transition-all group"
-        >
-          <span className="text-blue-300">{item.icon}</span>
-          <span className="font-medium">{item.value}</span>
-          <span className="text-gray-400 text-xs">{item.label}</span>
-          {item.tooltip && (
+    <>
+      {/* HEADER com avatar à esquerda + chips à direita */}
+      <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-lg shadow-inner">
+        <Tooltip title="Alterar avatar">
+          <IconButton
+            aria-label="Alterar avatar"
+            // 👇 evita o warning “Blocked aria-hidden…”: tira o foco do botão antes de abrir
+            onClick={(e) => {
+              e.currentTarget.blur();
+              setAvatarOpen(true);
+            }}
+            sx={{ p: 0 }}
+          >
+            <Avatar
+              alt="Avatar"
+              src={avatarSrc}
+              sx={{ width: AVATAR_SIZE, height: AVATAR_SIZE, boxShadow: 2 }}
+            />
+          </IconButton>
+        </Tooltip>
+
+        {/* Direita: demais status, mantendo wrap/estilo atual */}
+        <div className="flex flex-wrap gap-3 flex-1 justify-center">
+          {statusList.map((item, index) => (
             <div
-              className="absolute z-20 left-1/2 transform -translate-x-1/2 top-full mt-1 w-56 p-3 bg-gray-800 rounded-lg shadow-xl 
-                           opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-                           transition-all duration-300 transform translate-y-0 group-hover:translate-y-1
-                           border border-gray-700 text-white"
+              key={index}
+              className="relative flex items-center gap-1 bg-slate-700 text-white px-3 py-2 rounded-md shadow-sm text-sm hover:bg-slate-600 transition-all group"
             >
-              {item.tooltip}
+              <span className="text-blue-300">{item.icon}</span>
+              <span className="font-medium">{item.value}</span>
+              <span className="text-gray-400 text-xs">{item.label}</span>
+              {item.tooltip && (
+                <div
+                  className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-56 p-3 bg-gray-800 rounded-lg shadow-xl 
+                           opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+                           transition-all duration-300 translate-y-0 group-hover:translate-y-1
+                           border border-gray-700 text-white"
+                >
+                  {item.tooltip}
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
-      ))}
-    </div>
+      </div>
+
+      {/* DIALOG de seleção de avatar */}
+      <Dialog
+        open={avatarOpen}
+        onClose={(e, reason) => {
+          if (saving) return; // evita fechar enquanto salva
+          setAvatarOpen(false);
+        }}
+        fullWidth
+        maxWidth="xs"
+        disableRestoreFocus // 👈 não retorna foco para o botão ao fechar
+      >
+        <DialogTitle>Escolha seu Avatar</DialogTitle>
+        <DialogContent dividers>
+          <Grid container spacing={2} columns={12}>
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((idx) => {
+              const src = `/images/avatar/${idx}.png`;
+              const selected = idx === avatarIndex;
+              return (
+                <Grid key={idx} size={{ xs: 4, sm: 3 }}>
+                  <ButtonBase
+                    // 👇 primeiro item recebe auto-focus
+                    data-autofocus={idx === 1 ? "true" : undefined}
+                    onClick={() => handleSelectAvatar(idx)}
+                    sx={{
+                      borderRadius: "9999px",
+                      display: "block",
+                      opacity: saving ? 0.6 : 1,
+                    }}
+                    aria-label={`Selecionar avatar ${idx}`}
+                    disabled={saving}
+                  >
+                    <Avatar
+                      alt={`Avatar ${idx}`}
+                      src={src}
+                      sx={{
+                        width: 72,
+                        height: 72,
+                        border: selected
+                          ? "2px solid #38bdf8"
+                          : "2px solid transparent",
+                        boxShadow: selected ? 3 : 0,
+                      }}
+                    />
+                  </ButtonBase>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

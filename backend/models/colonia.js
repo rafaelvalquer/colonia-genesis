@@ -167,6 +167,7 @@ const skillDistribuicaoSchema = new mongoose.Schema(
 const coloniaSchema = new mongoose.Schema({
   nome: { type: String, required: true },
   turno: { type: Number, default: 1 },
+  avatarIndex: { type: Number, default: 1, min: 1, max: 10 },
   integridadeEstrutural: { type: Number, default: 100 },
   populacao: {
     colonos: { type: Number, default: 0 },
