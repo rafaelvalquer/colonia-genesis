@@ -8,32 +8,44 @@ export const troopTypes = {
     hp: 5,
     alcance: 5,
     cooldown: 50,
-    dano: 1,
+    dano: 2,
     retornaAoFinal: true,
     cor: "#8D6E63",
     corProjetil: "yellow",
-    velocidadeProjetil: 6,
+    velocidadeProjetil: 5,
     estados: ["idle", "attack"],
     animacoes: {
-      idle: { frameCount: 7, frameInterval: 8 },
-      attack: { frameCount: 4, frameInterval: 6 },
+      idle: { frameCount: 25, frameInterval: 8 },
+      attack: { frameCount: 37, frameInterval: 4 },
     },
+    muzzle: {
+      units: "spritePx", // interpreta offsets no espaço do sprite
+      attack: { x: 20, y: -55 }, // ajuste fino por tropa
+    },
+    fireFrame: [7], // dispara projétil no frame 12 da animação de attack
+    cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
   },
   marine: {
     preco: 15,
     hp: 8,
-    alcance: 2,
-    cooldown: 60,
-    dano: 3,
+    alcance: 6,
+    cooldown: 80,
+    dano: 1,
     retornaAoFinal: true,
     cor: "#4FC3F7",
     corProjetil: "#B3E5FC",
-    velocidadeProjetil: 5,
+    velocidadeProjetil: 6,
     estados: ["idle", "attack"],
     animacoes: {
-      idle: { frameCount: 9, frameInterval: 8 },
-      attack: { frameCount: 4, frameInterval: 6 },
+      idle: { frameCount: 29, frameInterval: 8 },
+      attack: { frameCount: 47, frameInterval: 1 },
     },
+    muzzle: {
+      units: "spritePx",
+      attack: { x: 40, y: -35 },
+    },
+    fireFrame: [8, 23, 38], // dispara projétil no frame 12 da animação de attack
+    cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
   },
   muralhaReforcada: {
     preco: 15,
@@ -98,7 +110,6 @@ export class Troop {
     this.tipo = tipo;
     this.row = row;
     this.col = col;
-    this.cooldown = 0;
     this.config = troopTypes[tipo];
 
     // Combate e vida
@@ -109,8 +120,9 @@ export class Troop {
     // Animação
     // Estado inicial: muralha começa em 'defense', demais em 'idle'
     this.state = tipo === "muralhaReforcada" ? "defense" : "idle";
-    this.frameTick = 0;
-    this.frameIndex = 0;
+    this.frameIndex = 0; // ✅
+    this.frameTick = 0; // ✅
+    this.cooldown = 0; // ✅
 
     // morte suave
     this.isDying = false;
@@ -139,16 +151,14 @@ export class Troop {
     // muralha não cria projétil
     if (this.state === "defense") return null;
 
-    this.cooldown = this.config.cooldown;
-    this.state = "attack";
-    this.frameIndex = 0;
-    this.frameTick = 0;
-
+    // NÃO muda state, frame, nem cooldown aqui!
     return {
       id: Date.now(),
+      // posição “fallback” — o CollisionManager vai sobrescrever com o muzzle
       x: this.col * tileWidth + tileWidth / 2,
       y: this.row * tileHeight + tileHeight / 2,
-      dx: this.config.velocidadeProjetil,
+      // velocidade base para quem precisar
+      speed: this.config.velocidadeProjetil,
       row: this.row,
       tipo: this.tipo,
       active: true,

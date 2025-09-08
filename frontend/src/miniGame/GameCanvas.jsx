@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState, useMemo } from "react";
+// GameCanvas.jsx
+import { useRef, useEffect, useState } from "react";
 import { Troop, troopTypes, troopAnimations } from "./entities/Troop";
 import { Enemy } from "./entities/Enemy";
 import { waveConfig } from "./entities/WaveConfig";
-import { tileCols, tileRows, tileWidth, tileHeight } from "./entities/Tiles";
+import { tileCols, tileRows } from "./entities/Tiles";
 import { CollisionManager } from "./engine/CollisionManager";
 import {
   Dialog,
@@ -14,6 +15,8 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import coloniaService from "../services/coloniaService";
+
+// tiles
 import centro from "./assets/tiles/groundCentro.png";
 import teto from "./assets/tiles/groundTeto.png";
 import tetoD from "./assets/tiles/groundSuperiorD.png";
@@ -26,6 +29,7 @@ import chaoE from "./assets/tiles/groundInferiorE.png";
 
 import { groundMap, estaNaAreaDeCombate } from "./entities/mapData";
 
+// ===== imagens dos tiles
 const tileImages = {
   teto: new Image(),
   centro: new Image(),
@@ -37,8 +41,6 @@ const tileImages = {
   chaoD: new Image(),
   chaoE: new Image(),
 };
-
-// Atribuindo as fontes das imagens
 tileImages.teto.src = teto;
 tileImages.centro.src = centro;
 tileImages.tetoD.src = tetoD;
@@ -49,17 +51,156 @@ tileImages.chao.src = chao;
 tileImages.chaoD.src = chaoD;
 tileImages.chaoE.src = chaoE;
 
+// ===== utilidade HiDPI
+function setCanvasSize(canvas, cssW, cssH) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// ===== HUD fixa (compacta) =====
+const HUD_PAD = 4; // margem externa mínima
+const HUD_GUTTER = 6; // espaço entre painel e mapa
+const PANEL_PCT = 0.14; // % da largura do canvas
+const PANEL_MIN = 150; // largura mínima do painel
+const PANEL_MAX = 210; // largura máxima do painel
+
+function clr(a) {
+  return `rgba(20,20,20,${a})`;
+}
+function within(r, x, y) {
+  return x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h;
+}
+
+function buildHudLayout(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr;
+  const H = canvas.height / dpr;
+
+  const panelW = Math.max(PANEL_MIN, Math.min(W * PANEL_PCT, PANEL_MAX));
+  const panel = { x: HUD_PAD, y: HUD_PAD, w: panelW, h: H - HUD_PAD * 2 };
+
+  // título + energia + população
+  const titleH = 26,
+    energyH = 30,
+    popH = 56;
+
+  const title = { x: panel.x + 10, y: panel.y + 8, w: panel.w - 20, h: titleH };
+  const energy = {
+    x: title.x,
+    y: title.y + title.h + 6,
+    w: title.w,
+    h: energyH,
+  };
+
+  const popRow = {
+    x: energy.x,
+    y: energy.y + energy.h + 6,
+    w: energy.w,
+    h: popH,
+  };
+  const gap = 8;
+  const colonosBox = {
+    x: popRow.x,
+    y: popRow.y,
+    w: Math.floor((popRow.w - gap) / 2),
+    h: popRow.h,
+  };
+  const marinesBox = {
+    x: colonosBox.x + colonosBox.w + gap,
+    y: popRow.y,
+    w: popRow.w - colonosBox.w - gap,
+    h: popRow.h,
+  };
+
+  const waveBtnH = 52,
+    removeBtnH = 42;
+
+  const slotsArea = {
+    x: panel.x + 10,
+    y: popRow.y + popRow.h + 10,
+    w: panel.w - 20,
+    h:
+      panel.y +
+      panel.h -
+      (popRow.y + popRow.h + 10) -
+      (removeBtnH + 8 + waveBtnH + 10),
+  };
+
+  const slotH = 80,
+    slotGap = 8,
+    slotW = slotsArea.w;
+  const slots = [];
+  const entries = Object.keys(troopTypes);
+  for (let i = 0; i < entries.length; i++) {
+    const sy = slotsArea.y + i * (slotH + slotGap);
+    if (sy + slotH > slotsArea.y + slotsArea.h) break;
+    slots.push({ x: slotsArea.x, y: sy, w: slotW, h: slotH, tipo: entries[i] });
+  }
+
+  const waveBtn = {
+    x: panel.x + 10,
+    y: panel.y + panel.h - 10 - waveBtnH,
+    w: panel.w - 20,
+    h: waveBtnH,
+  };
+  const removeBtn = {
+    x: panel.x + 10,
+    y: waveBtn.y - 8 - removeBtnH,
+    w: panel.w - 20,
+    h: removeBtnH,
+  };
+
+  return {
+    panel,
+    title,
+    energy,
+    popRow,
+    colonosBox,
+    marinesBox,
+    slotsArea,
+    slots,
+    removeBtn,
+    waveBtn,
+  };
+}
+
+// ===== Geometria do MAPA (lado a lado com o painel) =====
+function getMapGeom(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr;
+  const H = canvas.height / dpr;
+
+  const layout = buildHudLayout(canvas);
+
+  const mapAvailX = layout.panel.x + layout.panel.w + HUD_GUTTER;
+  const mapAvailY = HUD_PAD;
+  const mapAvailW = W - mapAvailX - HUD_PAD;
+  const mapAvailH = H - HUD_PAD * 2;
+
+  // tiles quadrados, 12x7 visível
+  const tileSize = Math.min(mapAvailW / tileCols, mapAvailH / tileRows);
+  const mapW = tileSize * tileCols;
+  const mapH = tileSize * tileRows;
+
+  // encosta no topo/esquerda da área útil (sem centralizar para sobrar espaço)
+  const x = mapAvailX;
+  const y = mapAvailY + (mapAvailH - mapH) / 2; // centra só verticalmente
+
+  return { x, y, w: mapW, h: mapH, tileWidth: tileSize, tileHeight: tileSize };
+}
+
 const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
+  const boxRef = useRef(null);
   const canvasRef = useRef(null);
-  const gameRef = useRef({
-    tropas: [],
-    inimigos: [],
-    projectilePool: [],
-  });
+  const hudRectsRef = useRef(null);
+  const gameRef = useRef({ tropas: [], inimigos: [], projectilePool: [] });
 
   const navigate = useNavigate();
-
-  const LIMITE_DE_ONDAS = estadoAtual.turno;
 
   const atualizarEstado = async (novosDados, sincronizarBackend = false) => {
     const atual =
@@ -70,17 +211,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     const atualizado = {
       ...estadoAtual,
       ...atual,
-      populacao: {
-        ...estadoAtual.populacao,
-        ...(atual.populacao || {}),
-      },
-      construcoes: {
-        ...estadoAtual.construcoes,
-        ...(atual.construcoes ?? {}),
-      },
+      populacao: { ...estadoAtual.populacao, ...(atual.populacao || {}) },
+      construcoes: { ...estadoAtual.construcoes, ...(atual.construcoes ?? {}) },
     };
-
-    //onEstadoAtualChange?.(atualizado);
 
     if (atual.energia !== undefined) {
       setEnergia(atual.energia);
@@ -110,124 +243,344 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const [energia, setEnergia] = useState(estadoAtual.energia);
   const energiaRef = useRef(energia);
   const [openDialog, setOpenDialog] = useState(false);
-  const [dadosVitoria, setDadosVitoria] = useState({
-    inimigosMortos: 0,
-  });
+  const [dadosVitoria, setDadosVitoria] = useState({ inimigosMortos: 0 });
 
-  // Sincroniza energia local caso prop mude (ex: reinício, recarga etc)
+  // energia
   useEffect(() => {
     setEnergia(estadoAtual.energia);
     energiaRef.current = estadoAtual.energia;
   }, [estadoAtual.energia]);
 
-  // Desenho com frame por frame
+  // redimensiona canvas — **sem travar aspecto** (usa toda a área disponível)
+  useEffect(() => {
+    const canvas = canvasRef.current,
+      box = boxRef.current;
+    if (!canvas || !box) return;
+    function resize() {
+      const r = box.getBoundingClientRect();
+      const cssW = r.width;
+      const cssH = Math.max(200, window.innerHeight - r.top - 24);
+      setCanvasSize(canvas, Math.floor(cssW), Math.floor(cssH));
+    }
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  // atalhos: R (toggle remover)
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "r" || e.key === "R") setModoRemocao((m) => !m);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // ===== helpers do overlay =====
+  const getTroopThumb = (tipo) => {
+    const ani = troopAnimations?.[tipo] || {};
+    return ani?.idle?.[0] || ani?.defense?.[0] || ani?.attack?.[0] || null;
+  };
+  const stockMap = {
+    colono: ["populacao", "colonos"],
+    marine: ["populacao", "marines"],
+    muralhaReforcada: ["construcoes", "muralhaReforcada"],
+  };
+  const getByPath = (obj, path) =>
+    path.reduce((acc, k) => (acc && acc[k] != null ? acc[k] : undefined), obj);
+  const getDisponivel = (tipo) => {
+    const val = getByPath(estadoAtual, stockMap[tipo] || []);
+    return typeof val === "number" ? val : 0;
+  };
+  const isDisabledTroop = (tipo, config) =>
+    energia < config.preco || getDisponivel(tipo) <= 0;
+
+  // use os mesmos fatores do desenho da tropa
+  const COVER = 0.9;
+  const SIZE_BOOST = 1.15;
+
+  // escala do sprite na tela (mantém consistente com o desenho atual)
+  function getTroopScaleForTile(t, tileHeight) {
+    // usa o frame do estado atual; se não achar, cai no 1º frame de idle
+    const ref =
+      troopAnimations[t.tipo]?.[t.state]?.[t.frameIndex] ||
+      troopAnimations[t.tipo]?.idle?.[0];
+    if (!ref?.height) return 1;
+    const targetH = tileHeight * COVER * SIZE_BOOST;
+    return targetH / ref.height;
+  }
+
+  // converte offset do sprite (ou em tiles/px) para coordenadas do MAPA
+  function getMuzzleWorldPos(t, view) {
+    const baseX = t.col * view.tileWidth + view.tileWidth / 2;
+    const baseY = (t.row + 1) * view.tileHeight;
+
+    const conf = troopTypes[t.tipo]?.muzzle;
+    // só precisamos de attack; se não houver, usa um fallback discreto
+    const off = (conf && conf[t.state]) || {
+      x: 0,
+      y: -view.tileHeight * 0.3,
+      units: "tile",
+    };
+
+    let dx = 0,
+      dy = 0;
+    if (off.units === "spritePx") {
+      const s = getTroopScaleForTile(t, view.tileHeight);
+      dx = (off.x || 0) * s;
+      dy = (off.y || 0) * s;
+    } else if (off.units === "tile") {
+      dx = (off.x || 0) * view.tileWidth;
+      dy = (off.y || 0) * view.tileHeight;
+    } else {
+      // "px" já no espaço do mapa
+      dx = off.x || 0;
+      dy = off.y || 0;
+    }
+
+    return { x: baseX + dx, y: baseY + dy };
+  }
+
+  // ===== desenho
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-
     let animationId;
 
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const drawHUD = () => {
+      const layout = buildHudLayout(canvas);
+      hudRectsRef.current = layout;
 
-      //Mapa Canvas
+      // Painel
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.fillStyle = clr(0.8);
+      ctx.fillRect(
+        layout.panel.x,
+        layout.panel.y,
+        layout.panel.w,
+        layout.panel.h
+      );
+      ctx.restore();
+
+      // Título
+      ctx.save();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 16px Arial";
+      ctx.fillText("Tropas Disponíveis", layout.title.x, layout.title.y + 18);
+      ctx.restore();
+
+      // Energia
+      ctx.save();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 18px Arial";
+      ctx.fillText(
+        `⚡ Energia: ${energia}`,
+        layout.energy.x + 2,
+        layout.energy.y + 22
+      );
+      ctx.restore();
+
+      // População
+      const { colonos = 0, marines = 0 } = estadoAtual?.populacao || {};
+      const drawPopBox = (box, label, value) => {
+        ctx.save();
+        ctx.fillStyle = "rgba(60,60,60,0.85)";
+        ctx.strokeStyle = "rgba(120,120,120,0.9)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(box.x, box.y, box.w, box.h);
+        ctx.strokeRect(box.x, box.y, box.w, box.h);
+        ctx.fillStyle = "#cbd5e1";
+        ctx.font = "12px Arial";
+        ctx.fillText(label, box.x + 10, box.y + 18);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 22px monospace";
+        ctx.fillText(String(value), box.x + 10, box.y + 44);
+        ctx.restore();
+      };
+      drawPopBox(layout.colonosBox, "Colonos", colonos);
+      drawPopBox(layout.marinesBox, "Marines", marines);
+
+      // Slots
+      layout.slots.forEach((s) => {
+        const cfg = troopTypes[s.tipo];
+        const disabled = isDisabledTroop(s.tipo, cfg);
+        ctx.save();
+        ctx.fillStyle = disabled
+          ? "rgba(80,80,80,0.9)"
+          : "rgba(30,144,255,0.15)";
+        ctx.strokeStyle = disabled
+          ? "rgba(130,130,130,0.9)"
+          : "rgba(30,144,255,0.8)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(s.x, s.y, s.w, s.h);
+        ctx.strokeRect(s.x, s.y, s.w, s.h);
+
+        const img = getTroopThumb(s.tipo);
+        if (img && img.complete) {
+          const icon = Math.min(56, s.h - 16);
+          ctx.drawImage(img, s.x + 10, s.y + (s.h - icon) / 2, icon, icon);
+        }
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 14px Arial";
+        ctx.fillText(s.tipo, s.x + 80, s.y + 28);
+        ctx.font = "12px Arial";
+        ctx.fillText(`💰 ${cfg.preco}`, s.x + 80, s.y + 48);
+        ctx.fillText(`x${getDisponivel(s.tipo)}`, s.x + s.w - 36, s.y + 20);
+        ctx.restore();
+      });
+
+      // Remover
+      ctx.save();
+      ctx.fillStyle = modoRemocao
+        ? "rgba(220,38,38,0.8)"
+        : "rgba(220,38,38,0.2)";
+      ctx.strokeStyle = "rgba(220,38,38,0.9)";
+      ctx.lineWidth = 2;
+      ctx.fillRect(
+        layout.removeBtn.x,
+        layout.removeBtn.y,
+        layout.removeBtn.w,
+        layout.removeBtn.h
+      );
+      ctx.strokeRect(
+        layout.removeBtn.x,
+        layout.removeBtn.y,
+        layout.removeBtn.w,
+        layout.removeBtn.h
+      );
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 16px Arial";
+      ctx.fillText(
+        "💥 Remover",
+        layout.removeBtn.x + 12,
+        layout.removeBtn.y + 28
+      );
+      ctx.restore();
+
+      // Iniciar Onda
+      ctx.save();
+      const label = modoPreparacao
+        ? `▶ Iniciar Onda ${onda}`
+        : "⏸ Em andamento";
+      ctx.fillStyle = modoPreparacao
+        ? "rgba(34,197,94,0.8)"
+        : "rgba(250,204,21,0.8)";
+      ctx.strokeStyle = modoPreparacao
+        ? "rgba(34,197,94,1)"
+        : "rgba(234,179,8,1)";
+      ctx.lineWidth = 2;
+      ctx.fillRect(
+        layout.waveBtn.x,
+        layout.waveBtn.y,
+        layout.waveBtn.w,
+        layout.waveBtn.h
+      );
+      ctx.strokeRect(
+        layout.waveBtn.x,
+        layout.waveBtn.y,
+        layout.waveBtn.w,
+        layout.waveBtn.h
+      );
+      ctx.fillStyle = "#0b0b0b";
+      ctx.font = "bold 18px Arial";
+      ctx.fillText(label, layout.waveBtn.x + 12, layout.waveBtn.y + 32);
+      ctx.restore();
+    };
+
+    const draw = () => {
+      const map = getMapGeom(canvas);
+
+      // disponibiliza geometria + função para quem cria projéteis
+      gameRef.current.view = map;
+      gameRef.current.getMuzzleWorldPos = (troop) =>
+        getMuzzleWorldPos(troop, map);
+
+      const { tileWidth, tileHeight } = map;
+
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+
+      // ======= MUNDO (mapa+entidades) à direita do painel =======
+      ctx.save();
+      ctx.translate(map.x, map.y);
+
+      // MAPA
       for (let row = 0; row < tileRows; row++) {
         for (let col = 0; col < tileCols; col++) {
           const tipo = groundMap[row][col] || "grass";
           const img = tileImages[tipo];
           const x = col * tileWidth;
           const y = row * tileHeight;
+          if (img.complete) ctx.drawImage(img, x, y, tileWidth, tileHeight);
 
-          // desenha tile normalmente
-          if (img.complete) {
-            ctx.drawImage(img, x, y, tileWidth, tileHeight);
-          }
-
-          // destaque visual para área de combate
           if (estaNaAreaDeCombate(row, col)) {
-            ctx.strokeStyle = "#00ff00"; // verde claro
+            ctx.strokeStyle = "#00ff00";
             ctx.lineWidth = 2;
             ctx.strokeRect(x + 1, y + 1, tileWidth - 2, tileHeight - 2);
           } else {
-            // opcional: escurece fora da área de combate
-            ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+            ctx.fillStyle = "rgba(0,0,0,0.2)";
             ctx.fillRect(x, y, tileWidth, tileHeight);
           }
         }
       }
 
       // TROPAS
+      const COVER = 0.9,
+        SIZE_BOOST = 1.15;
       gameRef.current.tropas.forEach((t) => {
-        t.updateAnimation?.(); // chama animação por frame
-
-        // 🔹 atualiza fade de morte
+        t.updateAnimation?.();
         t.updateDeath?.();
+        const frames = troopAnimations[t.tipo]?.[t.state];
+        const img = frames?.[t.frameIndex || 0];
+        if (!img?.complete) return;
 
-        const framesByState = troopAnimations[t.tipo];
-        const frames = framesByState?.[t.state];
-        if (!frames || frames.length === 0) return;
-
-        const img = frames[t.frameIndex || 0];
-        if (!img || !img.complete) return;
-
-        const escala = 1;
+        const alturaDesejada = tileHeight * COVER * SIZE_BOOST;
+        const escala = alturaDesejada / img.height;
         const larguraDesejada = img.width * escala;
-        const alturaDesejada = img.height * escala;
 
-        const x = t.col * tileWidth + tileWidth / 2;
-        const y = t.row * tileHeight + tileHeight / 2;
+        const baseX = t.col * tileWidth + tileWidth / 2;
+        const baseY = (t.row + 1) * tileHeight;
 
-        // 🔹 aplica opacidade
         ctx.save();
         ctx.globalAlpha = t.opacity ?? 1;
-
         ctx.drawImage(
           img,
-          x - larguraDesejada / 2,
-          y - alturaDesejada / 2,
+          baseX - larguraDesejada / 2,
+          baseY - alturaDesejada,
           larguraDesejada,
           alturaDesejada
         );
         ctx.restore();
 
-        // 🔹 barra de vida da tropa (acima do sprite)
+        // barra de vida
         const maxHpTroop = t.maxHp ?? t.config.hp ?? 1;
         const hpRatio = Math.max(0, t.hp) / maxHpTroop;
-
-        const barWidth = 30;
-        const barHeight = 4;
-        const barX = x - barWidth / 2;
-        const barY = y - alturaDesejada / 2 - 10; // 10px acima do topo do sprite
-
+        const barWidth = 30,
+          barHeight = 4;
+        const barX = baseX - barWidth / 2,
+          barY = baseY - alturaDesejada / 2 - 10;
         ctx.save();
-        ctx.globalAlpha = t.opacity ?? 1; // acompanha o fade da morte
         ctx.fillStyle = "red";
         ctx.fillRect(barX, barY, barWidth, barHeight);
         ctx.fillStyle = "lime";
         ctx.fillRect(barX, barY, barWidth * hpRatio, barHeight);
-
-        // (opcional) contorno
         ctx.strokeStyle = "black";
         ctx.lineWidth = 1;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
         ctx.restore();
       });
 
-      // Inimigos
+      // INIMIGOS
       gameRef.current.inimigos.forEach((e) => {
-        // 1) pega os frames do estado atual (novo sistema) ou cai pro legado (e.frames)
         const frames =
           (e.framesByState && e.state && e.framesByState[e.state]) ||
           e.frames ||
           [];
-
         const img = frames[e.frameIndex];
-        if (!img || !img.complete) return;
-
-        // 2) desenha sprite (como antes)
+        if (!img?.complete) return;
         const escala = 0.2;
-        const larguraDesejada = 217 * escala;
-        const alturaDesejada = 425 * escala;
+        const larguraDesejada = 217 * escala,
+          alturaDesejada = 425 * escala;
         const y = e.row * tileHeight + tileHeight / 2;
 
         ctx.save();
@@ -242,302 +595,137 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         );
         ctx.restore();
 
-        // 3) barra de vida com contorno
-        const barWidth = 30;
-        const barHeight = 4;
-        const barX = e.x - barWidth / 2;
-        const barY = y - 30;
-
-        // fundo vermelho
+        const barWidth = 30,
+          barHeight = 4;
+        const barX = e.x - barWidth / 2,
+          barY = y - 30;
         ctx.fillStyle = "red";
         ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // preenchimento verde proporcional
         ctx.fillStyle = "lime";
         ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
-
-        // contorno
         ctx.strokeStyle = "black";
         ctx.lineWidth = 1;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
       });
 
+      //************************************** */
       // PROJÉTEIS
       gameRef.current.projectilePool.forEach((p) => {
         if (!p.active) return;
-
-        const corProjetil = troopTypes[p.tipo]?.corProjetil || "white";
-
+        const cor = troopTypes[p.tipo]?.corProjetil || "white";
         ctx.save();
-        ctx.shadowColor = corProjetil;
+        ctx.shadowColor = cor;
         ctx.shadowBlur = 10;
-        ctx.fillStyle = corProjetil;
+        ctx.fillStyle = cor;
         ctx.beginPath();
         ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
         ctx.fill();
         ctx.restore();
       });
 
-      // Desenha a tropa sendo arrastada
+      ctx.restore(); // sai do translate(map.x, map.y)
+
+      // GHOST do drag
       if (isDragging && draggedTroop) {
         const frames = troopAnimations[draggedTroop]?.idle;
         const img = frames?.[0];
-
-        if (img && img.complete) {
+        if (img?.complete) {
           ctx.globalAlpha = 0.7;
           ctx.drawImage(img, dragPosition.x - 25, dragPosition.y - 25, 50, 50);
-          ctx.globalAlpha = 1.0;
+          ctx.globalAlpha = 1;
         }
       }
 
+      // HUD fixa
+      drawHUD();
+
+      // GAME OVER
       if (jogoEncerrado) {
         ctx.fillStyle = "red";
         ctx.font = "50px Arial";
-        ctx.fillText("GAME OVER", 400, 288);
+        ctx.fillText(
+          "GAME OVER",
+          canvas.clientWidth / 2 - 150,
+          canvas.clientHeight / 2
+        );
       }
 
-      animationId = requestAnimationFrame(draw); // apenas aqui
+      animationId = requestAnimationFrame(draw);
     };
 
-    animationId = requestAnimationFrame(draw); // chama uma vez fora
+    animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [jogoEncerrado, isDragging, dragPosition]);
+  }, [
+    jogoEncerrado,
+    isDragging,
+    dragPosition,
+    modoPreparacao,
+    onda,
+    energia,
+    modoRemocao,
+  ]);
 
+  // ====== eventos de ponteiro ======
   const handleMouseMove = (e) => {
     if (!isDragging) return;
-
     const rect = canvasRef.current.getBoundingClientRect();
-    setDragPosition({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
+    setDragPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  function obterLinhasDeCombateValidas() {
-    const linhasValidas = [];
-    for (let row = 0; row < tileRows; row++) {
-      if (estaNaAreaDeCombate(row, 1)) {
-        // qualquer coluna dentro da área
-        linhasValidas.push(row);
+  const handleCanvasMouseDown = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
+
+    // Interação com HUD
+    const hud = hudRectsRef.current;
+    if (hud) {
+      if (within(hud.waveBtn, x, y)) {
+        if (modoPreparacao) {
+          setModoPreparacao(false);
+          setContadorSpawn(0);
+          inimigosCriadosRef.current = 0;
+        }
+        return;
       }
-    }
-    return linhasValidas;
-  }
-
-  // GAME LOOP
-  useEffect(() => {
-    const linhasValidasParaSpawn = obterLinhasDeCombateValidas();
-
-    const loopId = setInterval(() => {
-      (async () => {
-        if (jogoEncerrado || modoPreparacao) return;
-
-        const { tropas, inimigos } = gameRef.current;
-
-        // Move inimigos
-        gameRef.current.inimigos = inimigos
-          .map((e) => {
-            e.updatePosition();
-            return e;
-          })
-          .filter((e) => !e.isDead());
-
-        // Inimigos atacam tropas
-        CollisionManager.inimigosAtacam(gameRef.current);
-
-        // Fim de jogo
-        if (gameRef.current.inimigos.some((e) => e.x <= 50)) {
-          setJogoEncerrado(true);
+      if (within(hud.removeBtn, x, y)) {
+        setModoRemocao((m) => !m);
+        return;
+      }
+      for (const s of hud.slots) {
+        if (within(s, x, y)) {
+          const cfg = troopTypes[s.tipo];
+          if (isDisabledTroop(s.tipo, cfg)) return;
+          if (energia < cfg.preco) return;
+          setIsDragging(true);
+          setDraggedTroop(s.tipo);
+          setTropaSelecionada(s.tipo);
+          setDragPosition({ x, y });
           return;
         }
-
-        // Atualizar projéteis e verificar colisões
-        CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
-
-        // Inimigos atacam
-        CollisionManager.inimigosAtacam(gameRef.current);
-
-        // Tropas atacam
-        CollisionManager.tropasAtacam(gameRef.current);
-
-        // Spawn de inimigos
-        setContadorSpawn((contadorAnterior) => {
-          const novoContador = contadorAnterior + 1;
-
-          const podeSpawnar =
-            novoContador >= waveConfig.frequenciaSpawn &&
-            inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda);
-
-          if (podeSpawnar) {
-            const row =
-              linhasValidasParaSpawn[
-                Math.floor(Math.random() * linhasValidasParaSpawn.length)
-              ];
-
-            const tiposDisponiveis = ["alienVermelho", "alienBege"];
-            const tipoAleatorio =
-              tiposDisponiveis[
-                Math.floor(Math.random() * tiposDisponiveis.length)
-              ];
-            console.log(tiposDisponiveis);
-            gameRef.current.inimigos.push(new Enemy(tipoAleatorio, row));
-            inimigosCriadosRef.current += 1;
-            inimigosTotaisRef.current += 1; // contador global total
-
-            return 0; // zera o contador de spawn
-          }
-
-          return novoContador;
-        });
-
-        // Verifica fim da onda
-        const todosInimigosMortos = gameRef.current.inimigos.length === 0;
-        const todosInimigosGerados =
-          inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
-
-        if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
-          console.log("ENERGIA = " + energiaRef.current);
-
-          if (onda == 1) {
-            //LIMITE_DE_ONDAS) {
-
-            // Para o loop
-            setJogoEncerrado(true);
-            clearInterval(loopId); // para o intervalo atual
-
-            // 1️⃣ Contar tropas que estão em campo
-            const tropasEmCampo = gameRef.current.tropas;
-            const tropasParaRetornar = {};
-            const novosPacientes = [];
-
-            tropasEmCampo.forEach((tropa, idx) => {
-              const tipo = tropa.tipo;
-              const cfg = troopTypes[tipo];
-              if (!cfg?.retornaAoFinal) return; // só retorna quem deve voltar
-
-              // hp e maxHp são números simples no objeto da tropa
-              const hpAtual = Number.isFinite(tropa.hp)
-                ? tropa.hp
-                : tropa.hp?.current ?? 0;
-
-              const hpMax = Number.isFinite(tropa.maxHp)
-                ? tropa.maxHp
-                : tropa.hp?.max ?? tropa.config?.hp ?? 1;
-
-              const ratio = hpMax > 0 ? hpAtual / hpMax : 1;
-
-              // todos contam como "retornaram" para a colônia
-              tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
-
-              // 100% = normal | [50%, 99%] => leve | (<50%) => grave
-              if (ratio < 1) {
-                const severidade = ratio >= 0.5 ? "leve" : "grave";
-
-                novosPacientes.push({
-                  id: `pac_${estadoAtual.turno}_${Date.now()}_${idx}`,
-                  tipo: "colono", // schema aceita "colono"|"explorador"; mantemos "colono"
-                  refId: null,
-                  severidade, // "leve" ou "grave"
-                  entrouEm: Date.now(),
-                  turnosRestantes: severidade === "grave" ? 3 : 1,
-                  origem: `combate_${tipo}`, // preserva o tipo real da tropa para relatórios
-                  status: "fila",
-                });
-              }
-            });
-
-            // 2) Atualizar hospital (empurra só para a fila; admissão acontece na simulação/turno)
-            const hospitalAtual = estadoAtual.hospital ?? {
-              fila: [],
-              internados: [],
-              historicoAltas: [],
-            };
-            const novoHospital = {
-              ...hospitalAtual,
-              fila: [...(hospitalAtual.fila || []), ...novosPacientes],
-            };
-
-            // 3) Atualizar população e estado (eles voltam para a colônia, mesmo que feridos)
-            const novaPopulacao = { ...estadoAtual.populacao };
-            Object.entries(tropasParaRetornar).forEach(([t, qtd]) => {
-              if (t === "colono") novaPopulacao.colonos += qtd;
-              if (t === "marine") novaPopulacao.marines += qtd;
-              // se tiver outros tipos, trate aqui
-            });
-
-            const novoEstado = {
-              ...estadoAtual,
-              energia: energiaRef.current,
-              populacao: novaPopulacao,
-              hospital: novoHospital,
-            };
-
-            await atualizarEstado(novoEstado, true);
-
-            // 4) Agregar dados para o diálogo
-            const feridosLeves = novosPacientes.filter(
-              (p) => p.severidade === "leve"
-            ).length;
-            const feridosGraves = novosPacientes.filter(
-              (p) => p.severidade === "grave"
-            ).length;
-
-            const feridosPorTipo = novosPacientes.reduce((acc, p) => {
-              let t = "desconhecido";
-              if (
-                typeof p.origem === "string" &&
-                p.origem.startsWith("combate_")
-              ) {
-                t = p.origem.replace("combate_", "");
-              }
-              if (!acc[t]) acc[t] = { leve: 0, grave: 0, total: 0 };
-              acc[t][p.severidade] += 1;
-              acc[t].total += 1;
-              return acc;
-            }, {});
-
-            setDadosVitoria({
-              inimigosMortos: inimigosTotaisRef.current,
-              tropasRetornadas: tropasParaRetornar,
-              feridos: {
-                total: feridosLeves + feridosGraves,
-                leve: feridosLeves,
-                grave: feridosGraves,
-              },
-              feridosPorTipo,
-            });
-
-            // 5️⃣ Abrir o Dialog (não navegar ainda)
-            setOpenDialog(true);
-          } else {
-            // Próxima onda
-            setModoPreparacao(true);
-            setOnda((o) => o + 1);
-          }
-        }
-
-        console.log("Inimigos Criados:", inimigosCriadosRef.current);
-      })();
-    }, 32); // Frame rate
-
-    return () => clearInterval(loopId); // ✅ limpa corretamente o intervalo
-  }, [jogoEncerrado, onda, modoPreparacao]);
-
-  const handleMouseDown = (troopType) => {
-    if (energia < troopTypes[troopType].preco) return; // bloqueia se energia insuficiente
-    setIsDragging(true);
-    setDraggedTroop(troopType);
+      }
+      if (within(hud.panel, x, y)) return;
+    }
   };
 
   const handleMouseUp = (e) => {
     if (!isDragging || !draggedTroop) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
 
-    const col = Math.floor(x / tileWidth);
-    const row = Math.floor(y / tileHeight);
+    const map = getMapGeom(canvas);
+    if (x < map.x || y < map.y || x > map.x + map.w || y > map.y + map.h) {
+      setIsDragging(false);
+      setDraggedTroop(null);
+      return;
+    }
+
+    const col = Math.floor((x - map.x) / map.tileWidth);
+    const row = Math.floor((y - map.y) / map.tileHeight);
 
     if (!estaNaAreaDeCombate(row, col)) {
       setIsDragging(false);
@@ -545,10 +733,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       return;
     }
 
-    const ocupado = gameRef.current.tropas.some(
-      (t) => t.row === row && t.col === col
-    );
-    if (ocupado) {
+    if (gameRef.current.tropas.some((t) => t.row === row && t.col === col)) {
       setIsDragging(false);
       setDraggedTroop(null);
       return;
@@ -580,16 +765,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       estadoAtual.construcoes.muralhaReforcada -= 1;
     }
 
-    // Aqui criamos um novo objeto de estado (sem mutar o antigo)
     const novoEstado = {
       ...estadoAtual,
       energia: novaEnergia,
       populacao: novaPopulacao,
       construcoes: novaConstrucoes,
     };
-
-    onEstadoChange(novoEstado); // Dispara re-render do HUD
-
+    onEstadoChange(novoEstado);
     atualizarEstado(
       {
         energia: novaEnergia,
@@ -606,30 +788,33 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const handleClick = (e) => {
     if (jogoEncerrado) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
 
-    const col = Math.floor(x / tileWidth);
-    const row = Math.floor(y / tileHeight);
+    const hud = hudRectsRef.current;
+    if (hud && within(hud.panel, x, y)) return;
 
+    const map = getMapGeom(canvas);
+    if (x < map.x || y < map.y || x > map.x + map.w || y > map.y + map.h)
+      return;
+
+    const col = Math.floor((x - map.x) / map.tileWidth);
+    const row = Math.floor((y - map.y) / map.tileHeight);
     if (!estaNaAreaDeCombate(row, col)) return;
 
     if (modoRemocao) {
       const index = gameRef.current.tropas.findIndex(
         (t) => t.row === row && t.col === col
       );
-
       if (index !== -1) {
         const tipo = gameRef.current.tropas[index].tipo;
         gameRef.current.tropas.splice(index, 1);
-        const novaEnergia = Math.floor(troopTypes[tipo].preco / 2);
+        const credit = Math.floor(troopTypes[tipo].preco / 2);
 
-        // Clona população atual
         const novaPopulacao = { ...estadoAtual.populacao };
         const novaConstrucoes = { ...estadoAtual.construcoes };
-
-        // Ajusta o tipo removido
         if (tipo === "colono") {
           novaPopulacao.colonos += 1;
           estadoAtual.populacao.colonos += 1;
@@ -641,70 +826,57 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           estadoAtual.construcoes.muralhaReforcada += 1;
         }
 
-        // Aqui criamos um novo objeto de estado (sem mutar o antigo)
         const novoEstado = {
           ...estadoAtual,
-          energia: energiaRef.current + novaEnergia,
+          energia: energiaRef.current + credit,
           populacao: novaPopulacao,
           construcoes: novaConstrucoes,
         };
-
-        onEstadoChange(novoEstado); // Dispara re-render do HUD
-
-        // Atualiza estado
+        onEstadoChange(novoEstado);
         atualizarEstado(
           {
-            energia: energiaRef.current + novaEnergia,
+            energia: energiaRef.current + credit,
             populacao: novaPopulacao,
             construcoes: novaConstrucoes,
           },
           true
         );
       }
-
-      setModoRemocao(false); // sair do modo após clique
+      setModoRemocao(false);
       return;
     }
 
     if (!tropaSelecionada) return;
-
-    const ocupado = gameRef.current.tropas.some(
-      (t) => t.row === row && t.col === col
-    );
-    if (ocupado) return;
-
+    if (gameRef.current.tropas.some((t) => t.row === row && t.col === col))
+      return;
     if (energia < troopTypes[tropaSelecionada].preco) return;
 
     gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
-
-    const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
+    const novaEnergia = energiaRef.current - troopTypes[tropaSelecionada].preco;
     const novaPopulacao = { ...estadoAtual.populacao };
     const novaConstrucoes = { ...estadoAtual.construcoes };
 
-    if (draggedTroop === "colono" && novaPopulacao.colonos > 0) {
+    if (tropaSelecionada === "colono" && novaPopulacao.colonos > 0) {
       novaPopulacao.colonos -= 1;
       estadoAtual.populacao.colonos -= 1;
-    } else if (draggedTroop === "marine" && novaPopulacao.marines > 0) {
+    } else if (tropaSelecionada === "marine" && novaPopulacao.marines > 0) {
       novaPopulacao.marines -= 1;
       estadoAtual.populacao.marines -= 1;
     } else if (
-      draggedTroop === "muralhaReforcada" &&
-      novaPopulacao.muralhaReforcada > 0
+      tropaSelecionada === "muralhaReforcada" &&
+      novaConstrucoes.muralhaReforcada > 0
     ) {
       novaConstrucoes.muralhaReforcada -= 1;
-      estadoAtual.novaConstrucoes.muralhaReforcada -= 1;
+      estadoAtual.construcoes.muralhaReforcada -= 1;
     }
 
-    // Aqui criamos um novo objeto de estado (sem mutar o antigo)
     const novoEstado = {
       ...estadoAtual,
       energia: novaEnergia,
       populacao: novaPopulacao,
       construcoes: novaConstrucoes,
     };
-
-    onEstadoChange(novoEstado); // Dispara re-render do HUD
-
+    onEstadoChange(novoEstado);
     atualizarEstado(
       {
         energia: novaEnergia,
@@ -713,181 +885,213 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       },
       true
     );
-
     setTropaSelecionada(null);
   };
 
-  const energyCSS = `
-@keyframes pulseEnergy {
-  0%, 100% {
-    color: #FCD34D;             /* amarelo (tailwind amber-300) */
-    text-shadow: 0 0 0 rgba(250, 204, 21, 0);
+  // ===== GAME LOOP (inalterado semânticamente)
+  function obterLinhasDeCombateValidas() {
+    const linhasValidas = [];
+    for (let row = 0; row < tileRows; row++)
+      if (estaNaAreaDeCombate(row, 1)) linhasValidas.push(row);
+    return linhasValidas;
   }
-  50% {
-    color: #FFEB3B;             /* amarelo vivo */
-    text-shadow: 0 0 10px rgba(250, 204, 21, .85);
-  }
-}
-.energyPulse {
-  display: block;
-  margin-bottom: 10px;
-  font-weight: 800;
-  animation: pulseEnergy 1.2s ease-in-out infinite;
-}
-`;
 
-  const getTroopThumb = (tipo) => {
-    const ani = troopAnimations?.[tipo] || {};
-    const img = ani?.idle?.[0] || ani?.defense?.[0] || ani?.attack?.[0];
-    return img?.src || null;
-  };
+  useEffect(() => {
+    const linhasValidasParaSpawn = obterLinhasDeCombateValidas();
+    const loopId = setInterval(() => {
+      (async () => {
+        if (jogoEncerrado || modoPreparacao) return;
+        const { inimigos } = gameRef.current;
 
-  const stockMap = {
-    colono: ["populacao", "colonos"], // plural no estado
-    marine: ["populacao", "marines"], // plural no estado
-    muralhaReforcada: ["construcoes", "muralhaReforcada"],
-  };
+        gameRef.current.inimigos = inimigos
+          .map((e) => {
+            e.updatePosition();
+            return e;
+          })
+          .filter((e) => !e.isDead());
 
-  const getByPath = (obj, path) =>
-    path.reduce((acc, k) => (acc && acc[k] != null ? acc[k] : undefined), obj);
+        CollisionManager.inimigosAtacam(gameRef.current);
+        if (gameRef.current.inimigos.some((e) => e.x <= 50)) {
+          setJogoEncerrado(true);
+          return;
+        }
+        CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
+        CollisionManager.inimigosAtacam(gameRef.current);
+        CollisionManager.tropasAtacam(gameRef.current);
 
-  const getDisponivel = (tipo) => {
-    const path = stockMap[tipo];
-    if (!path) return 0;
-    const val = getByPath(estadoAtual, path);
-    return typeof val === "number" ? val : 0;
-  };
+        setContadorSpawn((prev) => {
+          const novo = prev + 1;
+          const podeSpawnar =
+            novo >= waveConfig.frequenciaSpawn &&
+            inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda);
 
-  const isDisabledTroop = (tipo, config) => {
-    const disponivel = getDisponivel(tipo);
-    return energia < config.preco || disponivel <= 0;
-  };
+          if (podeSpawnar) {
+            const row =
+              linhasValidasParaSpawn[
+                Math.floor(Math.random() * linhasValidasParaSpawn.length)
+              ];
+            const tiposDisponiveis = ["alienVermelho", "alienBege"];
+            const tipoAleatorio =
+              tiposDisponiveis[
+                Math.floor(Math.random() * tiposDisponiveis.length)
+              ];
+
+            // cria inimigo e posiciona no canto direito do MAPA
+            const enemy = new Enemy(tipoAleatorio, row);
+            const mapGeom = getMapGeom(canvasRef.current);
+
+            // Opção A: nasce um pouco fora e entra andando
+            enemy.x = mapGeom.w + 10;
+
+            // (ou Opção B, dentro do último tile: enemy.x = mapGeom.w - mapGeom.tileWidth / 2;)
+
+            gameRef.current.inimigos.push(enemy);
+
+            // atualiza contadores UMA vez
+            inimigosCriadosRef.current += 1;
+            inimigosTotaisRef.current += 1;
+
+            return 0;
+          }
+          return novo;
+        });
+
+        const todosInimigosMortos = gameRef.current.inimigos.length === 0;
+        const todosInimigosGerados =
+          inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
+        if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
+          if (onda === 1) {
+            setJogoEncerrado(true);
+            clearInterval(loopId);
+            const tropasEmCampo = gameRef.current.tropas;
+            const tropasParaRetornar = {};
+            const novosPacientes = [];
+            tropasEmCampo.forEach((tropa, idx) => {
+              const tipo = tropa.tipo,
+                cfg = troopTypes[tipo];
+              if (!cfg?.retornaAoFinal) return;
+              const hpAtual = Number.isFinite(tropa.hp)
+                ? tropa.hp
+                : tropa.hp?.current ?? 0;
+              const hpMax = Number.isFinite(tropa.maxHp)
+                ? tropa.maxHp
+                : tropa.hp?.max ?? tropa.config?.hp ?? 1;
+              const ratio = hpMax > 0 ? hpAtual / hpMax : 1;
+              tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
+              if (ratio < 1) {
+                const severidade = ratio >= 0.5 ? "leve" : "grave";
+                novosPacientes.push({
+                  id: `pac_${estadoAtual.turno}_${Date.now()}_${idx}`,
+                  tipo: "colono",
+                  refId: null,
+                  severidade,
+                  entrouEm: Date.now(),
+                  turnosRestantes: severidade === "grave" ? 3 : 1,
+                  origem: `combate_${tipo}`,
+                  status: "fila",
+                });
+              }
+            });
+
+            const hospitalAtual = estadoAtual.hospital ?? {
+              fila: [],
+              internados: [],
+              historicoAltas: [],
+            };
+            const novoHospital = {
+              ...hospitalAtual,
+              fila: [...(hospitalAtual.fila || []), ...novosPacientes],
+            };
+            const novaPopulacao = { ...estadoAtual.populacao };
+            Object.entries(tropasParaRetornar).forEach(([t, qtd]) => {
+              if (t === "colono") novaPopulacao.colonos += qtd;
+              if (t === "marine") novaPopulacao.marines += qtd;
+            });
+
+            const novoEstado = {
+              ...estadoAtual,
+              energia: energiaRef.current,
+              populacao: novaPopulacao,
+              hospital: novoHospital,
+            };
+            await atualizarEstado(novoEstado, true);
+
+            const feridosLeves = novosPacientes.filter(
+              (p) => p.severidade === "leve"
+            ).length;
+            const feridosGraves = novosPacientes.filter(
+              (p) => p.severidade === "grave"
+            ).length;
+            const feridosPorTipo = novosPacientes.reduce((acc, p) => {
+              let t = "desconhecido";
+              if (
+                typeof p.origem === "string" &&
+                p.origem.startsWith("combate_")
+              )
+                t = p.origem.replace("combate_", "");
+              if (!acc[t]) acc[t] = { leve: 0, grave: 0, total: 0 };
+              acc[t][p.severidade] += 1;
+              acc[t].total += 1;
+              return acc;
+            }, {});
+
+            setDadosVitoria({
+              inimigosMortos: inimigosTotaisRef.current,
+              tropasRetornadas: tropasParaRetornar,
+              feridos: {
+                total: feridosLeves + feridosGraves,
+                leve: feridosLeves,
+                grave: feridosGraves,
+              },
+              feridosPorTipo,
+            });
+            setOpenDialog(true);
+          } else {
+            setModoPreparacao(true);
+            setOnda((o) => o + 1);
+          }
+        }
+      })();
+    }, 32);
+    return () => clearInterval(loopId);
+  }, [jogoEncerrado, onda, modoPreparacao]);
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-start" }}>
-      <style>{energyCSS}</style>
-
-      <div style={{ marginRight: "16px", minWidth: "180px" }}>
-        <strong className="energyPulse">⚡ Energia: {energia}</strong>
-
-        <div
-          className="w-24 bg-gray-800 border-r border-gray-700 p-3 overflow-y-auto flex flex-col items-center space-y-4"
-          style={{ userSelect: "none" }} // evita seleção durante o arrasto
-        >
-          {Object.entries(troopTypes).map(([tipo, config]) => {
-            const disabled = isDisabledTroop(tipo, config);
-            const thumb = getTroopThumb(tipo);
-            const disponivel = getDisponivel(tipo);
-            const selected = draggedTroop === tipo || tropaSelecionada === tipo;
-
-            return (
-              <button
-                key={tipo}
-                type="button"
-                // previne drag nativo e já inicia seu arrasto custom
-                onMouseDown={(e) => {
-                  if (disabled) return;
-                  e.preventDefault(); // evita iniciar drag nativo / seleção
-                  handleMouseDown(tipo);
-                }}
-                onDragStart={(e) => e.preventDefault()} // desativa DnD HTML5
-                disabled={disabled}
-                title={`${tipo} (${config.preco})`}
-                className={[
-                  "relative w-16 h-24 rounded-lg flex flex-col items-center justify-center p-2 transition",
-                  disabled
-                    ? "bg-gray-700 opacity-40 cursor-not-allowed"
-                    : "bg-gray-700 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer",
-                  selected ? "ring-2 ring-blue-400" : "",
-                ].join(" ")}
-              >
-                {thumb ? (
-                  <img
-                    src={thumb}
-                    alt={tipo}
-                    draggable={false} // impede DnD nativo
-                    onDragStart={(e) => e.preventDefault()}
-                    className="w-12 h-12 object-contain rounded mb-1 border-2 border-blue-500 bg-gray-900/30"
-                    style={{
-                      WebkitUserDrag: "none",
-                      userSelect: "none",
-                      pointerEvents: "none",
-                    }}
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded mb-1 bg-gray-600" />
-                )}
-
-                <span className="text-[10px] leading-tight text-center capitalize">
-                  {tipo}
-                </span>
-
-                {/* Preço */}
-                <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center">
-                  {config.preco}
-                </div>
-
-                {/* Quantidade disponível */}
-                <div className="absolute -bottom-2 -right-2 bg-gray-900 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center">
-                  x{disponivel}
-                </div>
-              </button>
-            );
-          })}
-
-          {/* Remover tropa */}
-          <button
-            type="button"
-            onClick={() => {
-              setModoRemocao(true);
-              setTropaSelecionada(null);
-            }}
-            className="mt-2 w-16 h-24 bg-gray-700 hover:bg-gray-600 text-red-300 rounded-lg flex flex-col items-center justify-center p-2 transition"
-            title="Remover Tropa"
-          >
-            <span className="text-xl mb-1">💥</span>
-            <span className="text-[10px] text-center">Remover</span>
-          </button>
-        </div>
-
-        <p style={{ marginTop: "20px" }}>
-          <strong>🌀 Onda: {onda}</strong>
-        </p>
-
-        {modoPreparacao && (
-          <div style={{ marginTop: "10px" }}>
-            <button
-              onClick={() => {
-                setModoPreparacao(false);
-                setContadorSpawn(0);
-                inimigosCriadosRef.current = 0;
-              }}
-              style={{
-                padding: "10px 20px",
-                fontWeight: "bold",
-                backgroundColor: "#4caf50",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-              }}
-            >
-              ▶️ Iniciar Onda {onda}
-            </button>
-          </div>
-        )}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "stretch",
+        minHeight: 0,
+        width: "100%",
+      }}
+    >
+      {/* Canvas com HUD fixa à esquerda */}
+      <div
+        ref={boxRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            background: "#202020",
+            border: "2px solid #fff",
+            maxWidth: "100%",
+            maxHeight: "100%",
+          }}
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseUp={handleMouseUp}
+          onClick={handleClick}
+        />
       </div>
 
-      {/* Canvas ao lado direito */}
-      <canvas
-        ref={canvasRef}
-        width={1024}
-        height={576}
-        style={{ background: "#202020", border: "2px solid #fff" }}
-        onClick={handleClick}
-        onMouseUp={handleMouseUp}
-        onMouseMove={handleMouseMove}
-      />
+      {/* Dialog de vitória */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
         <DialogTitle
           style={{
@@ -899,13 +1103,11 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         >
           🏆 Vitória Épica! 🎮
         </DialogTitle>
-
         <DialogContent>
           <Typography gutterBottom>
             Você sobreviveu a todas as ondas e derrotou{" "}
             <strong>{dadosVitoria.inimigosMortos}</strong> inimigos ferozes!
           </Typography>
-
           {dadosVitoria.tropasRetornadas &&
             Object.keys(dadosVitoria.tropasRetornadas).length > 0 && (
               <>
@@ -926,8 +1128,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                 </ul>
               </>
             )}
-
-          {/* NOVO: resumo de atendimento médico */}
           {dadosVitoria.feridos && dadosVitoria.feridos.total > 0 && (
             <>
               <Typography sx={{ mt: 2 }} gutterBottom>
@@ -935,11 +1135,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               </Typography>
               <Typography gutterBottom>
                 Encaminhados ao hospital:{" "}
-                <strong>{dadosVitoria.feridos.total}</strong>{" "}
-                {`(leve: ${dadosVitoria.feridos.leve}, grave: ${dadosVitoria.feridos.grave})`}
+                <strong>{dadosVitoria.feridos.total}</strong>
+                {` (leve: ${dadosVitoria.feridos.leve}, grave: ${dadosVitoria.feridos.grave})`}
               </Typography>
-
-              {/* Opcional: detalhar por tipo (marine, colono, etc.) se houver */}
               {dadosVitoria.feridosPorTipo &&
                 Object.keys(dadosVitoria.feridosPorTipo).length > 0 && (
                   <>
@@ -950,8 +1148,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                           <li key={tipo}>
                             <Typography>
                               {tipo.charAt(0).toUpperCase() + tipo.slice(1)}:{" "}
-                              <strong>{stats.total}</strong>{" "}
-                              {`(leve: ${stats.leve}, grave: ${stats.grave})`}
+                              <strong>{stats.total}</strong>
+                              {` (leve: ${stats.leve}, grave: ${stats.grave})`}
                             </Typography>
                           </li>
                         )
@@ -962,7 +1160,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             </>
           )}
         </DialogContent>
-
         <DialogActions>
           <Button
             variant="contained"
@@ -977,20 +1174,5 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     </div>
   );
 };
-
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function getEmoji(tipo) {
-  const emojis = {
-    colono: "🧑‍🌾",
-    marine: "🪖",
-    heavy: "🔫",
-    grenadier: "💣",
-    psi: "🧠",
-  };
-  return emojis[tipo] || "⚔️";
-}
 
 export default GameCanvas;
