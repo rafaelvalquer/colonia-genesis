@@ -319,35 +319,30 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   }
 
   // converte offset do sprite (ou em tiles/px) para coordenadas do MAPA
-  function getMuzzleWorldPos(t, view) {
-    const baseX = t.col * view.tileWidth + view.tileWidth / 2;
-    const baseY = (t.row + 1) * view.tileHeight;
+function getMuzzleWorldPos(t, view) {
+  const baseX = t.col * view.tileWidth + view.tileWidth / 2;
+  const baseY = (t.row + 1) * view.tileHeight;
 
-    const conf = troopTypes[t.tipo]?.muzzle;
-    // só precisamos de attack; se não houver, usa um fallback discreto
-    const off = (conf && conf[t.state]) || {
-      x: 0,
-      y: -view.tileHeight * 0.3,
-      units: "tile",
-    };
+  const conf = troopTypes[t.tipo]?.muzzle || {};
+  const off = conf[t.state] || { x: 0, y: -0.3, };      // x,y “unitless” p/ caso tile
+  const unit = conf.units ?? "px";                      // << AQUI está a correção
 
-    let dx = 0,
-      dy = 0;
-    if (off.units === "spritePx") {
-      const s = getTroopScaleForTile(t, view.tileHeight);
-      dx = (off.x || 0) * s;
-      dy = (off.y || 0) * s;
-    } else if (off.units === "tile") {
-      dx = (off.x || 0) * view.tileWidth;
-      dy = (off.y || 0) * view.tileHeight;
-    } else {
-      // "px" já no espaço do mapa
-      dx = off.x || 0;
-      dy = off.y || 0;
-    }
-
-    return { x: baseX + dx, y: baseY + dy };
+  let dx = 0, dy = 0;
+  if (unit === "spritePx") {
+    const s = getTroopScaleForTile(t, view.tileHeight); // escala usada no draw do sprite
+    dx = (off.x || 0) * s;
+    dy = (off.y || 0) * s;
+  } else if (unit === "tile") {
+    dx = (off.x || 0) * view.tileWidth;
+    dy = (off.y || 0) * view.tileHeight;
+  } else { // "px" no espaço do mapa (não escala com tile/sprite)
+    dx = off.x || 0;
+    dy = off.y || 0;
   }
+  
+  return { x: baseX + dx, y: baseY + dy };
+}
+
 
   // ===== desenho
   useEffect(() => {

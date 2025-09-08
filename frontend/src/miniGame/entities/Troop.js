@@ -15,12 +15,12 @@ export const troopTypes = {
     velocidadeProjetil: 5,
     estados: ["idle", "attack"],
     animacoes: {
-      idle: { frameCount: 25, frameInterval: 8 },
+      idle: { frameCount: 25, frameInterval: 4 },
       attack: { frameCount: 37, frameInterval: 4 },
     },
     muzzle: {
       units: "spritePx", // interpreta offsets no espaço do sprite
-      attack: { x: 20, y: -55 }, // ajuste fino por tropa
+      attack: { x: 20, y: -1500 }, // ajuste fino por tropa
     },
     fireFrame: [7], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
@@ -37,12 +37,12 @@ export const troopTypes = {
     velocidadeProjetil: 6,
     estados: ["idle", "attack"],
     animacoes: {
-      idle: { frameCount: 29, frameInterval: 8 },
+      idle: { frameCount: 29, frameInterval: 4 },
       attack: { frameCount: 47, frameInterval: 1 },
     },
     muzzle: {
       units: "spritePx",
-      attack: { x: 40, y: -35 },
+      attack: { x: 40, y: -1500 },
     },
     fireFrame: [8, 23, 38], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
