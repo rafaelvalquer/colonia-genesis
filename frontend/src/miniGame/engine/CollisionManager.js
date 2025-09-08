@@ -100,6 +100,18 @@ export const CollisionManager = {
         p.checkCollision(enemy);
         if (!p.active) break;
       }
+
+      if (p.justHit) {
+        if (!Array.isArray(gameRef.particles)) gameRef.particles = [];
+        gameRef.particles.push({
+          x: p.x,
+          y: p.y,
+          t: 0,
+          max: 12,
+          cor: p.cor || "#fff", // ver passo 4 pra garantir que venha a cor
+        });
+        p.justHit = false; // evita duplicar em ticks seguintes
+      }
     });
   },
   tropasAtacam(gameRef) {
@@ -189,23 +201,8 @@ export const CollisionManager = {
         // direção, se não veio do attack()
         if (projData.vx == null || projData.vy == null) {
           const speed = projData.speed ?? t.config.velocidadeProjetil ?? 5;
-          const fallbackX = (alvo.col ?? t.col + alcance) * tileW + tileW / 2;
-          let targetX = typeof alvo.x === "number" ? alvo.x : fallbackX;
-          // evita “tiro para trás” quando o inimigo está muito perto (muzzle à frente)
-          if (targetX <= projData.x) targetX = projData.x + 1;
-          const targetY = alvo.row * tileH + tileH / 2;
-
-          let dx = targetX - projData.x;
-          let dy = targetY - projData.y;
-          let len = Math.hypot(dx, dy);
-          if (len < 1e-6) {
-            dx = 1;
-            dy = 0;
-            len = 1;
-          }
-
-          projData.vx = (dx / len) * speed;
-          projData.vy = (dy / len) * speed;
+          projData.vx = Math.abs(speed);
+          projData.vy = 0;
         }
 
         // limites do mundo + dados auxiliares p/ colisão

@@ -17,7 +17,8 @@ import { useNavigate } from "react-router-dom";
 import coloniaService from "../services/coloniaService";
 
 // tiles
-import centro from "./assets/tiles/groundCentro.png";
+import centro1 from "./assets/tiles/groundCentro1.png";
+import centro2 from "./assets/tiles/groundCentro2.png";
 import teto from "./assets/tiles/groundTeto.png";
 import tetoD from "./assets/tiles/groundSuperiorD.png";
 import tetoE from "./assets/tiles/groundSuperiorE.png";
@@ -32,7 +33,8 @@ import { groundMap, estaNaAreaDeCombate } from "./entities/mapData";
 // ===== imagens dos tiles
 const tileImages = {
   teto: new Image(),
-  centro: new Image(),
+  centro1: new Image(),
+  centro2: new Image(),
   tetoD: new Image(),
   tetoE: new Image(),
   CantoD: new Image(),
@@ -42,7 +44,8 @@ const tileImages = {
   chaoE: new Image(),
 };
 tileImages.teto.src = teto;
-tileImages.centro.src = centro;
+tileImages.centro1.src = centro1;
+tileImages.centro2.src = centro2;
 tileImages.tetoD.src = tetoD;
 tileImages.tetoE.src = tetoE;
 tileImages.CantoD.src = CantoD;
@@ -198,7 +201,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const boxRef = useRef(null);
   const canvasRef = useRef(null);
   const hudRectsRef = useRef(null);
-  const gameRef = useRef({ tropas: [], inimigos: [], projectilePool: [] });
+  const gameRef = useRef({
+    tropas: [],
+    inimigos: [],
+    projectilePool: [],
+    particles: [],
+  });
 
   const navigate = useNavigate();
 
@@ -516,10 +524,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           if (estaNaAreaDeCombate(row, col)) {
             ctx.strokeStyle = "#00ff00";
             ctx.lineWidth = 2;
-            ctx.strokeRect(x + 1, y + 1, tileWidth - 2, tileHeight - 2);
+            //ctx.strokeRect(x + 1, y + 1, tileWidth - 2, tileHeight - 2); // Colocar o traçado
           } else {
             ctx.fillStyle = "rgba(0,0,0,0.2)";
-            ctx.fillRect(x, y, tileWidth, tileHeight);
+            //ctx.fillRect(x, y, tileWidth, tileHeight); //Escurece a parte de fora
           }
         }
       }
@@ -621,6 +629,23 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
         ctx.fill();
         ctx.restore();
+      });
+
+      // PARTICULAS (faísca de impacto)
+      const parts = gameRef.current.particles ?? [];
+      gameRef.current.particles = parts.filter((pt) => {
+        ctx.save();
+        const a = 1 - pt.t / pt.max; // fade-out
+        ctx.globalAlpha = Math.max(0, a);
+        ctx.strokeStyle = pt.cor || "#fff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2 + pt.t, 0, Math.PI * 2); // anel que cresce
+        ctx.stroke();
+        ctx.restore();
+
+        pt.t++;
+        return pt.t < pt.max; // mantém enquanto “vivo”
       });
 
       ctx.restore(); // sai do translate(map.x, map.y)

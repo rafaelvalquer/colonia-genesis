@@ -20,6 +20,10 @@ export class Projectile {
     // TTL em ticks (não ms). 300 ticks ~ ~10s se seu loop é ~32ms
     this.ticks = 0;
     this.maxTicks = data.maxTicks ?? 300;
+
+    // NOVO
+    this.hit = false; // já bateu em algum momento
+    this.justHit = false; // bateu neste tick
   }
 
   update() {
@@ -67,6 +71,9 @@ export class Projectile {
     if (dx * dx + dy * dy <= r * r) {
       // aplica dano e desativa
       enemy.takeDamage?.(this.dano ?? 1, this);
+      this.hit = true;
+      this.justHit = true;
+
       this.active = false;
     }
   }

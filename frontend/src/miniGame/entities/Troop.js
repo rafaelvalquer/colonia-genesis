@@ -163,6 +163,7 @@ export class Troop {
       tipo: this.tipo,
       active: true,
       dano: this.config.dano,
+      cor: this.config.corProjetil || "#fff",
     };
   }
 
