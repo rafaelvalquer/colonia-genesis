@@ -135,6 +135,14 @@ function StatusPanel({ estado, onEstadoChange }) {
             </div>
             <span>{estado.populacao.marines}</span>
           </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <span className="w-6 text-center">🎯</span>
+              <span>Snipers:</span>
+            </div>
+            <span>{estado.populacao.snipers}</span>
+          </div>
           <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
             <span>Total:</span>
             <span>{somaPopulacao}</span>
@@ -245,12 +253,18 @@ border border-gray-700 text-white"
             const colonos = estado.populacao?.colonos || 0;
             const exploradores = estado.populacao?.exploradores || 0;
             const marines = estado.populacao?.marines || 0;
+            const snipers = estado.populacao?.snipers || 0;
 
             const consumoColonos = Math.floor((colonos || 0) * 0.5); // 0.5 por colono, arredonda p/ baixo
             const consumoExploradores = exploradores * 2;
             const consumoMarines = marines * 2;
+            const consumoSnipers = snipers * 2;
+
             const consumoTotal =
-              consumoColonos + consumoExploradores + consumoMarines;
+              consumoColonos +
+              consumoExploradores +
+              consumoMarines +
+              consumoSnipers;
 
             const fazendas = estado.construcoes?.fazenda || 0;
             const irrigadores = estado.construcoes?.sistemaDeIrrigacao || 0;
@@ -311,6 +325,14 @@ border border-gray-700 text-white"
                     <span>Marines:</span>
                   </div>
                   <span>-{consumoMarines}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🎯</span>
+                    <span>Snipers:</span>
+                  </div>
+                  <span>-{consumoSnipers}</span>
                 </div>
 
                 <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">

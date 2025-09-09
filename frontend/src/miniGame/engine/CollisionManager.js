@@ -119,6 +119,10 @@ export const CollisionManager = {
     const tileH = gameRef.view?.tileHeight ?? 64;
 
     gameRef.tropas.forEach((t) => {
+      // 🛑 não processa quem já morreu/está removendo
+      if (t.remove || t.isDead) return;
+
+      // muralha viva em "defense" não ataca
       if (t.state === "defense") return;
 
       // anda cooldown, mas não dá return ainda (para manter animação fluindo)
@@ -151,30 +155,26 @@ export const CollisionManager = {
         t.state = "attack";
         t.frameIndex = 0;
         const atkInt = t.config.animacoes?.attack?.frameInterval ?? 1;
-        t.frameTick = Math.floor(Math.random() * atkInt); // << desync leve
+        t.frameTick = Math.floor(Math.random() * atkInt);
         t._firedFramesCycle = undefined;
         t._lastFI = undefined;
       }
 
-      // frames de disparo (número ou array)
-      const fireSpec = t.config.fireFrame ?? t.fireFrame; // number | number[] | undefined
+      const fireSpec = t.config.fireFrame ?? t.fireFrame;
       const { framesNow } = getTriggeredFramesThisTick(t, fireSpec, "attack");
-
-      // sem frames configurados → disparo “livre” 1x por tick
       const free = framesNow.length === 1 && framesNow[0] === "__free__";
       const framesToFire = free ? [null] : framesNow;
       if (framesToFire.length === 0) return;
 
-      // === correção: burst só quando for ARRAY com length>1 ===
       const framesArr = normalizeFrames(fireSpec);
       const isBurst = Array.isArray(fireSpec) && framesArr.length > 1;
-
-      // por padrão: se for burst (array com >1), cooldown só no fim; caso contrário, por tiro
       const cooldownPerShot =
         t.config.cooldownPerShot !== undefined
           ? !!t.config.cooldownPerShot
           : !isBurst;
 
+      let firedAny = false;
+      let firedLastFrame = false;
       const lastFrameTarget =
         framesArr && framesArr.length
           ? Math.max(...framesArr)
@@ -182,15 +182,13 @@ export const CollisionManager = {
           ? fireSpec
           : null;
 
-      let firedAny = false;
-      let firedLastFrame = false;
-
       for (const f of framesToFire) {
-        // === montar projétil ===
-        const projData = t.attack(tileW, tileH) || {};
+        // ❗ agora aborta se a tropa não tem ataque
+        const projData = t.attack(tileW, tileH);
+        if (!projData) continue;
+
         projData.tipo = t.tipo;
 
-        // spawn no cano (muzzle) publicado pelo GameCanvas
         const muzzle =
           typeof gameRef.getMuzzleWorldPos === "function"
             ? gameRef.getMuzzleWorldPos(t)
@@ -199,14 +197,12 @@ export const CollisionManager = {
         projData.x = muzzle.x;
         projData.y = muzzle.y;
 
-        // direção, se não veio do attack()
         if (projData.vx == null || projData.vy == null) {
           const speed = projData.speed ?? t.config.velocidadeProjetil ?? 5;
           projData.vx = Math.abs(speed);
           projData.vy = 0;
         }
 
-        // limites do mundo + dados auxiliares p/ colisão
         projData.bounds = {
           minX: 0,
           maxX: gameRef.view?.w ?? Infinity,
@@ -216,10 +212,9 @@ export const CollisionManager = {
         projData.tileH = tileH;
         projData.row = t.row;
 
-        // pool de projéteis
         const reused = gameRef.projectilePool.find((p) => !p.active);
         if (reused) {
-          Object.assign(reused, new Projectile(projData)); // reinit completo
+          Object.assign(reused, new Projectile(projData));
           reused.active = true;
           reused.ticks = 0;
         } else {
@@ -229,17 +224,11 @@ export const CollisionManager = {
         firedAny = true;
         if (isBurst && f === lastFrameTarget) firedLastFrame = true;
 
-        // cooldown por tiro (se configurado/implicado)
-        if (cooldownPerShot) {
-          t.cooldown = t.config.cooldown;
-        }
+        if (cooldownPerShot) t.cooldown = t.config.cooldown;
       }
 
-      // cooldown ao final do burst
       if (firedAny && !cooldownPerShot) {
-        if (!isBurst || firedLastFrame) {
-          t.cooldown = t.config.cooldown;
-        }
+        if (!isBurst || firedLastFrame) t.cooldown = t.config.cooldown;
       }
     });
   },

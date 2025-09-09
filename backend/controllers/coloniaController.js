@@ -21,7 +21,7 @@ exports.criarColonia = async (req, res) => {
       nome: nome.trim(),
       turno: 1,
       integridadeEstrutural: 100,
-      populacao: { colonos: 100, exploradores: 0, marines: 0 },
+      populacao: { colonos: 100, exploradores: 0, marines: 0, snipers: 0 },
       exploradores: [],
       energia: 200,
       agua: 100,

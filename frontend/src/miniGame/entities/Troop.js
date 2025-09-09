@@ -47,6 +47,28 @@ export const troopTypes = {
     fireFrame: [8, 23, 38], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
   },
+  sniper: {
+    preco: 20,
+    hp: 4,
+    alcance: 7,
+    cooldown: 100,
+    dano: 4,
+    retornaAoFinal: true,
+    cor: "#F4511E",
+    corProjetil: "#FF8A65",
+    velocidadeProjetil: 6,
+    estados: ["idle", "attack"],
+    animacoes: {
+      idle: { frameCount: 37, frameInterval: 4 },
+      attack: { frameCount: 34, frameInterval: 2 },
+    },
+    muzzle: {
+      units: "spritePx",
+      attack: { x: 800, y: -2500 },
+    },
+    fireFrame: [12], // dispara projétil no frame 12 da animação de attack
+    cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
+  },
   muralhaReforcada: {
     preco: 15,
     hp: 20,
@@ -58,19 +80,8 @@ export const troopTypes = {
     animacoes: {
       defense: { frameCount: 3, frameInterval: 999999 }, // não anima por tempo
     },
-  } /*
-  heavy: {
-    preco: 20,
-    alcance: 4,
-    cooldown: 80,
-    dano: 4,
-    cor: "#F4511E",
-    corProjetil: "#FF8A65",
-    velocidadeProjetil: 4,
-    frameCount: 6, // ← quantidade de frames
-    frameInterval: 8, // ← intervalo entre frames
-    estados: ["idle", "attack"],
   },
+  /*
   grenadier: {
     preco: 18,
     alcance: 3,
@@ -94,7 +105,7 @@ export const troopTypes = {
     frameCount: 6, // ← quantidade de frames
     frameInterval: 8, // ← intervalo entre frames
     estados: ["idle", "attack"],
-  },*/,
+  },*/
 };
 
 // Pré-carrega os frames das tropas
@@ -150,6 +161,11 @@ export class Troop {
   attack(tileWidth, tileHeight) {
     // muralha não cria projétil
     if (this.state === "defense") return null;
+
+    // se não tem animação de ataque OU dano <= 0, não cria projétil
+    if (!this.config.animacoes?.attack || (this.config.dano ?? 0) <= 0) {
+      return null;
+    }
 
     // NÃO muda state, frame, nem cooldown aqui!
     return {

@@ -179,14 +179,13 @@ function ParameterPanel({
       },
     },
     {
-      id: "sniper",
+      id: "snipers",
       nome: "Sniper",
       descricao: "Unidade de ataque à distância.",
       imagem: "/images/sniper.png",
       custo: {
         comida: 25,
         agua: 15,
-        madeira: 20,
       },
     },
     {
@@ -655,6 +654,13 @@ function ParameterPanel({
                               </div>
                               <span>{estadoAtual.populacao.marines}</span>
                             </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-6 text-center">🎯</span>
+                                <span>Snipers:</span>
+                              </div>
+                              <span>{estadoAtual.populacao.snipers}</span>
+                            </div>
                             <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
                               <span>Total:</span>
                               <span>
@@ -800,16 +806,19 @@ function ParameterPanel({
                             const exploradores =
                               estadoAtual.populacao?.exploradores || 0;
                             const marines = estadoAtual.populacao?.marines || 0;
+                            const snipers = estadoAtual.populacao?.snipers || 0;
 
                             const consumoColonos = Math.floor(
                               (colonos || 0) * 0.5
                             ); // 0.5 por colono, arredonda p/ baixo
                             const consumoExploradores = exploradores * 2;
                             const consumoMarines = marines * 2;
+                            const consumoSnipers = snipers * 2;
                             const consumoTotal =
                               consumoColonos +
                               consumoExploradores +
-                              consumoMarines;
+                              consumoMarines +
+                              consumoSnipers;
 
                             const fazendas =
                               estadoAtual.construcoes?.fazenda || 0;
@@ -874,6 +883,14 @@ function ParameterPanel({
                                     <span>Marines:</span>
                                   </div>
                                   <span>-{consumoMarines}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🎯</span>
+                                    <span>Snipers:</span>
+                                  </div>
+                                  <span>-{consumoSnipers}</span>
                                 </div>
 
                                 <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">

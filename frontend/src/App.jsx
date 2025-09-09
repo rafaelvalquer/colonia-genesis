@@ -113,6 +113,8 @@ function GamePage({
   const handleCriarTropa = async (item) => {
     const { id, nome, custo } = item;
 
+    console.log(id);
+
     // 1) Verifica recursos
     const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
       const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
@@ -150,6 +152,8 @@ function GamePage({
       novoEstado.populacao.exploradores =
         (novoEstado.populacao.exploradores || 0) + 1;
     }
+
+    console.log(novoEstado);
 
     // 4) Atualiza UI
     setEstadoAtual(novoEstado);
