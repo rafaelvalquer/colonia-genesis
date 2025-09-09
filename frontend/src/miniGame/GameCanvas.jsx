@@ -328,6 +328,16 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const [energia, setEnergia] = useState(estadoAtual.energia);
   const energiaRef = useRef(energia);
   const [openDialog, setOpenDialog] = useState(false);
+
+  // derrota
+  const [openDialogDerrota, setOpenDialogDerrota] = useState(false);
+  const [dadosDerrota, setDadosDerrota] = useState({
+    tropasRetornadas: {},
+    feridos: { total: 0, leve: 0, grave: 0 },
+    feridosPorTipo: {},
+  });
+  const gameOverBtnRef = useRef(null); // área clicável do botão "GAME OVER"
+
   const [dadosVitoria, setDadosVitoria] = useState({ inimigosMortos: 0 });
 
   // energia
@@ -390,6 +400,115 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   }, []);
 
   // ===== helpers do overlay =====
+
+  const finalizarRodada = async (tipo = "derrota") => {
+    // coleta tropas em campo
+    const tropasEmCampo = gameRef.current.tropas || [];
+    const tropasParaRetornar = {};
+    const novosPacientes = [];
+
+    tropasEmCampo.forEach((tropa, idx) => {
+      const tipoT = tropa.tipo;
+      const cfg = troopTypes[tipoT];
+      if (!cfg?.retornaAoFinal) return;
+
+      const hpAtual = Number.isFinite(tropa.hp)
+        ? tropa.hp
+        : tropa.hp?.current ?? 0;
+      const hpMax = Number.isFinite(tropa.maxHp)
+        ? tropa.maxHp
+        : tropa.hp?.max ?? tropa.config?.hp ?? 1;
+      const ratio = hpMax > 0 ? hpAtual / hpMax : 1;
+
+      tropasParaRetornar[tipoT] = (tropasParaRetornar[tipoT] || 0) + 1;
+
+      if (ratio < 1) {
+        const severidade = ratio >= 0.5 ? "leve" : "grave";
+        novosPacientes.push({
+          id: `pac_${estadoAtual.turno}_${Date.now()}_${idx}`,
+          tipo: "colono",
+          refId: null,
+          severidade,
+          entrouEm: Date.now(),
+          turnosRestantes: severidade === "grave" ? 3 : 1,
+          origem: `combate_${tipoT}`,
+          status: "fila",
+        });
+      }
+    });
+
+    // hospital/população
+    const hospitalAtual = estadoAtual.hospital ?? {
+      fila: [],
+      internados: [],
+      historicoAltas: [],
+    };
+    const novoHospital = {
+      ...hospitalAtual,
+      fila: [...(hospitalAtual.fila || []), ...novosPacientes],
+    };
+
+    const novaPopulacao = { ...estadoAtual.populacao };
+    Object.entries(tropasParaRetornar).forEach(([t, qtd]) => {
+      if (t === "colono") novaPopulacao.colonos += qtd;
+      if (t === "marine") novaPopulacao.marines += qtd;
+      if (t === "sniper") novaPopulacao.snipers += qtd;
+    });
+
+    // ===== integridade estrutural (só em DERROTA)
+    const perdaIntegridade = tipo === "derrota" ? 20 : 0;
+    const integridadeAtual = Number.isFinite(estadoAtual.integridadeEstrutural)
+      ? estadoAtual.integridadeEstrutural
+      : 100;
+    const novaIntegridade = Math.max(0, integridadeAtual - perdaIntegridade);
+
+    // monta estado novo (energia/população/hospital + integridade)
+    const novoEstado = {
+      ...estadoAtual,
+      energia: energiaRef.current,
+      populacao: novaPopulacao,
+      hospital: novoHospital,
+      integridadeEstrutural: novaIntegridade,
+    };
+
+    await atualizarEstado(novoEstado, true); // sincroniza backend
+
+    // resumo de feridos
+    const feridosLeves = novosPacientes.filter(
+      (p) => p.severidade === "leve"
+    ).length;
+    const feridosGraves = novosPacientes.filter(
+      (p) => p.severidade === "grave"
+    ).length;
+    const feridosPorTipo = novosPacientes.reduce((acc, p) => {
+      let t = "desconhecido";
+      if (typeof p.origem === "string" && p.origem.startsWith("combate_")) {
+        t = p.origem.replace("combate_", "");
+      }
+      if (!acc[t]) acc[t] = { leve: 0, grave: 0, total: 0 };
+      acc[t][p.severidade] += 1;
+      acc[t].total += 1;
+      return acc;
+    }, {});
+
+    // lembrete/dialog
+    if (tipo === "derrota") {
+      setDadosDerrota({
+        inimigosMortos: inimigosTotaisRef.current,
+        tropasRetornadas: tropasParaRetornar,
+        feridos: {
+          total: feridosLeves + feridosGraves,
+          leve: feridosLeves,
+          grave: feridosGraves,
+        },
+        feridosPorTipo,
+        integridadePerdida: perdaIntegridade, // << novo
+        integridadeFinal: novaIntegridade, // << novo
+      });
+      setOpenDialogDerrota(true);
+    }
+  };
+
   const getTroopThumb = (tipo) => {
     const ani = troopAnimations?.[tipo] || {};
     return ani?.idle?.[0] || ani?.defense?.[0] || ani?.attack?.[0] || null;
@@ -410,7 +529,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     energia < config.preco || getDisponivel(tipo) <= 0;
 
   // use os mesmos fatores do desenho da tropa
-  const COVER = 0.9;
+  const COVER = 1.2;
   const SIZE_BOOST = 1.15;
 
   // escala do sprite na tela (mantém consistente com o desenho atual)
@@ -993,7 +1112,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const img = frames[e.frameIndex];
         if (!img?.complete) return;
 
-        const escala = 0.2;
+        const escala = 0.25;
         const larguraDesejada = 217 * escala;
         const alturaDesejada = 425 * escala;
         const y = e.row * tileHeight + tileHeight / 2;
@@ -1134,10 +1253,41 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // parâmetros do efeito
         const text = "GAME OVER";
-        const baseFont = Math.floor(Math.min(W, H) * 0.1); // ~10% da menor dimensão
-        const pulse = 1 + 0.03 * Math.sin(t * 4); // leve "respirar"
-        const shakeX = Math.sin(t * 20) * 2; // tremida sutil
+        const baseFont = Math.floor(Math.min(W, H) * 0.1);
+        const pulse = 1 + 0.03 * Math.sin(t * 4);
+        const shakeX = Math.sin(t * 20) * 2;
         const shakeY = Math.cos(t * 22) * 2;
+
+        // mede o texto para criar a "caixa" clicável
+        ctx.save();
+        ctx.font = `900 ${baseFont}px "Arial Black", Arial, sans-serif`;
+        const tw = ctx.measureText(text).width;
+        ctx.restore();
+
+        const btnW = tw + baseFont * 1.2;
+        const btnH = baseFont * 1.6;
+        const btnX = (W - btnW) / 2;
+        const btnY = H * 0.5 - btnH / 2;
+
+        // guarda para hit-test no clique/mousemove
+        gameOverBtnRef.current = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+        // desenha um fundo de "botão" sutil
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(btnX, btnY, btnW, btnH, 16);
+          ctx.fillStyle = "#111";
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "rgba(255,255,255,0.2)";
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = "rgba(17,17,17,0.9)";
+          ctx.fillRect(btnX, btnY, btnW, btnH);
+        }
+        ctx.restore();
 
         // posiciona e anima
         ctx.translate(W / 2 + shakeX, H * 0.5 + shakeY);
@@ -1211,9 +1361,22 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
   // ====== eventos de ponteiro ======
   const handleMouseMove = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
+
+    // cursor no botão de game over
+    if (jogoEncerrado && gameOverBtnRef.current) {
+      const r = gameOverBtnRef.current;
+      const inside = x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h;
+      canvas.style.cursor = inside ? "pointer" : "default";
+    } else if (!isDragging) {
+      canvas.style.cursor = "default";
+    }
+
     if (!isDragging) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    setDragPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setDragPosition({ x, y });
   };
 
   const handleCanvasMouseDown = (e) => {
@@ -1337,7 +1500,18 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   };
 
   const handleClick = (e) => {
-    if (jogoEncerrado) return;
+    if (jogoEncerrado) {
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left,
+        y = e.clientY - rect.top;
+      const r = gameOverBtnRef.current;
+      if (r && x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h) {
+        // dispara rotina igual ao fim de onda, mas como DERROTA
+        finalizarRodada("derrota");
+      }
+      return;
+    }
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -1739,6 +1913,99 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             style={{ fontFamily: "Press Start 2P, cursive" }}
           >
             Voltar para o Jogo
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Dialog de DERROTA */}
+      <Dialog
+        open={openDialogDerrota}
+        onClose={() => setOpenDialogDerrota(false)}
+      >
+        <DialogTitle
+          style={{
+            backgroundColor: "#ef4444",
+            color: "#FFF",
+            textAlign: "center",
+            fontFamily: "Press Start 2P, cursive",
+          }}
+        >
+          💀 Você perdeu a rodada
+        </DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom sx={{ mb: 1.5 }}>
+            🛡️ <strong>Integridade estrutural</strong>:{" "}
+            {dadosDerrota.integridadePerdida
+              ? `-${dadosDerrota.integridadePerdida}`
+              : "0"}
+            {typeof dadosDerrota.integridadeFinal === "number" && (
+              <>
+                {" "}
+                • Atual: <strong>{dadosDerrota.integridadeFinal}</strong>
+              </>
+            )}
+          </Typography>
+
+          <Typography gutterBottom>
+            As forças recuaram. Estas tropas conseguiram retornar:
+          </Typography>
+
+          {dadosDerrota.tropasRetornadas &&
+          Object.keys(dadosDerrota.tropasRetornadas).length > 0 ? (
+            <ul>
+              {Object.entries(dadosDerrota.tropasRetornadas).map(
+                ([tipo, qtd]) => (
+                  <li key={tipo}>
+                    <Typography>
+                      {tipo.charAt(0).toUpperCase() + tipo.slice(1)}:{" "}
+                      <strong>{qtd}</strong>
+                    </Typography>
+                  </li>
+                )
+              )}
+            </ul>
+          ) : (
+            <Typography>Nenhuma tropa apta a retornar.</Typography>
+          )}
+
+          {dadosDerrota.feridos && dadosDerrota.feridos.total > 0 && (
+            <>
+              <Typography sx={{ mt: 2 }} gutterBottom>
+                🏥 <strong>Encaminhados ao hospital</strong>
+              </Typography>
+              <Typography gutterBottom>
+                Total: <strong>{dadosDerrota.feridos.total}</strong>
+                {` (leve: ${dadosDerrota.feridos.leve}, grave: ${dadosDerrota.feridos.grave})`}
+              </Typography>
+              {dadosDerrota.feridosPorTipo &&
+                Object.keys(dadosDerrota.feridosPorTipo).length > 0 && (
+                  <>
+                    <Typography gutterBottom>Detalhe por tropa:</Typography>
+                    <ul>
+                      {Object.entries(dadosDerrota.feridosPorTipo).map(
+                        ([tipo, stats]) => (
+                          <li key={tipo}>
+                            <Typography>
+                              {tipo.charAt(0).toUpperCase() + tipo.slice(1)}:{" "}
+                              <strong>{stats.total}</strong>
+                              {` (leve: ${stats.leve}, grave: ${stats.grave})`}
+                            </Typography>
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  </>
+                )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={() => navigate("/jogo")}
+            style={{ fontFamily: "Press Start 2P, cursive" }}
+          >
+            Voltar para a Colônia
           </Button>
         </DialogActions>
       </Dialog>

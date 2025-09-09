@@ -13,9 +13,9 @@ export const enemyTypes = {
     cor: "red",
     estados: ["walking", "attack", "idle"],
     animacoes: {
-      walking: { frameCount: 41, frameInterval: 4 },
+      walking: { frameCount: 30, frameInterval: 3 },
       attack: { frameCount: 41, frameInterval: 1 },
-      idle: { frameCount: 41, frameInterval: 4 },
+      idle: { frameCount: 30, frameInterval: 3 },
     },
     hitFrame: "last", // ou -1
   },
