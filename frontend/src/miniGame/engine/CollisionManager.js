@@ -150,7 +150,8 @@ export const CollisionManager = {
       if (t.state !== "attack") {
         t.state = "attack";
         t.frameIndex = 0;
-        t.frameTick = 0;
+        const atkInt = t.config.animacoes?.attack?.frameInterval ?? 1;
+        t.frameTick = Math.floor(Math.random() * atkInt); // << desync leve
         t._firedFramesCycle = undefined;
         t._lastFI = undefined;
       }
