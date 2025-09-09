@@ -1,4 +1,7 @@
 // carrega pastas por estado: alienBege/walking/frame0.png etc.
+
+// src/miniGame/assets/enemy/loadEnemyFrames
+
 export const loadEnemyFrames = (tipo, estados = [], animacoes = {}) => {
   const result = {};
 

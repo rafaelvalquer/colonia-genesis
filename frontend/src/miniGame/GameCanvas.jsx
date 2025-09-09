@@ -15,6 +15,8 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import coloniaService from "../services/coloniaService";
+import { Projectile } from "./entities/Projectile";
+import { enemyAnimations } from "./entities/EnemyTypes";
 
 // tiles
 import centro1 from "./assets/tiles/groundCentro1.png";
@@ -53,6 +55,65 @@ tileImages.CantoE.src = CantoE;
 tileImages.chao.src = chao;
 tileImages.chaoD.src = chaoD;
 tileImages.chaoE.src = chaoE;
+
+const GameCanvasWithLoader = (props) => {
+  const [ready, setReady] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [counts, setCounts] = useState({ done: 0, total: 0 });
+
+  // crossfade
+  const [showLoader, setShowLoader] = useState(true);
+  const [fadingOut, setFadingOut] = useState(false);
+  const [gameOpacity, setGameOpacity] = useState(0);
+
+  const ranRef = useRef(false);
+
+  useEffect(() => {
+    if (ranRef.current) return; // evita dupla execução no Strict Mode
+    ranRef.current = true;
+
+    // 1) tiles do próprio arquivo
+    const tileImgs = Object.values(tileImages);
+
+    // 2) sprites das tropas
+    const troopImgs = collectTroopImages();
+
+    // 3) sprites dos inimigos
+    const enemyImgs = collectEnemyImages();
+
+    const all = [...tileImgs, ...troopImgs, ...enemyImgs];
+
+    preloadImagesWithGPUUpload(all, ({ done, total, percent }) => {
+      setProgress(percent);
+      setCounts({ done, total });
+    }).then(() => {
+      // monta o jogo e inicia crossfade
+      setReady(true); // monta o GameCanvas
+      requestAnimationFrame(() => setGameOpacity(1)); // fade-in do game
+      setFadingOut(true); // fade-out do loader
+      setTimeout(() => setShowLoader(false), 350); // remove loader após a transição
+    });
+  }, []);
+
+  return (
+    <>
+      {ready && (
+        <div style={{ opacity: gameOpacity, transition: "opacity 300ms ease" }}>
+          <GameCanvas {...props} />
+        </div>
+      )}
+
+      {showLoader && (
+        <LoadingScreen
+          progress={progress}
+          done={counts.done}
+          total={counts.total}
+          fadingOut={fadingOut}
+        />
+      )}
+    </>
+  );
+};
 
 // ===== utilidade HiDPI
 function setCanvasSize(canvas, cssW, cssH) {
@@ -298,6 +359,34 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Pré-alocação da pool de projéteis
+  useEffect(() => {
+    // evita rodar 2x no StrictMode/dev
+    if (gameRef.current.__preallocDone) return;
+    gameRef.current.__preallocDone = true;
+
+    const pool = gameRef.current.projectilePool;
+    const bounds = { minX: 0, maxX: Infinity, minY: 0, maxY: Infinity };
+    const BASE_PREALLOC = 48; // ajuste conforme seu jogo
+
+    for (let i = 0; i < BASE_PREALLOC; i++) {
+      // valores neutros; active=false
+      pool.push(
+        new Projectile({
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          row: 0,
+          tipo: "prealloc",
+          dano: 0,
+          bounds,
+          active: false,
+        })
+      );
+    }
   }, []);
 
   // ===== helpers do overlay =====
@@ -939,17 +1028,20 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         }
         // ================================================
 
-        // SPRITE DO INIMIGO (espelhado)
+        // SPRITE DO INIMIGO
         ctx.save();
-        ctx.translate(e.x, y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(
-          img,
-          -larguraDesejada / 2,
-          -alturaDesejada / 2,
-          larguraDesejada,
-          alturaDesejada
-        );
+
+        const src = img.__bmp || img; // se você estiver usando ImageBitmap no preload
+        const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
+        const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
+
+        // use a altura que você já calcula (alturaDesejada) e derive a largura
+        const scale = alturaDesejada / ih;
+        const w = iw * scale;
+        const h = ih * scale;
+
+        ctx.drawImage(src, e.x - w / 2, y - h / 2, w, h);
+
         ctx.restore();
 
         // barra de vida...
@@ -1015,14 +1107,91 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       drawHUD();
 
       // GAME OVER
+      // dentro do draw(), no final:
       if (jogoEncerrado) {
-        ctx.fillStyle = "red";
-        ctx.font = "50px Arial";
-        ctx.fillText(
-          "GAME OVER",
-          canvas.clientWidth / 2 - 150,
-          canvas.clientHeight / 2
+        const W = canvas.clientWidth,
+          H = canvas.clientHeight;
+        const t = performance.now() / 1000;
+
+        // escurece o mundo
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(0, 0, W, H);
+
+        // vinheta
+        const vg = ctx.createRadialGradient(
+          W / 2,
+          H / 2,
+          Math.min(W, H) * 0.15,
+          W / 2,
+          H / 2,
+          Math.max(W, H) * 0.65
         );
+        vg.addColorStop(0, "rgba(0,0,0,0)");
+        vg.addColorStop(1, "rgba(0,0,0,0.75)");
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, W, H);
+
+        // parâmetros do efeito
+        const text = "GAME OVER";
+        const baseFont = Math.floor(Math.min(W, H) * 0.1); // ~10% da menor dimensão
+        const pulse = 1 + 0.03 * Math.sin(t * 4); // leve "respirar"
+        const shakeX = Math.sin(t * 20) * 2; // tremida sutil
+        const shakeY = Math.cos(t * 22) * 2;
+
+        // posiciona e anima
+        ctx.translate(W / 2 + shakeX, H * 0.5 + shakeY);
+        ctx.scale(pulse, pulse);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // fonte principal
+        ctx.font = `900 ${baseFont}px "Arial Black", Arial, sans-serif`;
+
+        // glow em camadas + contorno
+        const layers = [
+          { color: "rgba(255, 0, 60, 0.35)", blur: 30, lw: 12 },
+          { color: "rgba(255, 70, 70, 0.6)", blur: 14, lw: 8 },
+          { color: "rgba(0,0,0,0.85)", blur: 0, lw: 10 }, // contorno escuro
+        ];
+        layers.forEach((l) => {
+          ctx.save();
+          ctx.lineWidth = l.lw;
+          ctx.shadowBlur = l.blur;
+          ctx.shadowColor = l.color;
+          ctx.strokeStyle = l.color;
+          ctx.strokeText(text, 0, 0);
+          ctx.restore();
+        });
+
+        // aberração cromática (RGB offsets)
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = "rgba(0,255,255,0.9)"; // ciano
+        ctx.fillText(text, -2, 0);
+        ctx.fillStyle = "rgba(255,0,0,0.9)"; // vermelho
+        ctx.fillText(text, 2, 0);
+        ctx.restore();
+
+        // preenchimento principal
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(text, 0, 0);
+
+        // subtítulo
+        ctx.font = `600 ${Math.floor(baseFont * 0.28)}px Arial, sans-serif`;
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillText("Clique para voltar para a colónia", 0, baseFont * 0.9);
+
+        ctx.restore();
+
+        // scanlines finas
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        for (let y = 0; y < H; y += 3) {
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, y, W, 1);
+        }
+        ctx.restore();
       }
 
       animationId = requestAnimationFrame(draw);
@@ -1331,7 +1500,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               linhasValidasParaSpawn[
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
-            const tiposDisponiveis = ["alienVermelho", "alienBege"];
+            const tiposDisponiveis = [/*"alienVermelho",*/ "medu"];
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)
@@ -1577,4 +1746,132 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   );
 };
 
-export default GameCanvas;
+// === Helpers de carregamento ===
+
+// Coleta todas as imagens das tropas que já estão no troopAnimations
+function collectTroopImages() {
+  const imgs = [];
+  for (const tipo in troopAnimations) {
+    const byState = troopAnimations[tipo] || {};
+    for (const st in byState) {
+      const arr = byState[st] || [];
+      for (const img of arr) if (img) imgs.push(img);
+    }
+  }
+  return imgs;
+}
+
+// Coleta todas as imagens dos inimigos que já estão no troopAnimations
+function collectEnemyImages() {
+  const imgs = [];
+  for (const tipo in enemyAnimations) {
+    const byState = enemyAnimations[tipo] || {};
+    for (const st in byState) {
+      const arr = byState[st] || [];
+      for (const img of arr) if (img) imgs.push(img);
+    }
+  }
+  return imgs;
+}
+
+// Se você tiver um mapa/estrutura de frames dos inimigos, faça algo parecido:
+// function collectEnemyImages() { ...return [Image, Image, ...]; }
+
+async function preloadImagesWithGPUUpload(images, onProgress) {
+  const total = images.length || 1;
+  let done = 0;
+
+  const off = document.createElement("canvas");
+  off.width = off.height = 1;
+  const octx = off.getContext("2d");
+
+  const decodeOne = (img) =>
+    img && img.decode
+      ? img.decode().catch(() => {})
+      : new Promise((resolve) => {
+          if (!img) return resolve();
+          if (img.complete && img.naturalWidth) return resolve();
+          const clean = () => {
+            img.onload = null;
+            img.onerror = null;
+          };
+          img.onload = () => {
+            clean();
+            resolve();
+          };
+          img.onerror = () => {
+            clean();
+            resolve();
+          };
+        });
+
+  const bump = () => {
+    done++;
+    const percent = Math.round((done / total) * 100);
+    onProgress && onProgress({ done, total, percent });
+  };
+
+  await Promise.all(
+    images.map((img) =>
+      decodeOne(img).then(() => {
+        try {
+          octx.drawImage(img, 0, 0, 1, 1);
+        } catch {}
+        bump();
+      })
+    )
+  );
+}
+
+// UI simples da barra de progresso
+function LoadingScreen({ progress, done, total, fadingOut }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0b0b0b",
+        color: "#fff",
+        flexDirection: "column",
+        gap: 16,
+        fontFamily: "Arial, sans-serif",
+        opacity: fadingOut ? 0 : 1,
+        transition: "opacity 300ms ease",
+        pointerEvents: fadingOut ? "none" : "auto",
+        zIndex: 9999,
+      }}
+    >
+      <div style={{ fontSize: 18, opacity: 0.9 }}>Carregando assets…</div>
+
+      <div
+        style={{
+          width: 360,
+          height: 14,
+          background: "rgba(255,255,255,0.12)",
+          borderRadius: 999,
+          overflow: "hidden",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.15) inset",
+        }}
+      >
+        <div
+          style={{
+            width: `${progress}%`,
+            height: "100%",
+            background: "linear-gradient(90deg, #22c55e, #16a34a)",
+            transition: "width 120ms ease",
+          }}
+        />
+      </div>
+
+      <div style={{ fontSize: 13, opacity: 0.75 }}>
+        {done}/{total} • {progress}%
+      </div>
+    </div>
+  );
+}
+
+export { GameCanvas as GameCanvasInner }; // opcional: exporta a versão “pura”
+export default GameCanvasWithLoader; // default agora é com loading

@@ -315,13 +315,22 @@ export const CollisionManager = {
       enemy.speed = 0;
       if (enemy.state !== "attack") {
         enemy.state = "attack";
+        enemy.frameIndex = 0; // 👈 garante ciclo completo
         enemy._lastFI = undefined;
         enemy._didTriggerThisCycle = false;
       }
 
-      // opcional: se quiser sincronizar o "golpe" num frame da animação do inimigo,
-      // defina enemy.hitFrame (number|number[]) ou enemy.config?.hitFrame
-      const hitFrames = enemy.hitFrame ?? enemy.config?.hitFrame;
+      // CollisionManager.inimigosAtacam(...)
+      // opcional: defina como padrão 'last' se quiser sempre bater no fim
+      let hitFrames = enemy.hitFrame ?? enemy.config?.hitFrame ?? "last";
+
+      if (hitFrames === "last" || hitFrames === -1) {
+        const atkFrames =
+          (enemy.framesByState && enemy.framesByState.attack) ||
+          enemy.frames ||
+          [];
+        hitFrames = atkFrames.length ? [atkFrames.length - 1] : null; // ex.: [7] se tiver 8 frames
+      }
 
       if (enemy.canAttack && enemy.canAttack()) {
         if (shouldTriggerThisFrame(enemy, hitFrames, "attack")) {
@@ -329,6 +338,7 @@ export const CollisionManager = {
           if (alvo.hp <= 0) alvo.startDeath?.();
         }
       }
+
       // se estiver em cooldown, fica apenas animando "attack"
     });
 

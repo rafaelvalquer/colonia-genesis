@@ -20,7 +20,7 @@ export const troopTypes = {
     },
     muzzle: {
       units: "spritePx", // interpreta offsets no espaço do sprite
-      attack: { x: 20, y: -1500 }, // ajuste fino por tropa
+      attack: { x: 200, y: -350 }, // ajuste fino por tropa
     },
     fireFrame: [7], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
