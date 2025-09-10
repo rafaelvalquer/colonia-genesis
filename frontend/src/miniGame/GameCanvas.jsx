@@ -1112,55 +1112,61 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const img = frames[e.frameIndex];
         if (!img?.complete) return;
 
-        const escala = 0.25;
-        const larguraDesejada = 217 * escala;
-        const alturaDesejada = 425 * escala;
+        const escalaBase = 0.2;
+        const alturaDesejada = 425 * escalaBase;
         const y = e.row * tileHeight + tileHeight / 2;
 
-        // ====== SOMBRA (antes de desenhar o inimigo) ======
+        // ====== SOMBRA ======
         {
-          // centro X do inimigo e “pé” em Y (base do sprite)
           const baseX = e.x;
-          const feetY = y + alturaDesejada / 2 - 2; // -2 pra não encostar no limite
-
-          const rx = tileWidth * 0.34; // raio horizontal (ajuste fino)
-          const ry = tileHeight * 0.14; // raio vertical   (ajuste fino)
-
-          const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9; // se tiver fade
+          const feetY = y + alturaDesejada / 2 - 2;
+          const rx = tileWidth * 0.34;
+          const ry = tileHeight * 0.14;
+          const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9;
           ctx.save();
           ctx.globalAlpha = alphaBase;
-
-          // desenha um círculo e “achata” no X pra virar elipse
           ctx.translate(baseX, feetY);
           ctx.scale(rx / ry, 1);
-
           const r = ry;
           const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
           g.addColorStop(0, "rgba(0,0,0,0.28)");
           g.addColorStop(1, "rgba(0,0,0,0.00)");
-
           ctx.fillStyle = g;
           ctx.beginPath();
           ctx.arc(0, 0, r, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }
-        // ================================================
 
-        // SPRITE DO INIMIGO
+        // ====== SPRITE ======
         ctx.save();
 
-        const src = img.__bmp || img; // se você estiver usando ImageBitmap no preload
+        // >>> Fade-in + “pop” no spawn
+        let pop = 1;
+        if (e.__spawn) {
+          const now = performance.now();
+          const p = Math.min(1, (now - e.__spawn.t0) / e.__spawn.dur); // 0..1
+          // opacidade cresce de 0 a 1
+          e.opacity = p;
+          // pop com leve overshoot (easeOutBack)
+          const c1 = 1.70158,
+            c3 = c1 + 1;
+          const easeOutBack = (x) =>
+            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+          pop = 0.85 + 0.25 * easeOutBack(p);
+          if (p >= 1) delete e.__spawn; // terminou a animação
+        }
+
+        const src = img.__bmp || img;
         const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
         const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
 
-        // use a altura que você já calcula (alturaDesejada) e derive a largura
-        const scale = alturaDesejada / ih;
-        const w = iw * scale;
-        const h = ih * scale;
+        const scale = (alturaDesejada / ih) * pop;
+        const w = iw * scale,
+          h = ih * scale;
 
+        ctx.globalAlpha = e.opacity ?? 1; // <<< usa opacidade
         ctx.drawImage(src, e.x - w / 2, y - h / 2, w, h);
-
         ctx.restore();
 
         // barra de vida...
@@ -1198,15 +1204,28 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.save();
         const a = 1 - pt.t / pt.max; // fade-out
         ctx.globalAlpha = Math.max(0, a);
-        ctx.strokeStyle = pt.cor || "#fff";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 2 + pt.t, 0, Math.PI * 2); // anel que cresce
-        ctx.stroke();
-        ctx.restore();
 
+        if (!pt.kind || pt.kind === "ring") {
+          // anel que cresce (seu comportamento original)
+          ctx.strokeStyle = pt.cor || "#fff";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 2 + pt.t, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (pt.kind === "spark") {
+          // faísca com leve gravidade
+          ctx.fillStyle = pt.cor || "#fff";
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 1.6, 0, Math.PI * 2);
+          ctx.fill();
+          pt.x += pt.vx || 0;
+          pt.y += pt.vy || 0;
+          pt.vy = (pt.vy || 0) + (pt.g || 0.05);
+        }
+
+        ctx.restore();
         pt.t++;
-        return pt.t < pt.max; // mantém enquanto “vivo”
+        return pt.t < pt.max;
       });
 
       ctx.restore(); // sai do translate(map.x, map.y)
@@ -1686,6 +1705,41 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
             // Opção A: nasce um pouco fora e entra andando
             enemy.x = mapGeom.w + 10;
+
+            // ---- FX de spawn ----
+            const cy = row * mapGeom.tileHeight + mapGeom.tileHeight / 2;
+            enemy.opacity = 0; // começa invisível
+            enemy.__spawn = { t0: performance.now(), dur: 450 }; // 450ms de animação
+
+            // Anéis de choque
+            for (let i = 0; i < 3; i++) {
+              gameRef.current.particles.push({
+                kind: "ring",
+                x: enemy.x,
+                y: cy,
+                t: 0,
+                max: 14 + i * 7,
+                cor: i === 0 ? "rgba(255, 80, 80, 1)" : "rgba(255,255,255,0.9)",
+              });
+            }
+
+            // Faíscas
+            for (let i = 0; i < 12; i++) {
+              const ang = Math.random() * Math.PI * 2;
+              const spd = 1 + Math.random() * 2;
+              gameRef.current.particles.push({
+                kind: "spark",
+                x: enemy.x,
+                y: cy,
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd * 0.6 - 0.4,
+                g: 0.04, // gravidade leve
+                t: 0,
+                max: (18 + Math.random() * 12) | 0,
+                cor: "rgba(255,200,80,1)",
+              });
+            }
+            // ----------------------
 
             // (ou Opção B, dentro do último tile: enemy.x = mapGeom.w - mapGeom.tileWidth / 2;)
 
