@@ -241,7 +241,9 @@ function getMapGeom(canvas) {
   return { x, y, w: mapW, h: mapH, tileWidth: tileSize, tileHeight: tileSize };
 }
 
+//#region Game Canvas
 const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
+  //#region Hooks
   const boxRef = useRef(null);
   const canvasRef = useRef(null);
   const hudRectsRef = useRef(null);
@@ -1378,6 +1380,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     modoRemocao,
   ]);
 
+  //#endregion Hooks
+
+  //#region Eventos de ponteiro
   // ====== eventos de ponteiro ======
   const handleMouseMove = (e) => {
     const canvas = canvasRef.current;
@@ -1651,6 +1656,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     setTropaSelecionada(null);
   };
 
+  //#endregion Eventos de ponteiro
+
+  //#region Game Loop
   // ===== GAME LOOP (inalterado semânticamente)
   function obterLinhasDeCombateValidas() {
     const linhasValidas = [];
@@ -1854,6 +1862,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     }, 32);
     return () => clearInterval(loopId);
   }, [jogoEncerrado, onda, modoPreparacao]);
+
+  //#endregion Game Loop
 
   return (
     <div
@@ -2066,6 +2076,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     </div>
   );
 };
+
+//#endregion Game Canvas
 
 // === Helpers de carregamento ===
 
