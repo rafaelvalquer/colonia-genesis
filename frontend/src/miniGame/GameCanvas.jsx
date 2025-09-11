@@ -150,7 +150,7 @@ function buildHudLayout(canvas) {
 
   // alturas básicas
   const titleH = 26;
-  const energyH = 30;
+  const energyH = 75; // aumentado para caber a barra de Capacidade
 
   // áreas fixas do topo
   const title = { x: panel.x + 10, y: panel.y + 8, w: panel.w - 20, h: titleH };
@@ -241,6 +241,14 @@ function getMapGeom(canvas) {
   return { x, y, w: mapW, h: mapH, tileWidth: tileSize, tileHeight: tileSize };
 }
 
+// ====== SUPPLY (Capacidade) + Cooldown por tipo ======
+const SUPPLY_CFG = {
+  start: 20,
+  max: 20,
+  regenPerSec: 1,
+  resetEveryWave: false,
+};
+
 //#region Game Canvas
 const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   //#region Hooks
@@ -261,7 +269,21 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     energyPulse: null, // { t0, dur, delta }
     energyTween: null, // { from, to, t0, dur }
     energyFloat: null, // { t0, dur, delta }
+    supplyDisplay: null, // valor mostrado (anima de display -> target)
+    supplyLastT: 0, // timestamp do último frame p/ lerp temporal
+    supplyPulse: null, // { t0, dur } efeito de "shock" ao carregar
+    supplyLastTarget: null,
   });
+
+  // Barra de forças (HP Aliado vs Inimigo)
+  const hpBarRef = useRef({
+    pct: 1, // % suavizada do lado azul
+    lastFriendly: 0, // último total de HP aliado
+    lastEnemy: 0, // último total de HP inimigo
+    fx: [], // fila de efeitos: {type:'allyGain'|'allyLoss', from, to, t0, dur}
+  });
+
+  const fpsRef = useRef({ ema: 0 }); // EMA = média exponencial p/ suavizar
 
   // ✅ Deixe AQUI (escopo do componente), não dentro do drawHUD
   const triggerCounterFX = (tipo, delta = -1) => {
@@ -285,6 +307,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     };
     // texto flutuante +X / -X
     hudFxRef.current.energyFloat = { t0: now, dur: 900, delta };
+  };
+
+  const triggerSupplyFX = (delta) => {
+    // só aplica "shock" quando AUMENTA
+    if (delta <= 0) return;
+    const now = performance.now();
+    hudFxRef.current.supplyPulse = { t0: now, dur: 650 };
   };
 
   const navigate = useNavigate();
@@ -330,6 +359,21 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const [energia, setEnergia] = useState(estadoAtual.energia);
   const energiaRef = useRef(energia);
   const [openDialog, setOpenDialog] = useState(false);
+  const gameTimeRef = useRef(0);
+  const lastFrameRef = useRef(performance.now());
+  const visibleRef = useRef(!document.hidden);
+  const lastSupplyGTRef = useRef(0); // âncora do relógio de jogo p/ regen
+
+  // Relógio de jogo (ms) — só anda quando a aba está visível
+  useEffect(() => {
+    const onVis = () => {
+      visibleRef.current = !document.hidden;
+      // zera a medida do delta para não “acumular” o tempo escondido
+      lastFrameRef.current = performance.now();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   // derrota
   const [openDialogDerrota, setOpenDialogDerrota] = useState(false);
@@ -347,6 +391,86 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     setEnergia(estadoAtual.energia);
     energiaRef.current = estadoAtual.energia;
   }, [estadoAtual.energia]);
+
+  const [supply, setSupply] = useState({
+    cur: SUPPLY_CFG.start,
+    max: SUPPLY_CFG.max,
+    regenPerSec: SUPPLY_CFG.regenPerSec,
+  });
+  const supplyRef = useRef(supply);
+  useEffect(() => {
+    supplyRef.current = supply;
+  }, [supply]);
+
+  const [deployCooldowns, setDeployCooldowns] = useState({});
+  const deployCooldownsRef = useRef(deployCooldowns);
+  useEffect(() => {
+    deployCooldownsRef.current = deployCooldowns;
+  }, [deployCooldowns]);
+
+  const getDeployCooldownMs = (tipo) =>
+    Math.max(0, troopTypes?.[tipo]?.deployCooldownMs ?? 0);
+  const isOnDeployCooldown = (tipo) =>
+    (deployCooldownsRef.current?.[tipo] || 0) > gameTimeRef.current;
+  const startDeployCooldown = (tipo) => {
+    const ms = getDeployCooldownMs(tipo);
+    if (ms > 0) {
+      const until = gameTimeRef.current + ms;
+      setDeployCooldowns((c) => ({ ...c, [tipo]: until }));
+    }
+  };
+
+  const getDeployCost = (tipo) =>
+    Math.max(0, troopTypes?.[tipo]?.deployCost ?? 0);
+  const canAffordSupply = (tipo) =>
+    supplyRef.current.cur >= getDeployCost(tipo);
+  const spendSupply = (tipo) => {
+    const cost = getDeployCost(tipo);
+    if (cost <= 0) return;
+    setSupply((s) => ({ ...s, cur: Math.max(0, s.cur - cost) }));
+  };
+
+  // Regen da barra baseado em gameTime (só avança quando a aba está visível)
+  const tickSupplyRegen = () => {
+    // se estiver em preparação ou encerrado, apenas reposiciona a âncora
+    if (modoPreparacao || jogoEncerrado) {
+      lastSupplyGTRef.current = gameTimeRef.current;
+      return;
+    }
+
+    const gt = gameTimeRef.current;
+    const elapsed = gt - lastSupplyGTRef.current; // ms de jogo
+    if (elapsed < 1000) return; // resolução de 1s
+
+    const perSec = supplyRef.current.regenPerSec || 0;
+    if (perSec <= 0) {
+      lastSupplyGTRef.current = gt;
+      return;
+    }
+
+    const units = Math.floor((elapsed / 1000) * perSec);
+    if (units <= 0) return;
+
+    // aplica uma única vez
+    setSupply((s) => ({
+      ...s,
+      cur: Math.min(s.max, s.cur + units),
+    }));
+
+    // FX suave no HUD ao aumentar
+    triggerSupplyFX(units);
+
+    // avança a âncora apenas pelo tempo efetivamente aplicado
+    const usedMs = (units / perSec) * 1000;
+    lastSupplyGTRef.current += usedMs;
+  };
+
+  // Opcional: resetar a barra quando voltar para preparação
+  useEffect(() => {
+    if (modoPreparacao && SUPPLY_CFG.resetEveryWave) {
+      setSupply((s) => ({ ...s, cur: SUPPLY_CFG.start }));
+    }
+  }, [modoPreparacao]);
 
   // redimensiona canvas — **sem travar aspecto** (usa toda a área disponível)
   useEffect(() => {
@@ -527,11 +651,18 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     const val = getByPath(estadoAtual, stockMap[tipo] || []);
     return typeof val === "number" ? val : 0;
   };
-  const isDisabledTroop = (tipo, config) =>
-    energia < config.preco || getDisponivel(tipo) <= 0;
+
+  // Bloqueio visual/funcional do slot
+  const isDisabledTroop = (tipo, config) => {
+    if (energia < config.preco) return true;
+    if (getDisponivel(tipo) <= 0) return true;
+    if (!canAffordSupply(tipo)) return true;
+    if (!modoPreparacao && isOnDeployCooldown(tipo)) return true; // << só bloqueia na onda
+    return false;
+  };
 
   // use os mesmos fatores do desenho da tropa
-  const COVER = 1.2;
+  const COVER = 1.2; //ESCALA
   const SIZE_BOOST = 1.15;
 
   // escala do sprite na tela (mantém consistente com o desenho atual)
@@ -572,6 +703,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     return { x: baseX + dx, y: baseY + dy };
   }
 
+  //#region Desenho
   // ===== desenho
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -724,6 +856,143 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
           if (pf >= 1) hudFxRef.current.energyFloat = null;
         }
+
+        // === Barra de Capacidade ===
+        const s = supplyRef.current;
+
+        // Detecta aumento do alvo (valor real) para disparar o "shock" uma única vez
+        {
+          const lastTarget = hudFxRef.current.supplyLastTarget;
+          if (lastTarget == null) {
+            hudFxRef.current.supplyLastTarget = s.cur;
+          } else if (s.cur > lastTarget) {
+            hudFxRef.current.supplyPulse = { t0: now, dur: 220 };
+            hudFxRef.current.supplyLastTarget = s.cur;
+          } else if (s.cur !== lastTarget) {
+            // apenas atualiza quando muda (queda não faz pulse)
+            hudFxRef.current.supplyLastTarget = s.cur;
+          }
+        }
+
+        // -- LERP temporal p/ suavizar (independente do FPS)
+        if (hudFxRef.current.supplyDisplay == null) {
+          hudFxRef.current.supplyDisplay = s.cur;
+          hudFxRef.current.supplyLastT = now;
+        }
+        const lastT = hudFxRef.current.supplyLastT || now;
+        const dt = Math.max(0, (now - lastT) / 1000); // segundos
+        const k = 8; // resposta (maior = mais rápido)
+        const a = 1 - Math.exp(-k * dt); // aproximação time-based
+        const target = s.cur;
+        let disp =
+          hudFxRef.current.supplyDisplay +
+          (target - hudFxRef.current.supplyDisplay) * a;
+
+        // ✅ SNAP: quando fica muito perto do alvo, fixa no valor final
+        if (Math.abs(target - disp) < 0.02) disp = target;
+
+        hudFxRef.current.supplyDisplay = disp;
+        hudFxRef.current.supplyLastT = now;
+
+        const visVal = Math.round(disp); // texto
+        const pct = Math.max(0, Math.min(1, disp / s.max)); // largura
+
+        // geometria
+        const bx = layout.energy.x;
+        const by = layout.energy.y + 56; // um pouco mais abaixo da energia
+        const bw = layout.energy.w;
+        const bh = 16;
+        const r = bh / 2;
+
+        // helpers (roundRect)
+        const roundRectPath = (x, y, w, h, rad) => {
+          if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, rad);
+          } else {
+            const rr = Math.min(rad, h / 2, w / 2);
+            ctx.beginPath();
+            ctx.moveTo(x + rr, y);
+            ctx.lineTo(x + w - rr, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+            ctx.lineTo(x + w, y + h - rr);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+            ctx.lineTo(x + rr, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+            ctx.lineTo(x, y + rr);
+            ctx.quadraticCurveTo(x, y, x + rr, y);
+            ctx.closePath();
+          }
+        };
+
+        // --- trilho com cantos arredondados ---
+        ctx.save();
+        roundRectPath(bx, by, bw, bh, r);
+        ctx.fillStyle = "rgba(255,255,255,0.12)";
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.stroke();
+        ctx.restore();
+
+        // --- preenchimento (com gradiente) ---
+        const fillW = Math.max(0, Math.min(bw, Math.round(bw * pct)));
+        if (fillW > 0) {
+          ctx.save();
+
+          // clip no formato arredondado do preenchimento
+          roundRectPath(bx, by, fillW, bh, r);
+          ctx.clip();
+
+          // gradiente vertical
+          const gf = ctx.createLinearGradient(bx, by, bx, by + bh);
+          gf.addColorStop(0, "rgba(59,130,246,1)"); // azul topo
+          gf.addColorStop(1, "rgba(37,99,235,1)"); // azul base
+          ctx.fillStyle = gf;
+          ctx.fillRect(bx, by, fillW, bh);
+
+          // brilho superior sutil
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(bx + 2, by + 2, Math.max(0, fillW - 4), 2);
+
+          // --- efeito de "shock" ao carregar (só quando aumenta) ---
+          const pulse = hudFxRef.current.supplyPulse;
+          if (pulse) {
+            const pp = Math.min(1, (now - pulse.t0) / pulse.dur);
+            const alpha = 1 - pp; // desvanece
+            if (alpha > 0) {
+              ctx.globalCompositeOperation = "lighter";
+              // faixa de luz que “varre” o final da barra
+              const stripeW = 12 + 8 * Math.sin(pp * 10);
+              const x0 = bx + fillW - stripeW;
+              const sg = ctx.createLinearGradient(x0, 0, x0 + stripeW, 0);
+              sg.addColorStop(0.0, "rgba(255,255,255,0.0)");
+              sg.addColorStop(0.4, `rgba(255,255,255,${0.35 * alpha})`);
+              sg.addColorStop(1.0, "rgba(255,255,255,0.0)");
+              ctx.fillStyle = sg;
+              ctx.fillRect(x0, by, stripeW, bh);
+
+              // leve glow no contorno
+              ctx.shadowColor = `rgba(255,255,255,${0.35 * alpha})`;
+              ctx.shadowBlur = 14;
+              ctx.strokeStyle = `rgba(255,255,255,${0.15 * alpha})`;
+              roundRectPath(bx, by, fillW, bh, r);
+              ctx.stroke();
+            }
+            if (pp >= 1) hudFxRef.current.supplyPulse = null;
+          }
+
+          ctx.restore();
+        }
+
+        // Texto (usa o valor ANIMADO para não “pular de 2 em 2”)
+        ctx.save();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 12px Arial";
+        ctx.textBaseline = "top";
+        ctx.fillText(`Capacidade: ${visVal}/${s.max}`, bx + 6, by - 16);
+        ctx.restore();
       }
 
       // --- separador antes dos slots ---
@@ -893,7 +1162,25 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         ctx.restore();
 
-        // <<< fim do contador (direita)
+        // ==== overlay de cooldown (se ativo) ====
+        if (!modoPreparacao) {
+          const cdUntil = deployCooldownsRef.current?.[s.tipo] || 0;
+          const cdLeftMs = Math.max(0, cdUntil - gameTimeRef.current);
+          if (cdLeftMs > 0) {
+            // semitransparente por cima do slot + texto do tempo
+            ctx.save();
+            ctx.fillStyle = "rgba(0,0,0,0.45)";
+            ctx.fillRect(s.x, s.y, s.w, s.h);
+
+            const sec = (cdLeftMs / 1000).toFixed(1);
+            ctx.fillStyle = "#fff";
+            ctx.font = layout.compact ? "bold 12px Arial" : "bold 13px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(`⏱ ${sec}s`, s.x + s.w / 2, s.y + s.h / 2);
+            ctx.restore();
+          }
+        }
 
         // ==== texto flutuante (+1 / -1) para ESTE tipo ====
         const floats = hudFxRef.current.floats || [];
@@ -919,9 +1206,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           ctx.font = layout.compact ? "bold 12px Arial" : "bold 13px Arial";
           ctx.lineWidth = 2;
           ctx.strokeStyle = "rgba(0,0,0,0.55)";
-          ctx.strokeText(txt, cx, badgeY - 6 + dy);
+          ctx.strokeText(txt, cx, s.y + 2 + dy);
           ctx.fillStyle = color;
-          ctx.fillText(txt, cx, badgeY - 6 + dy);
+          ctx.fillText(txt, cx, s.y + 2 + dy);
           ctx.restore();
         }
 
@@ -938,7 +1225,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const priceY = s.y + (layout.compact ? s.h - 12 : 48);
         ctx.fillStyle = "#fff";
         ctx.font = priceFont;
-        ctx.fillText(`💰 ${cfg.preco}`, textX, priceY);
+        const capCost = getDeployCost(s.tipo);
+        ctx.fillText(`💰 ${cfg.preco}   ⛽ ${capCost}`, textX, priceY);
 
         ctx.restore();
       });
@@ -1004,7 +1292,44 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       ctx.restore();
     };
 
+    {
+      const now = performance.now();
+      const dt = now - lastFrameRef.current;
+      lastFrameRef.current = now;
+      if (visibleRef.current) {
+        gameTimeRef.current += dt; // dt em ms
+      }
+
+      // novo: calcula FPS instantâneo e suaviza (EMA)
+      const inst = dt > 0 ? 1000 / dt : 0;
+      const alpha = 0.12; // 0..1 (maior = reage mais rápido)
+      fpsRef.current.ema = fpsRef.current.ema
+        ? fpsRef.current.ema * (1 - alpha) + inst * alpha
+        : inst;
+    }
+    function roundRectPath(ctx, x, y, w, h, r) {
+      const rr = Math.min(r, h / 2, w / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
     const draw = () => {
+      // Avança relógio de jogo (só quando a aba está visível)
+      {
+        const now = performance.now();
+        const dt = now - lastFrameRef.current;
+        lastFrameRef.current = now;
+        if (visibleRef.current) gameTimeRef.current += dt;
+      }
       const map = getMapGeom(canvas);
 
       // disponibiliza geometria + função para quem cria projéteis
@@ -1014,6 +1339,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
       const { tileWidth, tileHeight } = map;
 
+      const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
       // ======= MUNDO (mapa+entidades) à direita do painel =======
@@ -1028,15 +1354,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           const x = col * tileWidth;
           const y = row * tileHeight;
           if (img.complete) ctx.drawImage(img, x, y, tileWidth, tileHeight);
-
-          if (estaNaAreaDeCombate(row, col)) {
-            ctx.strokeStyle = "#00ff00";
-            ctx.lineWidth = 2;
-            //ctx.strokeRect(x + 1, y + 1, tileWidth - 2, tileHeight - 2); // Colocar o traçado
-          } else {
-            ctx.fillStyle = "rgba(0,0,0,0.2)";
-            //ctx.fillRect(x, y, tileWidth, tileHeight); //Escurece a parte de fora
-          }
         }
       }
 
@@ -1114,7 +1431,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const img = frames[e.frameIndex];
         if (!img?.complete) return;
 
-        const escalaBase = 0.2;
+        const escalaBase = 0.25;
         const alturaDesejada = 425 * escalaBase;
         const y = e.row * tileHeight + tileHeight / 2;
 
@@ -1365,8 +1682,265 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.restore();
       }
 
+      // ===== FPS OSD (canto superior direito) =====
+      {
+        const fps = fpsRef.current.ema || 0;
+        const txt = `${fps.toFixed(0)} FPS`;
+        ctx.save();
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "top";
+
+        // fundo semi-transparente para legibilidade
+        const padX = 6,
+          padY = 4;
+        const textW = ctx.measureText(txt).width;
+        const boxW = textW + padX * 2;
+        const boxH = 18;
+        const xRight = canvas.clientWidth - 10;
+        const yTop = 8;
+
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(xRight - boxW, yTop, boxW, boxH);
+
+        // texto com leve sombra
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#fff";
+        ctx.fillText(txt, xRight - padX, yTop + 2);
+        ctx.restore();
+      }
+
+      // ===== BARRA DE FORÇAS (HP Aliado vs Inimigo) — canto direito =====
+      {
+        // --- 1) somatórios de HP em tempo real ---
+        let friendly = 0,
+          enemy = 0;
+        for (const t of gameRef.current.tropas) {
+          const cur = Number.isFinite(t.hp) ? t.hp : t.hp?.current ?? 0;
+          if (cur > 0) friendly += cur;
+        }
+        for (const e of gameRef.current.inimigos) {
+          if ((e.hp ?? 0) > 0) enemy += e.hp;
+        }
+        const tot = friendly + enemy;
+
+        // alvo instântaneo (sem suavização)
+        const target = tot > 0 ? friendly / tot : 1;
+
+        // alvo anterior (pra detectar deltas e spawnar efeitos)
+        const prevFriendly = hpBarRef.current.lastFriendly ?? 0;
+        const prevEnemy = hpBarRef.current.lastEnemy ?? 0;
+        const prevTot = prevFriendly + prevEnemy;
+        const prevTarget = prevTot > 0 ? prevFriendly / prevTot : 1;
+
+        // registra p/ próxima iteração
+        hpBarRef.current.lastFriendly = friendly;
+        hpBarRef.current.lastEnemy = enemy;
+
+        // --- 2) suavização (EMA) p/ barra base (não “pulos” bruscos) ---
+        const alpha = 0.18; // maior = reage mais rápido
+        if (hpBarRef.current.pct == null) hpBarRef.current.pct = target;
+        hpBarRef.current.pct =
+          hpBarRef.current.pct * (1 - alpha) + target * alpha;
+        if (Math.abs(hpBarRef.current.pct - target) < 0.005) {
+          hpBarRef.current.pct = target; // snap quando muito perto
+        }
+        const pctSm = hpBarRef.current.pct;
+
+        // --- 3) spawn de efeitos quando a *proporção* muda de modo perceptível ---
+        const DIFF_EPS = 0.01; // evita ruído minúsculo
+        if (
+          Math.abs(target - prevTarget) > DIFF_EPS &&
+          prevTot > 0 &&
+          tot > 0
+        ) {
+          hpBarRef.current.fx.push({
+            type: target > prevTarget ? "allyGain" : "allyLoss",
+            from: prevTarget,
+            to: target,
+            t0: performance.now(),
+            dur: 550, // ms
+          });
+          // Limita fila pra não acumular infinito
+          if (hpBarRef.current.fx.length > 6) hpBarRef.current.fx.shift();
+        }
+
+        // --- 4) geometria/estilo da barra ---
+        const barW = 18;
+        const barH = 180;
+        const radius = 9;
+        const marginRight = 10;
+
+        const x = canvas.clientWidth - marginRight - barW;
+        // Se você desenha o FPS no topo direito ~18px de altura:
+        const yTop = 8 + 18 + 8; // topo + FPS + margem
+        // Se NÃO tiver FPS, use: const yTop = 8;
+
+        const now = performance.now();
+
+        // --- 5) fundo arredondado ---
+        ctx.save();
+        roundRectPath(ctx, x, yTop, barW, barH, radius);
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "rgba(255,255,255,0.20)";
+        ctx.stroke();
+
+        // clip dentro do corpo arredondado
+        ctx.save();
+        roundRectPath(ctx, x, yTop, barW, barH, radius);
+        ctx.clip();
+
+        // --- 6) preenchimentos base (azul em baixo, vermelho em cima) ---
+        const blueH = Math.round(barH * pctSm);
+        const redH = barH - blueH;
+
+        // pequeno “breath” (pulso muito sutil)
+        const breath = 0.02 * Math.sin(now / 650);
+        const edgeY = yTop + barH - blueH;
+
+        // vermelho (inimigo) — topo
+        if (redH > 0) {
+          const gr = ctx.createLinearGradient(x, yTop, x, yTop + redH);
+          gr.addColorStop(0, "rgba(239,68,68,0.95)");
+          gr.addColorStop(1, "rgba(220,38,38,0.90)");
+          ctx.fillStyle = gr;
+          ctx.fillRect(x, yTop, barW, redH);
+        }
+
+        // azul (aliado) — base
+        if (blueH > 0) {
+          const gb = ctx.createLinearGradient(x, edgeY, x, yTop + barH);
+          gb.addColorStop(0, "rgba(59,130,246,0.98)");
+          gb.addColorStop(1, "rgba(37,99,235,0.95)");
+          ctx.fillStyle = gb;
+          ctx.fillRect(x, edgeY, barW, blueH);
+        }
+
+        // --- 7) glow na divisória (linha de fronte) ---
+        {
+          const pulse = 0.5 + 0.5 * Math.sin(now / 220);
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.shadowColor = "rgba(255,255,255,0.6)";
+          ctx.shadowBlur = 10 + 4 * pulse;
+          ctx.fillStyle = `rgba(255,255,255,${0.08 + 0.04 * pulse})`;
+          ctx.fillRect(x - 1, edgeY - 1, barW + 2, 2);
+          ctx.restore();
+        }
+
+        // --- 8) efeitos de “consumo” (wipes) quando a proporção muda ---
+        for (let i = hpBarRef.current.fx.length - 1; i >= 0; i--) {
+          const fx = hpBarRef.current.fx[i];
+          const t = (now - fx.t0) / fx.dur;
+          const p = Math.min(1, Math.max(0, t));
+          const ease = 1 - Math.pow(1 - p, 3); // easeOutCubic
+
+          // bordas (em Y) que a troca percorre
+          const fromY = yTop + barH * (1 - fx.from);
+          const toY = yTop + barH * (1 - fx.to);
+          const y0 = Math.min(fromY, toY);
+          const y1 = Math.max(fromY, toY);
+
+          // posição da “frente” do wipe
+          const leadY = fromY + (toY - fromY) * ease;
+          const stripeH = 12;
+
+          if (fx.type === "allyGain") {
+            // Você causou dano → azul ganhou espaço
+            // 8a) pinta a faixa convertida com branco sutil (rastro)
+            ctx.save();
+            ctx.globalAlpha = 0.16 * (1 - p);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(x, y0, barW, y1 - y0);
+            ctx.restore();
+
+            // 8b) linha branca móvel (efeito de “guilhotina”)
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            const g = ctx.createLinearGradient(
+              0,
+              leadY - stripeH / 2,
+              0,
+              leadY + stripeH / 2
+            );
+            g.addColorStop(0, "rgba(255,255,255,0)");
+            g.addColorStop(0.5, `rgba(255,255,255,${0.65 * (1 - p)})`);
+            g.addColorStop(1, "rgba(255,255,255,0)");
+            ctx.fillStyle = g;
+            ctx.fillRect(x, leadY - stripeH / 2, barW, stripeH);
+            ctx.restore();
+          } else {
+            // Inimigos causaram dano → azul perdeu espaço (vermelho sobe)
+            // 8c) preenche a faixa com vermelho translúcido
+            ctx.save();
+            ctx.globalAlpha = 0.22 * (1 - p);
+            const gr = ctx.createLinearGradient(0, y0, 0, y1);
+            gr.addColorStop(0, "rgba(239,68,68,0.9)");
+            gr.addColorStop(1, "rgba(220,38,38,0.9)");
+            ctx.fillStyle = gr;
+            ctx.fillRect(x, y0, barW, y1 - y0);
+            ctx.restore();
+
+            // 8d) linha vermelha móvel
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            const g = ctx.createLinearGradient(
+              0,
+              leadY - stripeH / 2,
+              0,
+              leadY + stripeH / 2
+            );
+            g.addColorStop(0, "rgba(239,68,68,0)");
+            g.addColorStop(0.5, `rgba(239,68,68,${0.6 * (1 - p)})`);
+            g.addColorStop(1, "rgba(239,68,68,0)");
+            ctx.fillStyle = g;
+            ctx.fillRect(x, leadY - stripeH / 2, barW, stripeH);
+            ctx.restore();
+          }
+
+          if (p >= 1) hpBarRef.current.fx.splice(i, 1);
+        }
+
+        // --- 9) highlights e detalhes sutis ---
+        // brilho superior sutil (gloss)
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(x + 2, yTop + 2, barW - 4, 2);
+        ctx.restore();
+
+        // “respiração” muito leve nas extremidades (quase imperceptível)
+        ctx.save();
+        ctx.globalAlpha = 0.05 + 0.03 * Math.abs(breath);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(x, yTop, barW, 2);
+        ctx.fillRect(x, yTop + barH - 2, barW, 2);
+        ctx.restore();
+
+        // sai do clip e do grupo
+        ctx.restore(); // clip
+        ctx.restore(); // caixa
+
+        // --- 10) percentual textual opcional ao lado ---
+        const pctNum = Math.round((tot > 0 ? friendly / tot : 1) * 100);
+        ctx.save();
+        ctx.font = "bold 11px Arial";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#fff";
+        ctx.fillText(`${pctNum}%`, x - 6, yTop + barH / 2);
+        ctx.restore();
+      }
+
       animationId = requestAnimationFrame(draw);
     };
+
+    //#region Final desenho
 
     animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
@@ -1417,6 +1991,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           setModoPreparacao(false);
           setContadorSpawn(0);
           inimigosCriadosRef.current = 0;
+          lastSupplyGTRef.current = gameTimeRef.current; // ancora regen no início da onda
         }
         return;
       }
@@ -1429,6 +2004,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           const cfg = troopTypes[s.tipo];
           if (isDisabledTroop(s.tipo, cfg)) return;
           if (energia < cfg.preco) return;
+          if (!canAffordSupply(s.tipo)) return;
+          if (!modoPreparacao && isOnDeployCooldown(s.tipo)) return;
+
           setIsDragging(true);
           setDraggedTroop(s.tipo);
           setTropaSelecionada(s.tipo);
@@ -1475,6 +2053,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       setDraggedTroop(null);
       return;
     }
+    if (
+      !canAffordSupply(draggedTroop) ||
+      (!modoPreparacao && isOnDeployCooldown(draggedTroop))
+    ) {
+      setIsDragging(false);
+      setDraggedTroop(null);
+      return;
+    }
 
     gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
 
@@ -1498,6 +2084,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       novaConstrucoes.muralhaReforcada -= 1;
       estadoAtual.construcoes.muralhaReforcada -= 1;
     }
+
+    // desconta capacidade e inicia cooldown
+    spendSupply(draggedTroop);
+    if (!modoPreparacao) startDeployCooldown(draggedTroop);
 
     triggerEnergyFX(novaEnergia - energiaRef.current); // delta negativo (gasto)
 
@@ -1612,6 +2202,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     if (gameRef.current.tropas.some((t) => t.row === row && t.col === col))
       return;
     if (energia < troopTypes[tropaSelecionada].preco) return;
+    if (!canAffordSupply(tropaSelecionada)) return;
+    if (!modoPreparacao && isOnDeployCooldown(tropaSelecionada)) return;
 
     gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
     const novaEnergia = energiaRef.current - troopTypes[tropaSelecionada].preco;
@@ -1634,6 +2226,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       novaConstrucoes.muralhaReforcada -= 1;
       estadoAtual.construcoes.muralhaReforcada -= 1;
     }
+
+    // desconta capacidade e inicia cooldown
+    spendSupply(tropaSelecionada);
+    if (!modoPreparacao) startDeployCooldown(tropaSelecionada);
 
     const novoEstado = {
       ...estadoAtual,
@@ -1671,6 +2267,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     const linhasValidasParaSpawn = obterLinhasDeCombateValidas();
     const loopId = setInterval(() => {
       (async () => {
+        // Regen da “barra” usando game time (sem progredir em background)
+        tickSupplyRegen();
         if (jogoEncerrado || modoPreparacao) return;
         const { inimigos } = gameRef.current;
 
@@ -1687,7 +2285,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           return;
         }
         CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
-        CollisionManager.inimigosAtacam(gameRef.current);
         CollisionManager.tropasAtacam(gameRef.current);
 
         setContadorSpawn((prev) => {
@@ -1766,7 +2363,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const todosInimigosGerados =
           inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
         if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
-          if (onda === 1) {
+          if (onda === 2) {
             setJogoEncerrado(true);
             clearInterval(loopId);
             const tropasEmCampo = gameRef.current.tropas;

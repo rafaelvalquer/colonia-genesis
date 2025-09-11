@@ -24,6 +24,8 @@ export const troopTypes = {
     },
     fireFrame: [7], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
+    deployCost: 3,
+    deployCooldownMs: 2000,
   },
   marine: {
     preco: 15,
@@ -46,6 +48,8 @@ export const troopTypes = {
     },
     fireFrame: [8, 23, 38], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
+    deployCost: 5,
+    deployCooldownMs: 2500,
   },
   sniper: {
     preco: 20,
@@ -68,6 +72,8 @@ export const troopTypes = {
     },
     fireFrame: [12], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
+    deployCost: 7,
+    deployCooldownMs: 3000,
   },
   muralhaReforcada: {
     preco: 15,
@@ -80,6 +86,8 @@ export const troopTypes = {
     animacoes: {
       defense: { frameCount: 3, frameInterval: 999999 }, // não anima por tempo
     },
+    deployCost: 6,
+    deployCooldownMs: 2500,
   },
   /*
   grenadier: {
