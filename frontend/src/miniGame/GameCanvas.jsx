@@ -663,6 +663,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   // use os mesmos fatores do desenho da tropa
   const COVER = 1.2; //ESCALA
   const SIZE_BOOST = 1.15;
+  const TROOP_GROUND_OFFSET_PX = 6; // ↑ positivo desce o sprite (ajuste rápido)
 
   // escala do sprite na tela (mantém consistente com o desenho atual)
   function getTroopScaleForTile(t, tileHeight) {
@@ -678,7 +679,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   // converte offset do sprite (ou em tiles/px) para coordenadas do MAPA
   function getMuzzleWorldPos(t, view) {
     const baseX = t.col * view.tileWidth + view.tileWidth / 2;
-    const baseY = (t.row + 1) * view.tileHeight;
+    const baseY = (t.row + 1) * view.tileHeight + TROOP_GROUND_OFFSET_PX;
 
     const conf = troopTypes[t.tipo]?.muzzle || {};
     const off = conf[t.state] || { x: 0, y: -0.3 }; // x,y “unitless” p/ caso tile
@@ -1369,7 +1370,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const larguraDesejada = img.width * escala;
 
         const baseX = t.col * tileWidth + tileWidth / 2;
-        const baseY = (t.row + 1) * tileHeight;
+        const baseY = (t.row + 1) * tileHeight + TROOP_GROUND_OFFSET_PX;
 
         ctx.save();
         ctx.globalAlpha = t.opacity ?? 1;
@@ -1430,7 +1431,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const img = frames[e.frameIndex];
         if (!img?.complete) return;
 
-        const escalaBase = 0.25;
+        const escalaBase = 0.27; // Escala do inimigo
         const alturaDesejada = 425 * escalaBase;
         const y = e.row * tileHeight + tileHeight / 2;
 
@@ -2291,7 +2292,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               linhasValidasParaSpawn[
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
-            const tiposDisponiveis = ["crix", "medu"];
+            const tiposDisponiveis = ["krulax", "crix", "medu"];
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)

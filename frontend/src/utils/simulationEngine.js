@@ -539,8 +539,6 @@ export function runSimulationTurn(
     populacao.colonos -= 5;
     saude -= 5;
     log.push("Fome! A população e saúde caíram.");
-  } else {
-    populacao.colonos += 2;
   }
 
   saude = Math.max(0, Math.min(100, saude));

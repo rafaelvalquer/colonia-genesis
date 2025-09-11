@@ -36,6 +36,23 @@ export const enemyTypes = {
     hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: "middle", // ou -1
   },
+  krulax: {
+    nome: "krulax",
+    hp: 15,
+    alcance: 1,
+    speed: 0.8,
+    dano: 3,
+    cooldown: 100,
+    cor: "purple",
+    estados: ["walking", "attack", "idle"],
+    animacoes: {
+      walking: { frameCount: 31, frameInterval: 3 },
+      attack: { frameCount: 54, frameInterval: 1 },
+      idle: { frameCount: 31, frameInterval: 2 },
+    },
+    hitFrameIndexBase: 1, // << usa contagem humana (1..50)
+    hitFrame: "middle", // ou -1
+  },
   /*
   robot: {
     nome: "Robô",
