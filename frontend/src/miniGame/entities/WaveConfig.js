@@ -13,7 +13,7 @@ export const waveConfig = {
   },
 
   quantidadePorOnda: (onda) => {
-    if (onda < 3) return 10;
+    if (onda < 3) return 2;
     if (onda < 6) return 8;
     if (onda < 9) return 10;
     if (onda < 12) return 12;

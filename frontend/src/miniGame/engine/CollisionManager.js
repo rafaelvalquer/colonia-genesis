@@ -75,6 +75,63 @@ function shouldTriggerThisFrame(entity, framesSpec, expectedState = "attack") {
   return hit;
 }
 
+// Resolve hitFrame: número, array, por-estado, "last", "middle", -1, base 1 opcional
+function resolveHitFrames(enemy, state = "attack") {
+  // 1) Descobrir quantos frames existem de fato nesse estado
+  const count =
+    enemy.framesByState?.[state]?.length ??
+    enemy.animacoes?.[state]?.frameCount ??
+    enemy.frames?.length ??
+    0;
+
+  console.log(JSON.stringify(enemy));
+
+  // 2) Pegar spec de forma robusta (prefira config > instance)
+  let spec = enemy.config?.hitFrame ?? enemy.hitFrame ?? null; // << só cai em "last" se realmente não vier nada
+
+  // 3) Se for objeto por estado, reduzir para o estado atual/solicitado
+  if (spec && typeof spec === "object" && !Array.isArray(spec)) {
+    spec = spec[enemy.state] ?? spec[state] ?? spec.default ?? null;
+  }
+
+  // 4) Base de índice (0 = default, 1 = humano)
+  const indexBase =
+    enemy.config?.hitFrameIndexBase ?? enemy.hitFrameIndexBase ?? 0;
+  const toZeroBased = (n) => (n | 0) - (indexBase === 1 ? 1 : 0); // 1→0, 2→1 se base for 1
+
+  console.log(spec);
+  // 5) Atalhos textuais
+  if (spec === "last" || spec === -1) return count ? [count - 1] : null;
+  if (spec === "middle" || spec === "mid")
+    return count ? [Math.floor((count - 1) / 2)] : null;
+
+  // 6) Normalização (número/array) + clamp seguro
+  const clamp = (n) => {
+    const z = toZeroBased(n);
+    if (!Number.isFinite(z)) return null;
+    if (count <= 0) return null;
+    return Math.max(0, Math.min(count - 1, z));
+  };
+
+  if (Array.isArray(spec)) {
+    const arr = spec
+      .map(clamp)
+      .filter((v) => v != null)
+      .sort((a, b) => a - b);
+    return arr.length ? Array.from(new Set(arr)) : count ? [count - 1] : null;
+  }
+
+  if (spec != null) {
+    const v = clamp(spec);
+    if (v != null) return [v];
+    // se veio algo inválido, caímos para "last" só como fallback final
+    return count ? [count - 1] : null;
+  }
+
+  // 7) Nada fornecido → fallback "last"
+  return count ? [count - 1] : null;
+}
+
 // -----------------------------------------------------------------------------
 
 export const CollisionManager = {
@@ -313,30 +370,67 @@ export const CollisionManager = {
 
       enemy.x = desiredStopX;
       enemy.speed = 0;
+
+      // ===== cooldown gate =====
+      const canAtk =
+        typeof enemy.canAttack === "function"
+          ? enemy.canAttack()
+          : (enemy.cooldownTimer ?? 0) <= 0;
+
+      // Se está em cooldown, fica em IDLE (parado) e não reentra em 'attack'
+      if (!canAtk) {
+        if (enemy.state !== "idle") {
+          enemy.state = "idle";
+          enemy.frameIndex = 0;
+          enemy._lastFI = undefined;
+          enemy._didTriggerThisCycle = false;
+          enemy._firedFramesCycle = undefined;
+        }
+        return;
+      }
+
+      // Pronto para atacar → entra em 'attack' apenas quando pode
       if (enemy.state !== "attack") {
         enemy.state = "attack";
-        enemy.frameIndex = 0; // 👈 garante ciclo completo
+        enemy.frameIndex = 0; // garante ciclo completo
+        const atkInt = enemy.animacoes?.attack?.frameInterval ?? 1;
+        enemy.frameTick = Math.floor(Math.random() * atkInt);
         enemy._lastFI = undefined;
         enemy._didTriggerThisCycle = false;
+        enemy._firedFramesCycle = undefined;
       }
 
-      // CollisionManager.inimigosAtacam(...)
-      // opcional: defina como padrão 'last' se quiser sempre bater no fim
-      let hitFrames = enemy.hitFrame ?? enemy.config?.hitFrame ?? "last";
+      // Frames que disparam o hit + detecção de loop da animação
+      const hitFrames = resolveHitFrames(enemy, "attack");
+      const { framesNow, looped } = getTriggeredFramesThisTick(
+        enemy,
+        hitFrames,
+        "attack"
+      );
 
-      if (hitFrames === "last" || hitFrames === -1) {
-        const atkFrames =
-          (enemy.framesByState && enemy.framesByState.attack) ||
-          enemy.frames ||
-          [];
-        hitFrames = atkFrames.length ? [atkFrames.length - 1] : null; // ex.: [7] se tiver 8 frames
+      // Aplica dano quando atingir os frames configurados
+      if (framesNow.length > 0) {
+        enemy.attack(alvo);
+        if (alvo.hp <= 0) alvo.startDeath?.();
       }
 
-      if (enemy.canAttack && enemy.canAttack()) {
-        if (shouldTriggerThisFrame(enemy, hitFrames, "attack")) {
-          enemy.attack(alvo);
-          if (alvo.hp <= 0) alvo.startDeath?.();
-        }
+      // Quando o ciclo de 'attack' termina, entra em IDLE e inicia cooldown
+      if (looped) {
+        const cd =
+          enemy.cooldownOnFinish ??
+          enemy.config?.cooldownOnFinish ??
+          enemy.config?.cooldown ??
+          enemy.cooldown ??
+          0;
+
+        if (cd > 0) enemy.cooldownTimer = cd;
+
+        enemy.state = "idle";
+        enemy.frameIndex = 0;
+        enemy._lastFI = undefined;
+        enemy._didTriggerThisCycle = false;
+        enemy._firedFramesCycle = undefined;
+        return; // não continua este tick
       }
 
       // se estiver em cooldown, fica apenas animando "attack"

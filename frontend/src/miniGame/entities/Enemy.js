@@ -8,6 +8,10 @@ export class Enemy {
   constructor(tipo, row, x = 1024) {
     const config = enemyTypes[tipo];
     console.log(config);
+
+    // ---- guarde a config na instância (para CollisionManager ler) ----
+    this.config = config;
+
     this.id = Date.now();
     this.tipo = tipo;
     this.row = row;
@@ -17,17 +21,24 @@ export class Enemy {
     this.baseSpeed = this.speed;
     this.dano = config.dano;
     this.cooldown = config.cooldown;
-    this.alcance = config.alcance || 20;
+    this.cooldownOnFinish = config.cooldownOnFinish ?? config.cooldown;
+
+    this.alcance = config.alcance ?? 20;
     this.cor = config.cor;
     this.x = x;
     this.hitTimer = 0;
 
-    // Controle de ataque
-    this.cooldownTimer = 0; // frames até próximo ataque
+    // Controle de ataque (timer que de fato conta pra atacar de novo)
+    this.cooldownTimer = 0;
+
+    // >>> expose também os campos usados na resolveHitFrames (opcional, mas útil)
+    this.hitFrame = config.hitFrame; // ex.: 18
+    this.hitFrameIndexBase = config.hitFrameIndexBase ?? 0; // 0 (default) ou 1
 
     // estado/anim
     this.state = "walking";
     this.framesByState = enemyAnimations[tipo];
+    this.animacoes = config.animacoes; // se você quiser ler daqui
     this.frameIndex = 0;
     this.frameTick = 0;
   }
@@ -49,12 +60,6 @@ export class Enemy {
     if (!this.canAttack()) return;
     // aplica dano
     tropa.takeDamage(this.dano);
-
-    // inicia cooldown e coloca no estado "attack" (anim de ataque toca agora)
-    this.cooldownTimer = this.cooldown;
-    this.state = "attack";
-    this.frameIndex = 0;
-    this.frameTick = 0;
   }
 
   updatePosition() {
@@ -77,10 +82,10 @@ export class Enemy {
     this.updateAnimation();
   }
 
+  // src/entities/Enemy.js
+
   updateAnimation() {
-    const animCfg = enemyTypes[this.tipo].animacoes?.[this.state] || {
-      frameInterval: 8,
-    };
+    const animCfg = this.animacoes?.[this.state] || { frameInterval: 8 };
     const frames = this.framesByState?.[this.state] || [];
     const interval = animCfg.frameInterval || 8;
 
@@ -89,12 +94,10 @@ export class Enemy {
       this.frameTick = 0;
       this.frameIndex++;
 
-      if (this.frameIndex >= frames.length) {
-        // se acabou o ataque, volta para idle (ou walking será setado pelo CollisionManager)
-        if (this.state === "attack") {
-          this.state = "idle";
-        }
-        this.frameIndex = 0;
+      // 👇 Apenas faz wrap; NÃO muda o estado aqui
+      const len = frames.length || 1;
+      if (this.frameIndex >= len) {
+        this.frameIndex = 0; // loop
       }
     }
   }

@@ -19,20 +19,22 @@ export const enemyTypes = {
     },
     hitFrame: "last", // ou -1
   },
-  alienVermelho: {
-    nome: "alien",
+  crix: {
+    nome: "crix",
     hp: 10,
     alcance: 1,
-    speed: 3,
+    speed: 2,
     dano: 2,
     cooldown: 60,
     cor: "purple",
     estados: ["walking", "attack", "idle"],
     animacoes: {
-      walking: { frameCount: 3, frameInterval: 8 },
-      attack: { frameCount: 3, frameInterval: 6 },
-      idle: { frameCount: 3, frameInterval: 10 },
+      walking: { frameCount: 29, frameInterval: 2 },
+      attack: { frameCount: 50, frameInterval: 1 },
+      idle: { frameCount: 38, frameInterval: 2 },
     },
+    hitFrameIndexBase: 1, // << usa contagem humana (1..50)
+    hitFrame: "middle", // ou -1
   },
   /*
   robot: {

@@ -2291,7 +2291,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               linhasValidasParaSpawn[
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
-            const tiposDisponiveis = [/*"alienVermelho",*/ "medu"];
+            const tiposDisponiveis = ["crix", "medu"];
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)
