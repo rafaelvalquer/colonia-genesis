@@ -151,7 +151,6 @@ function ParameterPanel({
       imagem: "/images/colono.png",
       custo: {
         comida: 20,
-        agua: 15,
       },
     },
     {
@@ -175,7 +174,8 @@ function ParameterPanel({
       imagem: "/images/marine.png",
       custo: {
         comida: 30,
-        agua: 20,
+        energia: 10,
+        agua: 1,
       },
     },
     {
@@ -184,8 +184,9 @@ function ParameterPanel({
       descricao: "Unidade de ataque à distância.",
       imagem: "/images/sniper.png",
       custo: {
-        comida: 25,
-        agua: 15,
+        comida: 20,
+        energia: 20,
+        agua: 2,
       },
     },
     {
@@ -1241,11 +1242,11 @@ function ParameterPanel({
                           };
                         }
                         case "energia": {
-                          const out = n * 1;
+                          const out = n * 3;
                           return {
                             valor: out,
                             unidade: "energia/turno",
-                            detalhe: `${n}×1`,
+                            detalhe: `${n}×3`,
                           };
                         }
                         default:

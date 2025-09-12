@@ -107,7 +107,67 @@ function StatusPanel({ estado, onEstadoChange }) {
       label: "Água",
       value: `${estado.agua}/${estado.maxAgua}`,
       icon: <FaTint />,
+      tooltip: (
+        <div
+          className="absolute z-20 left-0 mt-2 w-64 p-3 bg-gray-800 rounded-lg shadow-xl 
+opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+border border-gray-700 text-white"
+        >
+          {(() => {
+            const agua = Math.max(0, Number(estado.agua || 0));
+            const maxAgua = Math.max(1, Number(estado.maxAgua || 1));
+            const pct = Math.min(100, Math.round((agua / maxAgua) * 100));
+
+            return (
+              <div className="text-sm space-y-2">
+                {/* CSS local no mesmo arquivo */}
+                <style>{`
+              @keyframes aguaWave {
+                from { background-position: 0 0, 0 0; }
+                to   { background-position: 200px 0, -200px 0; }
+              }
+              .agua-fill {
+                background: linear-gradient(to top, #0891b2 0%, #06b6d4 60%, #67e8f9 100%);
+                transition: width .4s ease;
+              }
+              .agua-waves {
+                background-image:
+                  radial-gradient(circle at 25% 120%, rgba(255,255,255,.35) 22%, transparent 23%),
+                  radial-gradient(circle at 75% 120%, rgba(255,255,255,.25) 22%, transparent 23%);
+                background-size: 60px 40px, 60px 40px;
+                background-repeat: repeat-x;
+                animation: aguaWave 3s linear infinite;
+                opacity: .5;
+                mix-blend-mode: screen;
+              }
+            `}</style>
+
+                <div className="flex items-center justify-between">
+                  <span>Reservatório</span>
+                  <span>
+                    {agua}/{maxAgua} ({pct}%)
+                  </span>
+                </div>
+
+                <div className="relative h-6 w-full rounded bg-slate-700 overflow-hidden border border-slate-600">
+                  <div
+                    className="relative h-full agua-fill"
+                    style={{ width: `${pct}%` }}
+                  >
+                    <div className="absolute inset-0 agua-waves" />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-100">
+                    {pct}%
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ),
     },
+
     {
       label: "População",
       value: somaPopulacao,

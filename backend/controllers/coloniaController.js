@@ -54,8 +54,25 @@ exports.criarColonia = async (req, res) => {
       filaConstrucoes: [],
       filaMissoes: [],
       pesquisa: [],
-    };
 
+      battleCampaign: {
+        currentMissionId: "fase_01",
+        index: 0,
+        attempts: 0,
+        lastOutcome: null,
+        lastPlayedAt: null,
+        seed: Date.now(),
+        history: {
+          fase_01: {
+            attempts: 0,
+            victories: 0,
+            defeats: 0,
+            lastOutcome: null,
+            lastPlayedAt: null,
+          },
+        },
+      },
+    };
     const novaColonia = await Colonia.create(defaults);
     return res.status(201).json(novaColonia);
   } catch (error) {

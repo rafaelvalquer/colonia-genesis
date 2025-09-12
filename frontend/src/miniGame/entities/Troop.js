@@ -7,16 +7,16 @@ export const troopTypes = {
     preco: 10,
     hp: 5,
     alcance: 5,
-    cooldown: 50,
-    dano: 2,
+    cooldown: 20,
+    dano: 1,
     retornaAoFinal: true,
     cor: "#8D6E63",
     corProjetil: "yellow",
-    velocidadeProjetil: 5,
+    velocidadeProjetil: 6,
     estados: ["idle", "attack"],
     animacoes: {
       idle: { frameCount: 25, frameInterval: 4 },
-      attack: { frameCount: 37, frameInterval: 4 },
+      attack: { frameCount: 37, frameInterval: 3 },
     },
     muzzle: {
       units: "spritePx", // interpreta offsets no espaço do sprite
@@ -25,7 +25,7 @@ export const troopTypes = {
     fireFrame: [7], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
     deployCost: 3,
-    deployCooldownMs: 2000,
+    deployCooldownMs: 4000,
   },
   marine: {
     preco: 15,
@@ -49,7 +49,7 @@ export const troopTypes = {
     fireFrame: [8, 23, 38], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
     deployCost: 5,
-    deployCooldownMs: 2500,
+    deployCooldownMs: 5000,
   },
   sniper: {
     preco: 20,
@@ -73,7 +73,7 @@ export const troopTypes = {
     fireFrame: [12], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
     deployCost: 7,
-    deployCooldownMs: 3000,
+    deployCooldownMs: 6000,
   },
   muralhaReforcada: {
     preco: 15,

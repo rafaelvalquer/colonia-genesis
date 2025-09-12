@@ -162,7 +162,41 @@ const skillDistribuicaoSchema = new mongoose.Schema(
   { _id: false }
 );
 
-/** ---------------------------------------------- */
+const battleCampaignSchema = new mongoose.Schema(
+  {
+    currentMissionId: { type: String, default: "fase_01" },
+    index: { type: Number, default: 0 }, // índice numérico (0 para fase_01, 1 para fase_02...)
+    attempts: { type: Number, default: 0 }, // tentativas globais
+    lastOutcome: {
+      type: String,
+      enum: ["victory", "defeat", null],
+      default: null,
+    },
+    lastPlayedAt: { type: Number, default: null },
+    seed: { type: Number, default: () => Date.now() },
+    history: {
+      type: Map,
+      of: new mongoose.Schema(
+        {
+          attempts: { type: Number, default: 0 },
+          victories: { type: Number, default: 0 },
+          defeats: { type: Number, default: 0 },
+          lastOutcome: {
+            type: String,
+            enum: ["victory", "defeat", null],
+            default: null,
+          },
+          lastPlayedAt: { type: Number, default: null },
+        },
+        { _id: false }
+      ),
+      default: {},
+    },
+  },
+  { _id: false }
+);
+
+/* ---------------------------------------------- */
 
 const coloniaSchema = new mongoose.Schema({
   nome: { type: String, required: true },
@@ -207,11 +241,12 @@ const coloniaSchema = new mongoose.Schema({
 
   skillsDistribuicao: { type: skillDistribuicaoSchema, default: () => ({}) },
 
-  /** NOVO: módulo hospital */
   hospital: {
     type: hospitalSchema,
     default: () => ({ fila: [], internados: [], historicoAltas: [] }),
   },
+
+  battleCampaign: { type: battleCampaignSchema, default: () => ({}) },
 
   filaConstrucoes: [filaConstrucaoSchema],
   filaMissoes: [filaMissoesSchema],

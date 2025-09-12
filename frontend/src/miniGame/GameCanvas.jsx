@@ -1,8 +1,11 @@
 // GameCanvas.jsx
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { Troop, troopTypes, troopAnimations } from "./entities/Troop";
 import { Enemy } from "./entities/Enemy";
-import { waveConfig } from "./entities/WaveConfig";
+import {
+  getNextMissionId,
+  getWaveConfigByMissionId,
+} from "./entities/WaveConfig";
 import { tileCols, tileRows } from "./entities/Tiles";
 import { CollisionManager } from "./engine/CollisionManager";
 import {
@@ -251,6 +254,7 @@ const SUPPLY_CFG = {
 
 //#region Game Canvas
 const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
+  console.log(estadoAtual);
   const boxRef = useRef(null);
   const canvasRef = useRef(null);
   const hudRectsRef = useRef(null);
@@ -260,6 +264,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     projectilePool: [],
     particles: [],
   });
+
+  const missionId = estadoAtual?.battleCampaign?.currentMissionId ?? "fase_01";
+
+  const waveConfig = useMemo(
+    () => getWaveConfigByMissionId(missionId),
+    [missionId]
+  );
+
   // efeitos visuais do HUD (pulses por tipo + textos flutuantes)
   const hudFxRef = useRef({
     pulses: {}, // { [tipo]: { t0, dur, delta } }
@@ -587,13 +599,75 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       : 100;
     const novaIntegridade = Math.max(0, integridadeAtual - perdaIntegridade);
 
-    // monta estado novo (energia/população/hospital + integridade)
+    // === atualizar campanha (battleCampaign) ===
+    const bc = estadoAtual.battleCampaign ?? {
+      attempts: 0,
+      index: 0,
+      currentMissionId: "fase_01",
+      seed: Date.now(),
+      lastOutcome: null,
+      lastPlayedAt: null,
+      history: {},
+    };
+    const now = Date.now();
+    const currentId = bc.currentMissionId || "fase_01";
+
+    // histórico da fase atual
+    const faseHist = bc.history?.[currentId] || {
+      attempts: 0,
+      victories: 0,
+      defeats: 0,
+      lastOutcome: null,
+      lastPlayedAt: null,
+    };
+
+    const updatedFaseHist = {
+      ...faseHist,
+      attempts: faseHist.attempts + 1,
+      victories: faseHist.victories + (tipo === "vitoria" ? 1 : 0),
+      defeats: faseHist.defeats + (tipo === "derrota" ? 1 : 0),
+      lastOutcome: tipo === "vitoria" ? "victory" : "defeat",
+      lastPlayedAt: now,
+    };
+
+    let updatedCampaign = {
+      ...bc,
+      attempts: (bc.attempts ?? 0) + 1,
+      lastOutcome: tipo === "vitoria" ? "victory" : "defeat",
+      lastPlayedAt: now,
+      history: {
+        ...bc.history,
+        [currentId]: updatedFaseHist,
+      },
+    };
+
+    if (tipo === "vitoria") {
+      const nextId = getNextMissionId(bc.currentMissionId);
+      if (nextId && nextId !== bc.currentMissionId) {
+        updatedCampaign.currentMissionId = nextId;
+        updatedCampaign.index = (bc.index ?? 0) + 1;
+
+        // inicializa histórico da próxima fase se não existir
+        if (!updatedCampaign.history[nextId]) {
+          updatedCampaign.history[nextId] = {
+            attempts: 0,
+            victories: 0,
+            defeats: 0,
+            lastOutcome: null,
+            lastPlayedAt: null,
+          };
+        }
+      }
+    }
+
+    // montar estado final (inclui battleCampaign)
     const novoEstado = {
       ...estadoAtual,
       energia: energiaRef.current,
       populacao: novaPopulacao,
       hospital: novoHospital,
       integridadeEstrutural: novaIntegridade,
+      battleCampaign: updatedCampaign, // <<< AQUI
     };
 
     await atualizarEstado(novoEstado, true); // sincroniza backend
@@ -631,6 +705,20 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         integridadeFinal: novaIntegridade, // << novo
       });
       setOpenDialogDerrota(true);
+    } else {
+      // VITÓRIA
+      setDadosVitoria({
+        inimigosMortos: inimigosTotaisRef.current,
+        tropasRetornadas: tropasParaRetornar,
+        feridos: {
+          total: feridosLeves + feridosGraves,
+          leve: feridosLeves,
+          grave: feridosGraves,
+        },
+        feridosPorTipo,
+      });
+      setOpenDialog(true);
+      setJogoEncerrado(true);
     }
   };
 
@@ -702,6 +790,29 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     return { x: baseX + dx, y: baseY + dy };
   }
+
+  const spawnOneEnemyNow = () => {
+    const total = waveConfig.quantidadePorOnda(onda);
+    if (inimigosCriadosRef.current >= total) return false;
+
+    const linhas = obterLinhasDeCombateValidas();
+    const row = linhas[Math.floor(Math.random() * linhas.length)];
+
+    const tipos = waveConfig?.tiposPorOnda?.(onda) ?? ["medu"];
+    const tipo = tipos[Math.floor(Math.random() * tipos.length)];
+
+    const enemy = new Enemy(tipo, row);
+    const mapGeom = getMapGeom(canvasRef.current);
+
+    enemy.x = mapGeom.w + 10;
+    enemy.opacity = 0;
+    enemy.__spawn = { t0: performance.now(), dur: 450 };
+
+    gameRef.current.inimigos.push(enemy);
+    inimigosCriadosRef.current += 1;
+    inimigosTotaisRef.current += 1;
+    return true;
+  };
 
   //#region Desenho
   // ===== desenho
@@ -1438,7 +1549,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         // ====== SOMBRA ======
         {
           const baseX = e.x;
-          const feetY = y + alturaDesejada / 2 - 2;
+          const feetY = y + alturaDesejada / 2 - 2 + (e.__sink || 0);
           const rx = tileWidth * 0.34;
           const ry = tileHeight * 0.14;
           const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9;
@@ -1476,6 +1587,16 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           if (p >= 1) delete e.__spawn; // terminou a animação
         }
 
+        // Fade-out/encolhe/afunda na morte
+        if (e.__death) {
+          const now = performance.now();
+          const p = Math.min(1, (now - e.__death.t0) / e.__death.dur);
+          const ease = 1 - Math.pow(1 - p, 3); // easeOutCubic
+          e.opacity = 1 - ease; // some
+          pop *= 1 - 0.2 * ease; // encolhe um pouco
+          e.__sink = 10 * ease; // afunda levemente
+        }
+
         const src = img.__bmp || img;
         const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
         const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
@@ -1485,21 +1606,23 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           h = ih * scale;
 
         ctx.globalAlpha = e.opacity ?? 1; // <<< usa opacidade
-        ctx.drawImage(src, e.x - w / 2, y - h / 2, w, h);
+        ctx.drawImage(src, e.x - w / 2, y - h / 2 + (e.__sink || 0), w, h);
         ctx.restore();
 
         // barra de vida...
-        const barWidth = 30,
-          barHeight = 4;
-        const barX = e.x - barWidth / 2,
-          barY = y - 30;
-        ctx.fillStyle = "red";
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-        ctx.fillStyle = "lime";
-        ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
-        ctx.strokeStyle = "black";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        if (!e.__death) {
+          const barWidth = 30,
+            barHeight = 4;
+          const barX = e.x - barWidth / 2,
+            barY = y - 30;
+          ctx.fillStyle = "red";
+          ctx.fillRect(barX, barY, barWidth, barHeight);
+          ctx.fillStyle = "lime";
+          ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
+          ctx.strokeStyle = "black";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(barX, barY, barWidth, barHeight);
+        }
       });
 
       //************************************** */
@@ -1986,9 +2109,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       if (within(hud.waveBtn, x, y)) {
         if (modoPreparacao) {
           setModoPreparacao(false);
-          setContadorSpawn(0);
           inimigosCriadosRef.current = 0;
-          lastSupplyGTRef.current = gameTimeRef.current; // ancora regen no início da onda
+          lastSupplyGTRef.current = gameTimeRef.current;
+
+          // spawn imediato do primeiro inimigo
+          spawnOneEnemyNow();
+
+          // próximos spawns respeitam a cadence normalmente
+          setContadorSpawn(0);
         }
         return;
       }
@@ -2266,20 +2394,63 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         if (jogoEncerrado || modoPreparacao) return;
         const { inimigos } = gameRef.current;
 
-        gameRef.current.inimigos = inimigos
-          .map((e) => {
-            e.updatePosition();
-            return e;
-          })
-          .filter((e) => !e.isDead());
+        // Atualiza posição (não move quem está morrendo)
+        gameRef.current.inimigos = inimigos.map((e) => {
+          if (!e.__death) e.updatePosition?.();
+          return e;
+        });
 
         CollisionManager.inimigosAtacam(gameRef.current);
-        if (gameRef.current.inimigos.some((e) => e.x <= 50)) {
+        if (gameRef.current.inimigos.some((e) => !e.__death && e.x <= 50)) {
           setJogoEncerrado(true);
           return;
         }
         CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
         CollisionManager.tropasAtacam(gameRef.current);
+
+        // Dispara a animação de morte para quem acabou de morrer
+        const mapGeom = getMapGeom(canvasRef.current);
+        gameRef.current.inimigos.forEach((e) => {
+          if ((e.hp ?? 0) <= 0 && !e.__death) {
+            e.__death = { t0: performance.now(), dur: 520 }; // ms
+            e.opacity = 1;
+            // Partículas no ponto (anéis + faíscas)
+            const cy = e.row * mapGeom.tileHeight + mapGeom.tileHeight / 2;
+
+            for (let i = 0; i < 3; i++) {
+              gameRef.current.particles.push({
+                kind: "ring",
+                x: e.x,
+                y: cy,
+                t: 0,
+                max: 12 + i * 7,
+                cor: i === 0 ? "rgba(255,80,80,1)" : "rgba(255,255,255,0.9)",
+              });
+            }
+            for (let i = 0; i < 14; i++) {
+              const ang = Math.random() * Math.PI * 2;
+              const spd = 1 + Math.random() * 2.2;
+              gameRef.current.particles.push({
+                kind: "spark",
+                x: e.x,
+                y: cy,
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd * 0.7 - 0.2,
+                g: 0.06,
+                t: 0,
+                max: (18 + Math.random() * 14) | 0,
+                cor: "rgba(255,200,80,1)",
+              });
+            }
+          }
+        });
+
+        // Remove só quando a animação terminar
+        gameRef.current.inimigos = gameRef.current.inimigos.filter((e) => {
+          if (!e.__death) return true;
+          const p = (performance.now() - e.__death.t0) / e.__death.dur;
+          return p < 1;
+        });
 
         setContadorSpawn((prev) => {
           const novo = prev + 1;
@@ -2292,7 +2463,11 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               linhasValidasParaSpawn[
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
               ];
-            const tiposDisponiveis = ["krulax", "crix", "medu"];
+
+            const tiposDisponiveis = waveConfig?.tiposPorOnda?.(onda) ?? [
+              "medu",
+            ];
+
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)
@@ -2356,94 +2531,15 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const todosInimigosMortos = gameRef.current.inimigos.length === 0;
         const todosInimigosGerados =
           inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
+
         if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
-          if (onda === 2) {
-            setJogoEncerrado(true);
-            clearInterval(loopId);
-            const tropasEmCampo = gameRef.current.tropas;
-            const tropasParaRetornar = {};
-            const novosPacientes = [];
-            tropasEmCampo.forEach((tropa, idx) => {
-              const tipo = tropa.tipo,
-                cfg = troopTypes[tipo];
-              if (!cfg?.retornaAoFinal) return;
-              const hpAtual = Number.isFinite(tropa.hp)
-                ? tropa.hp
-                : tropa.hp?.current ?? 0;
-              const hpMax = Number.isFinite(tropa.maxHp)
-                ? tropa.maxHp
-                : tropa.hp?.max ?? tropa.config?.hp ?? 1;
-              const ratio = hpMax > 0 ? hpAtual / hpMax : 1;
-              tropasParaRetornar[tipo] = (tropasParaRetornar[tipo] || 0) + 1;
-              if (ratio < 1) {
-                const severidade = ratio >= 0.5 ? "leve" : "grave";
-                novosPacientes.push({
-                  id: `pac_${estadoAtual.turno}_${Date.now()}_${idx}`,
-                  tipo: "colono",
-                  refId: null,
-                  severidade,
-                  entrouEm: Date.now(),
-                  turnosRestantes: severidade === "grave" ? 3 : 1,
-                  origem: `combate_${tipo}`,
-                  status: "fila",
-                });
-              }
-            });
+          const totalOndas =
+            waveConfig?.totalOndas ??
+            (Array.isArray(waveConfig?.waves) ? waveConfig.waves.length : 1);
+          const eUltimaOnda = onda >= totalOndas;
 
-            const hospitalAtual = estadoAtual.hospital ?? {
-              fila: [],
-              internados: [],
-              historicoAltas: [],
-            };
-            const novoHospital = {
-              ...hospitalAtual,
-              fila: [...(hospitalAtual.fila || []), ...novosPacientes],
-            };
-            const novaPopulacao = { ...estadoAtual.populacao };
-            Object.entries(tropasParaRetornar).forEach(([t, qtd]) => {
-              if (t === "colono") novaPopulacao.colonos += qtd;
-              if (t === "marine") novaPopulacao.marines += qtd;
-              if (t === "sniper") novaPopulacao.snipers += qtd;
-            });
-
-            const novoEstado = {
-              ...estadoAtual,
-              energia: energiaRef.current,
-              populacao: novaPopulacao,
-              hospital: novoHospital,
-            };
-            await atualizarEstado(novoEstado, true);
-
-            const feridosLeves = novosPacientes.filter(
-              (p) => p.severidade === "leve"
-            ).length;
-            const feridosGraves = novosPacientes.filter(
-              (p) => p.severidade === "grave"
-            ).length;
-            const feridosPorTipo = novosPacientes.reduce((acc, p) => {
-              let t = "desconhecido";
-              if (
-                typeof p.origem === "string" &&
-                p.origem.startsWith("combate_")
-              )
-                t = p.origem.replace("combate_", "");
-              if (!acc[t]) acc[t] = { leve: 0, grave: 0, total: 0 };
-              acc[t][p.severidade] += 1;
-              acc[t].total += 1;
-              return acc;
-            }, {});
-
-            setDadosVitoria({
-              inimigosMortos: inimigosTotaisRef.current,
-              tropasRetornadas: tropasParaRetornar,
-              feridos: {
-                total: feridosLeves + feridosGraves,
-                leve: feridosLeves,
-                grave: feridosGraves,
-              },
-              feridosPorTipo,
-            });
-            setOpenDialog(true);
+          if (eUltimaOnda) {
+            await finalizarRodada("vitoria"); // <<< agora centraliza aqui
           } else {
             setModoPreparacao(true);
             setOnda((o) => o + 1);
@@ -2452,7 +2548,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       })();
     }, 32);
     return () => clearInterval(loopId);
-  }, [jogoEncerrado, onda, modoPreparacao]);
+  }, [jogoEncerrado, onda, modoPreparacao, waveConfig]);
 
   return (
     <div
