@@ -119,13 +119,28 @@ border border-gray-700 text-white"
             const maxAgua = Math.max(1, Number(estado.maxAgua || 1));
             const pct = Math.min(100, Math.round((agua / maxAgua) * 100));
 
+            // progresso do “próximo minuto”
+            const rateMs = Number(estado?.water?.rateMs ?? 60000);
+            const nextAt = Number(estado?.water?.nextAt ?? 0);
+            const now = Date.now();
+            const remaining = Math.max(0, nextAt ? nextAt - now : 0);
+            const pctMinuteStart = nextAt
+              ? Math.min(
+                  100,
+                  Math.max(0, Math.round((1 - remaining / rateMs) * 100))
+                )
+              : 0;
+
             return (
               <div className="text-sm space-y-2">
-                {/* CSS local no mesmo arquivo */}
                 <style>{`
               @keyframes aguaWave {
                 from { background-position: 0 0, 0 0; }
                 to   { background-position: 200px 0, -200px 0; }
+              }
+              @keyframes minuteFill {
+                from { width: var(--start, 0%); }
+                to   { width: 100%; }
               }
               .agua-fill {
                 background: linear-gradient(to top, #0891b2 0%, #06b6d4 60%, #67e8f9 100%);
@@ -150,6 +165,7 @@ border border-gray-700 text-white"
                   </span>
                 </div>
 
+                {/* barra principal com ondas */}
                 <div className="relative h-6 w-full rounded bg-slate-700 overflow-hidden border border-slate-600">
                   <div
                     className="relative h-full agua-fill"
@@ -160,6 +176,22 @@ border border-gray-700 text-white"
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-100">
                     {pct}%
                   </div>
+
+                  {/* faixa de carregamento até o próximo +1 de água */}
+                  {nextAt ? (
+                    <div
+                      className="absolute left-0 bottom-0 h-1 bg-cyan-400/80"
+                      style={{
+                        "--start": `${pctMinuteStart}%`,
+                        animation: `minuteFill ${remaining}ms linear forwards`,
+                      }}
+                    />
+                  ) : null}
+                </div>
+
+                <div className="text-xs text-slate-400 pt-1">
+                  +1 a cada {Math.round(rateMs / 1000)}s quando abaixo do
+                  máximo.
                 </div>
               </div>
             );

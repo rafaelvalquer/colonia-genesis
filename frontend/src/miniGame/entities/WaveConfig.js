@@ -9,14 +9,14 @@ export const missionDefs = {
     waves: [
       { enemies: [{ type: "medu", count: 5 }] },
       { enemies: [{ type: "medu", count: 10 }] },
-      /*{ enemies: [{ type: "krulax", count: 10 }] },
+      { enemies: [{ type: "krulax", count: 10 }] },
       {
         enemies: [
           { type: "medu", count: 8 },
           { type: "krulax", count: 6 },
         ],
       },
-      { enemies: [{ type: "crix", count: 12 }] }, */
+      { enemies: [{ type: "crix", count: 12 }] },
     ],
   },
 

@@ -1,3 +1,4 @@
+//src/App.jsx
 import { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import ParameterPanel from "./components/ParameterPanel";
@@ -11,6 +12,7 @@ import Box from "@mui/material/Box";
 import Slide from "@mui/material/Slide";
 import AuthPage from "./pages/AuthPage"; // nova página de login
 import coloniaService from "./services/coloniaService";
+import useWaterTicker from "./hooks/useWaterTicker";
 import MiniGamePage from "./pages/TowerDefensePage.jsx"; // novo
 import { useNavigate } from "react-router-dom";
 
@@ -39,35 +41,67 @@ function GamePage({
     buscarColoniaAtualizada();
   }, []);
 
+  // revalidação no tick do servidor
+  const refetchEstado = async () => {
+    try {
+      if (!estadoAtual?._id) return;
+      const d = await coloniaService.getEstado(estadoAtual._id);
+      setEstadoAtual(d);
+      setFilaConstrucoes(d.filaConstrucoes || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  useWaterTicker({
+    nextAt: estadoAtual?.water?.nextAt ?? null,
+    rateMs: estadoAtual?.water?.rateMs ?? 60000,
+    onTick: refetchEstado,
+  });
+
+  // App.jsx (dentro de GamePage)
   const handleParametrosChange = async (parametrosSelecionados) => {
     try {
-      const {
-        novoEstado,
-        novaFila,
-        turnReport, // <- relatório do turno para o ParameterPanel
-      } = runSimulationTurn(
-        estadoAtual,
+      const consumo = Number(parametrosSelecionados.agua) || 1;
+      const custoAgua =
+        Number(parametrosSelecionados.custoAgua) ??
+        (consumo === 0.5 ? 5 : consumo === 1.5 ? 20 : 10);
+
+      // valida e debita água
+      if (custoAgua > 0) {
+        if ((estadoAtual.agua ?? 0) < custoAgua) {
+          showSnackbar(
+            "❌ Água insuficiente para aplicar os parâmetros.",
+            "error"
+          );
+          // lança no formato esperado pelo catch do ParameterPanel
+          throw { response: { status: 409 }, message: "agua_insuficiente" };
+        }
+      }
+
+      const estadoComDebito = {
+        ...estadoAtual,
+        agua: Math.max(0, (estadoAtual.agua ?? 0) - (custoAgua || 0)),
+      };
+
+      const { novoEstado, novaFila, turnReport } = runSimulationTurn(
+        estadoComDebito, // <<< usa estado já debitado
         parametrosSelecionados,
         scenarioList?.[0],
         parametrosSelecionados.filaConstrucoes ?? estadoAtual.filaConstrucoes,
         buildings
       );
 
-      // Atualiza estados locais
       setEstadoAtual(novoEstado);
       setFilaConstrucoes(novaFila);
 
-      // Persiste no backend
       await coloniaService.atualizarColonia(
         novoEstado._id ?? estadoAtual._id,
         novoEstado
       );
-
-      // Retorna o relatório para quem chamou (ParameterPanel vai usar nos steps)
       return turnReport;
     } catch (err) {
-      console.error("Erro ao simular/atualizar colônia:", err);
-      throw err; // permite que o chamador trate o erro (ex.: mostrar toast)
+      // propaga para o ParameterPanel abrir o modal de água se for 409
+      throw err;
     }
   };
 
@@ -133,9 +167,26 @@ function GamePage({
       populacao: { ...estadoAtual.populacao },
     };
 
+    // debita água no servidor primeiro
+    const aguaCost = Math.min(custo.agua || 0, 100);
+    if (aguaCost > 0) {
+      try {
+        const d = await coloniaService.gastarAgua(estadoAtual._id, aguaCost);
+        setEstadoAtual(d);
+        // sincroniza base para descontos locais
+        novoEstado.agua = d.agua;
+      } catch (e) {
+        if (e?.response?.status === 409) {
+          showSnackbar("❌ Água insuficiente para criar.", "error");
+          return;
+        }
+        throw e;
+      }
+    }
+    // desconta demais recursos localmente
     Object.entries(custo).forEach(([recurso, valor]) => {
-      const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
-      novoEstado[recurso] -= valorFinal;
+      if (recurso === "agua") return;
+      novoEstado[recurso] -= valor;
     });
 
     // 3) Ramo normal (colonos, marines etc.)
@@ -198,10 +249,26 @@ function GamePage({
 
     // Atualiza o estado com o desconto dos recursos, limitando a água
     const novoEstado = { ...estadoAtual };
+    // debita água no servidor primeiro
+    const totalAgua = Math.min((custo.agua || 0) * multiplicador, 100);
+    if (totalAgua > 0) {
+      try {
+        const d = await coloniaService.gastarAgua(estadoAtual._id, totalAgua);
+        setEstadoAtual(d);
+        novoEstado.agua = d.agua;
+      } catch (e) {
+        if (e?.response?.status === 409) {
+          showSnackbar("❌ Água insuficiente para construir.", "error");
+          return;
+        }
+        throw e;
+      }
+    }
+    // desconta demais recursos localmente
     Object.entries(custo).forEach(([recurso, valor]) => {
+      if (recurso === "agua") return;
       const total = valor * multiplicador;
-      const valorFinal = recurso === "agua" ? Math.min(total, 100) : total;
-      novoEstado[recurso] -= valorFinal;
+      novoEstado[recurso] -= total;
     });
 
     const novaFila = [

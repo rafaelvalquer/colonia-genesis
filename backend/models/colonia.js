@@ -216,6 +216,8 @@ const coloniaSchema = new mongoose.Schema({
   energia: { type: Number, required: true },
   agua: { type: Number, required: true },
   maxAgua: { type: Number, default: 100 },
+  waterLastTs: { type: Number, default: () => Date.now() },
+  waterRateMs: { type: Number, default: 60000 },
   comida: { type: Number, required: true },
   minerais: { type: Number, required: true },
   saude: { type: Number, required: true },

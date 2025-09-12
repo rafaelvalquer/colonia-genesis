@@ -311,45 +311,35 @@ function ParameterPanel({
     const consumo = consumoAguaOpcoes[aguaIndex].value;
     const aguaNecessaria =
       consumo === 0.5 ? 5 : consumo === 1 ? 10 : consumo === 1.5 ? 20 : 0;
-
-    if (estadoAtual.agua < aguaNecessaria) {
-      setAguaNecessaria(aguaNecessaria);
-      setModalAguaAberto(true);
-      return;
-    }
-
-    // aplica custo de água localmente
-    estadoAtual.agua -= aguaNecessaria;
-
     setLoading(true);
     try {
-      // 1) salva skillsDistribuicao no backend antes da simulação
       const skillsDistribuicao = uiToDb(distribuicao);
       try {
         await coloniaService.atualizarColonia(estadoAtual._id, {
           skillsDistribuicao,
         });
-        // reflete imediatamente na UI do pai (evita "sumir" ao voltar)
-        onEstadoChange?.({
-          ...estadoAtual,
-          skillsDistribuicao,
-        });
+        onEstadoChange?.({ ...estadoAtual, skillsDistribuicao });
       } catch (e) {
         console.error("Falha ao salvar skillsDistribuicao:", e);
-        // segue mesmo assim — o engine também devolve salvo após simular
       }
 
-      // 2) roda a simulação (manda a distribuição atual)
+      // pede ao pai para debitar água no backend antes de simular
       const report = await onChange({
         distribuicao: skillsDistribuicao,
         agua: consumo,
         alocacaoColonos,
         filaConstrucoes: estadoAtual.filaConstrucoes,
         filaMissoes: estadoAtual.filaMissoes,
+        custoAgua: aguaNecessaria,
       });
-
       setTurnReport(report);
       setModalAberto(true);
+    } catch (e) {
+      // opcional: feedback se água foi insuficiente
+      if (e?.response?.status === 409) {
+        setAguaNecessaria(aguaNecessaria);
+        setModalAguaAberto(true);
+      }
     } finally {
       setLoading(false);
     }
