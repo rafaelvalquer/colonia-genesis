@@ -265,6 +265,98 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     particles: [],
   });
 
+  function tryPushEnemyBack(row, col) {
+    const map = getMapGeom(canvasRef.current);
+    const tileW = map.tileWidth,
+      tileH = map.tileHeight;
+
+    // procura inimigo exatamente no tile onde a tropa foi solta
+    const e = gameRef.current.inimigos.find(
+      (en) => !en.__death && en.row === row && Math.floor(en.x / tileW) === col
+    );
+    if (!e) return;
+
+    const toCol = Math.min(tileCols - 1, col + 1);
+    const toX = toCol * tileW + tileW / 2;
+
+    // guarda animação de empurrão
+    e.__knock = { fromX: e.x, toX, t0: performance.now(), dur: 260 };
+    e.__stunUntil = gameTimeRef.current + 260;
+
+    // estado lógico já no tile final (mantém a sua regra de "vai atrás")
+    e.x = toX;
+
+    // FX simples
+    const cy = row * tileH + tileH / 2;
+    gameRef.current.particles.push({
+      kind: "ring",
+      x: toX,
+      y: cy,
+      t: 0,
+      max: 12,
+      cor: "rgba(255,255,255,0.9)",
+    });
+    for (let i = 0; i < 8; i++) {
+      const ang = Math.random() * Math.PI - Math.PI / 2;
+      const spd = 1 + Math.random() * 1.8;
+      gameRef.current.particles.push({
+        kind: "spark",
+        x: toX,
+        y: cy,
+        vx: Math.abs(Math.cos(ang)) * spd,
+        vy: Math.sin(ang) * spd * 0.4,
+        g: 0.05,
+        t: 0,
+        max: (16 + Math.random() * 10) | 0,
+        cor: "rgba(255,200,80,1)",
+      });
+    }
+  }
+
+  // FX: anéis/faíscas ao surgir tropa
+  function emitTroopSpawnFX(row, col) {
+    const map = getMapGeom(canvasRef.current);
+    const tileW = map.tileWidth,
+      tileH = map.tileHeight;
+    const cx = col * tileW + tileW / 2;
+    const cy = row * tileH + tileH / 2;
+
+    // anéis (branco + azul)
+    gameRef.current.particles.push({
+      kind: "ring",
+      x: cx,
+      y: cy,
+      t: 0,
+      max: 12,
+      cor: "rgba(255,255,255,0.95)",
+    });
+    gameRef.current.particles.push({
+      kind: "ring",
+      x: cx,
+      y: cy,
+      t: 0,
+      max: 20,
+      cor: "rgba(96,165,250,0.95)",
+    });
+
+    // faíscas
+    for (let i = 0; i < 10; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 0.8 + Math.random() * 1.6;
+      gameRef.current.particles.push({
+        kind: "spark",
+        x: cx,
+        y: cy,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd * 0.6 - 0.2,
+        g: 0.04,
+        t: 0,
+        max: (16 + Math.random() * 10) | 0,
+        cor: "rgba(96,165,250,1)",
+      });
+    }
+  }
+
   const missionId = estadoAtual?.battleCampaign?.currentMissionId ?? "fase_01";
 
   const waveConfig = useMemo(
@@ -1477,7 +1569,22 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         if (!img?.complete) return;
 
         const alturaDesejada = tileHeight * COVER * SIZE_BOOST;
-        const escala = alturaDesejada / img.height;
+        // spawn: fade-in + “pop”
+        let pop = 1;
+        if (t.__spawn) {
+          const p = Math.min(
+            1,
+            (performance.now() - t.__spawn.t0) / t.__spawn.dur
+          );
+          t.opacity = p; // 0 → 1
+          const c1 = 1.70158,
+            c3 = c1 + 1;
+          const easeOutBack = (x) =>
+            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+          pop = 0.85 + 0.25 * easeOutBack(p);
+          if (p >= 1) delete t.__spawn;
+        }
+        const escala = (alturaDesejada / img.height) * pop;
         const larguraDesejada = img.width * escala;
 
         const baseX = t.col * tileWidth + tileWidth / 2;
@@ -1535,6 +1642,26 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
       // INIMIGOS
       gameRef.current.inimigos.forEach((e) => {
+        const now = performance.now();
+        let drawX = e.x,
+          squashX = 1,
+          squashY = 1,
+          tilt = 0;
+        if (e.__knock) {
+          const p = Math.min(1, (now - e.__knock.t0) / e.__knock.dur);
+          const c1 = 1.70158,
+            c3 = c1 + 1;
+          const easeOutBack = (x) =>
+            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+          const eased = easeOutBack(p);
+          drawX = e.__knock.fromX + (e.__knock.toX - e.__knock.fromX) * eased;
+          const s = Math.sin(Math.PI * Math.min(1, p * 1.2)); // squash no começo
+          squashX = 1 + 0.25 * s; // “achata” no Y e estica no X
+          squashY = 1 - 0.2 * s;
+          tilt = -0.15 * s; // leve inclinação
+          if (p >= 1) delete e.__knock;
+        }
+
         const frames =
           (e.framesByState && e.state && e.framesByState[e.state]) ||
           e.frames ||
@@ -1548,7 +1675,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // ====== SOMBRA ======
         {
-          const baseX = e.x;
+          const baseX = drawX;
           const feetY = y + alturaDesejada / 2 - 2 + (e.__sink || 0);
           const rx = tileWidth * 0.34;
           const ry = tileHeight * 0.14;
@@ -1606,15 +1733,18 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           h = ih * scale;
 
         ctx.globalAlpha = e.opacity ?? 1; // <<< usa opacidade
-        ctx.drawImage(src, e.x - w / 2, y - h / 2 + (e.__sink || 0), w, h);
+        ctx.translate(drawX, y + (e.__sink || 0));
+        ctx.rotate(tilt);
+        ctx.scale(squashX, squashY);
+        ctx.drawImage(src, -w / 2, -h / 2, w, h);
         ctx.restore();
 
         // barra de vida...
         if (!e.__death) {
-          const barWidth = 30,
-            barHeight = 4;
-          const barX = e.x - barWidth / 2,
-            barY = y - 30;
+          const barWidth = 30;
+          const barHeight = 4;
+          const barX = drawX - barWidth / 2;
+          const barY = y - 30;
           ctx.fillStyle = "red";
           ctx.fillRect(barX, barY, barWidth, barHeight);
           ctx.fillStyle = "lime";
@@ -2187,7 +2317,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       return;
     }
 
-    gameRef.current.tropas.push(new Troop(draggedTroop, row, col));
+    {
+      const troop = new Troop(draggedTroop, row, col);
+      troop.opacity = 0;
+      troop.__spawn = { t0: performance.now(), dur: 420 };
+      gameRef.current.tropas.push(troop);
+      emitTroopSpawnFX(row, col);
+    }
+    tryPushEnemyBack(row, col);
 
     const novaEnergia = energiaRef.current - troopTypes[draggedTroop].preco;
     const novaPopulacao = { ...estadoAtual.populacao };
@@ -2330,7 +2467,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     if (!canAffordSupply(tropaSelecionada)) return;
     if (!modoPreparacao && isOnDeployCooldown(tropaSelecionada)) return;
 
-    gameRef.current.tropas.push(new Troop(tropaSelecionada, row, col));
+    {
+      const troop = new Troop(tropaSelecionada, row, col);
+      troop.opacity = 0;
+      troop.__spawn = { t0: performance.now(), dur: 420 };
+      gameRef.current.tropas.push(troop);
+      emitTroopSpawnFX(row, col);
+    }
+
     const novaEnergia = energiaRef.current - troopTypes[tropaSelecionada].preco;
     const novaPopulacao = { ...estadoAtual.populacao };
     const novaConstrucoes = { ...estadoAtual.construcoes };
@@ -2396,7 +2540,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // Atualiza posição (não move quem está morrendo)
         gameRef.current.inimigos = inimigos.map((e) => {
-          if (!e.__death) e.updatePosition?.();
+          if (!e.__death) {
+            const knocking =
+              e.__knock && performance.now() - e.__knock.t0 < e.__knock.dur;
+            const stunned =
+              e.__stunUntil && gameTimeRef.current < e.__stunUntil;
+            if (!knocking && !stunned) e.updatePosition?.();
+          }
           return e;
         });
 
