@@ -320,11 +320,16 @@ export function runSimulationTurn(
   // 6) Consumo da população
   const consumoColonos = Math.floor((populacao.colonos || 0) * 0.5); // 0.5 por colono, arredonda p/ baixo
   const consumoExploradores = (populacao.exploradores || 0) * 2;
+  const consumoGuardas = (populacao.guardas || 0) * 2;
   const consumoMarines = (populacao.marines || 0) * 2;
   const consumoSnipers = (populacao.snipers || 0) * 2;
 
   const consumoPop =
-    consumoColonos + consumoExploradores + consumoMarines + consumoSnipers;
+    consumoColonos +
+    consumoExploradores +
+    consumoGuardas +
+    consumoMarines +
+    consumoSnipers;
 
   // 7) Resultado líquido deste turno
   let comidaProduzida = Math.floor(comidaBruta - consumoPop);

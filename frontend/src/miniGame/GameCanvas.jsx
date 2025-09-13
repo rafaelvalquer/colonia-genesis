@@ -699,6 +699,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     const novaPopulacao = { ...estadoAtual.populacao };
     Object.entries(tropasParaRetornar).forEach(([t, qtd]) => {
       if (t === "colono") novaPopulacao.colonos += qtd;
+      if (t === "guarda") novaPopulacao.guardas += qtd;
       if (t === "marine") novaPopulacao.marines += qtd;
       if (t === "sniper") novaPopulacao.snipers += qtd;
     });
@@ -839,6 +840,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   };
   const stockMap = {
     colono: ["populacao", "colonos"],
+    guarda: ["populacao", "guardas"],
     marine: ["populacao", "marines"],
     sniper: ["populacao", "snipers"],
     muralhaReforcada: ["construcoes", "muralhaReforcada"],
@@ -2394,6 +2396,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     if (draggedTroop === "colono" && novaPopulacao.colonos > 0) {
       novaPopulacao.colonos -= 1;
       estadoAtual.populacao.colonos -= 1;
+    } else if (draggedTroop === "guarda" && novaPopulacao.guardas > 0) {
+      novaPopulacao.guardas -= 1;
+      estadoAtual.populacao.guardas -= 1;
     } else if (draggedTroop === "marine" && novaPopulacao.marines > 0) {
       novaPopulacao.marines -= 1;
       estadoAtual.populacao.marines -= 1;
@@ -2486,6 +2491,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         if (tipo === "colono") {
           novaPopulacao.colonos += 1;
           estadoAtual.populacao.colonos += 1;
+        } else if (tipo === "guarda") {
+          novaPopulacao.guardas += 1;
+          estadoAtual.populacao.guardas += 1;
         } else if (tipo === "marine") {
           novaPopulacao.marines += 1;
           estadoAtual.populacao.marines += 1;
@@ -2543,6 +2551,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     if (tropaSelecionada === "colono" && novaPopulacao.colonos > 0) {
       novaPopulacao.colonos -= 1;
       estadoAtual.populacao.colonos -= 1;
+    } else if (tropaSelecionada === "guarda" && novaPopulacao.guardas > 0) {
+      novaPopulacao.guardas -= 1;
+      estadoAtual.populacao.guardas -= 1;
     } else if (tropaSelecionada === "marine" && novaPopulacao.marines > 0) {
       novaPopulacao.marines -= 1;
       estadoAtual.populacao.marines -= 1;

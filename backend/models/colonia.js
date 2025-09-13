@@ -206,6 +206,7 @@ const coloniaSchema = new mongoose.Schema({
   populacao: {
     colonos: { type: Number, default: 0 },
     exploradores: { type: Number, default: 0 },
+    guardas: { type: Number, default: 0 },
     marines: { type: Number, default: 0 },
     snipers: { type: Number, default: 0 },
   },

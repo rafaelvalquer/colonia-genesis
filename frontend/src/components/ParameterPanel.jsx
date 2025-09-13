@@ -168,9 +168,22 @@ function ParameterPanel({
 
   const tropas = [
     {
+      id: "guardas",
+      nome: "Guarda",
+      descricao:
+        "Infantaria leve da colônia. Usa pistola de pulso e armadura leve.",
+      imagem: "/images/guarda.png",
+      custo: {
+        comida: 20,
+        energia: 10,
+        agua: 1,
+      },
+    },
+    {
       id: "marines",
       nome: "Marine",
-      descricao: "Soldado básico para defesa da colônia.",
+      descricao:
+        "Assalto pesado da colônia. Blindado. Porta metralhadora rotativa. Sustenta fogo contínuo e segura enxames",
       imagem: "/images/marine.png",
       custo: {
         comida: 30,
@@ -658,6 +671,13 @@ function ParameterPanel({
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
                                 <span className="w-6 text-center">⚔️</span>
+                                <span>Guardas:</span>
+                              </div>
+                              <span>{estadoAtual.populacao.guardas}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-6 text-center">⚔️</span>
                                 <span>Marines:</span>
                               </div>
                               <span>{estadoAtual.populacao.marines}</span>
@@ -813,6 +833,7 @@ function ParameterPanel({
                             const colonos = estadoAtual.populacao?.colonos || 0;
                             const exploradores =
                               estadoAtual.populacao?.exploradores || 0;
+                            const guardas = estadoAtual.populacao?.guardas || 0;
                             const marines = estadoAtual.populacao?.marines || 0;
                             const snipers = estadoAtual.populacao?.snipers || 0;
 
@@ -820,11 +841,13 @@ function ParameterPanel({
                               (colonos || 0) * 0.5
                             ); // 0.5 por colono, arredonda p/ baixo
                             const consumoExploradores = exploradores * 2;
+                            const consumoGuardas = guardas * 2;
                             const consumoMarines = marines * 2;
                             const consumoSnipers = snipers * 2;
                             const consumoTotal =
                               consumoColonos +
                               consumoExploradores +
+                              consumoGuardas +
                               consumoMarines +
                               consumoSnipers;
 
@@ -883,6 +906,14 @@ function ParameterPanel({
                                     <span>Exploradores:</span>
                                   </div>
                                   <span>-{consumoExploradores}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⚔️</span>
+                                    <span>Guardas:</span>
+                                  </div>
+                                  <span>-{consumoGuardas}</span>
                                 </div>
 
                                 <div className="flex items-center justify-between">

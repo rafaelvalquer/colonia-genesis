@@ -5,6 +5,30 @@ import { loadTroopFrames } from "../assets/troop/loadTroopFrames";
 export const troopTypes = {
   colono: {
     preco: 10,
+    hp: 7,
+    alcance: 1,
+    cooldown: 20,
+    dano: 4,
+    retornaAoFinal: true,
+    cor: "#8D6E63",
+    corProjetil: "yellow",
+    velocidadeProjetil: 6,
+    estados: ["idle", "attack"],
+    animacoes: {
+      idle: { frameCount: 25, frameInterval: 4 },
+      attack: { frameCount: 37, frameInterval: 3 },
+    },
+    muzzle: {
+      units: "spritePx", // interpreta offsets no espaço do sprite
+      attack: { x: 200, y: -350 }, // ajuste fino por tropa
+    },
+    fireFrame: [7], // dispara projétil no frame 12 da animação de attack
+    cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
+    deployCost: 3,
+    deployCooldownMs: 4000,
+  },
+  guarda: {
+    preco: 10,
     hp: 5,
     alcance: 5,
     cooldown: 20,

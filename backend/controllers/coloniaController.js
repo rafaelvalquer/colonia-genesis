@@ -58,7 +58,13 @@ exports.criarColonia = async (req, res) => {
       nome: nome.trim(),
       turno: 1,
       integridadeEstrutural: 100,
-      populacao: { colonos: 100, exploradores: 0, marines: 0, snipers: 0 },
+      populacao: {
+        colonos: 100,
+        guardas: 0,
+        exploradores: 0,
+        marines: 0,
+        snipers: 0,
+      },
       exploradores: [],
       energia: 200,
       agua: 100,
@@ -141,12 +147,10 @@ exports.atualizarColonia = async (req, res) => {
       return res.status(404).json({ erro: "Colônia não encontrada." });
     }
 
-    res
-      .status(200)
-      .json({
-        ...coloniaAtualizada.toObject(),
-        water: metaFrom(coloniaAtualizada),
-      });
+    res.status(200).json({
+      ...coloniaAtualizada.toObject(),
+      water: metaFrom(coloniaAtualizada),
+    });
   } catch (error) {
     console.error("Erro ao atualizar colônia:", error);
     res.status(500).json({ erro: "Erro ao atualizar colônia." });

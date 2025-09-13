@@ -220,6 +220,15 @@ border border-gray-700 text-white"
             </div>
             <span>{estado.populacao.exploradores}</span>
           </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <span className="w-6 text-center">⚔️</span>
+              <span>Guardas:</span>
+            </div>
+            <span>{estado.populacao.guardas}</span>
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <span className="w-6 text-center">⚔️</span>
@@ -344,17 +353,20 @@ border border-gray-700 text-white"
             // --- cálculos para exibir no tooltip ---
             const colonos = estado.populacao?.colonos || 0;
             const exploradores = estado.populacao?.exploradores || 0;
+            const guardas = estado.populacao?.guardas || 0;
             const marines = estado.populacao?.marines || 0;
             const snipers = estado.populacao?.snipers || 0;
 
             const consumoColonos = Math.floor((colonos || 0) * 0.5); // 0.5 por colono, arredonda p/ baixo
             const consumoExploradores = exploradores * 2;
+            const consumoGuardas = guardas * 2;
             const consumoMarines = marines * 2;
             const consumoSnipers = snipers * 2;
 
             const consumoTotal =
               consumoColonos +
               consumoExploradores +
+              consumoGuardas +
               consumoMarines +
               consumoSnipers;
 
@@ -409,6 +421,14 @@ border border-gray-700 text-white"
                     <span>Exploradores:</span>
                   </div>
                   <span>-{consumoExploradores}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">⚔️</span>
+                    <span>Guardas:</span>
+                  </div>
+                  <span>-{consumoGuardas}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
