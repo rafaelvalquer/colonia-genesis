@@ -16,6 +16,7 @@ import {
   Button,
   Typography,
 } from "@mui/material";
+import Speed from "@mui/icons-material/Speed"; // ✅ ADICIONE ESTA LINHA
 import { useNavigate } from "react-router-dom";
 import coloniaService from "../services/coloniaService";
 import { Projectile } from "./entities/Projectile";
@@ -2784,8 +2785,40 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       <Button
         variant="contained"
         size="small"
+        disableElevation
+        startIcon={<Speed fontSize="small" />}
         onClick={() => setTimeScale((v) => (v === 1 ? 2 : 1))}
-        style={{ position: "fixed", top: 12, right: 12, zIndex: 10000 }}
+        sx={{
+          position: "fixed",
+          top: 12,
+          right: 12,
+          zIndex: 10000,
+          px: 1.6,
+          minWidth: 72,
+          borderRadius: "999px",
+          textTransform: "none",
+          fontWeight: 800,
+          letterSpacing: 0.2,
+          color: "#fff",
+          backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          background:
+            timeScale === 1
+              ? "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)"
+              : "linear-gradient(135deg, #10b981 0%, #22c55e 100%)",
+          boxShadow:
+            timeScale === 1
+              ? "0 8px 20px rgba(59,130,246,0.35)"
+              : "0 8px 20px rgba(16,185,129,0.35)",
+          "&:hover": {
+            transform: "translateY(-1px)",
+            boxShadow:
+              timeScale === 1
+                ? "0 12px 28px rgba(59,130,246,0.45)"
+                : "0 12px 28px rgba(16,185,129,0.45)",
+          },
+          "&:active": { transform: "translateY(0px) scale(0.98)" },
+        }}
       >
         {timeScale}x
       </Button>
