@@ -84,7 +84,7 @@ const GameCanvasWithLoader = (props) => {
     // 3) sprites dos inimigos
     const enemyImgs = collectEnemyImages();
 
-    const all = [...tileImgs, ...troopImgs, ...enemyImgs];
+    const all = [...tileImgs, ...troopImgs, ...enemyImgs].filter(Boolean);
 
     preloadImagesWithGPUUpload(all, ({ done, total, percent }) => {
       setProgress(percent);
@@ -454,18 +454,29 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const [contadorSpawn, setContadorSpawn] = useState(0);
   const [modoPreparacao, setModoPreparacao] = useState(true);
   const inimigosCriadosRef = useRef(0);
-  const inimigosTotaisRef = useRef(0);
+  const inimigosTotaisRef = useRef(0); // total gerados
+  const inimigosMortosRef = useRef(0); // ✅ total eliminados (uso nos diálogos)
   const [isDragging, setIsDragging] = useState(false);
   const [draggedTroop, setDraggedTroop] = useState(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [modoRemocao, setModoRemocao] = useState(false);
-  const [energia, setEnergia] = useState(estadoAtual.energia);
-  const energiaRef = useRef(energia);
+  const [energia, setEnergia] = useState(estadoAtual?.energia ?? 0);
+  const energiaRef = useRef(estadoAtual?.energia ?? 0);
   const [openDialog, setOpenDialog] = useState(false);
   const gameTimeRef = useRef(0);
   const lastFrameRef = useRef(performance.now());
   const visibleRef = useRef(!document.hidden);
   const lastSupplyGTRef = useRef(0); // âncora do relógio de jogo p/ regen
+  const waveBannerRef = useRef(null);
+  const showWaveBanner = (text, opts = {}) => {
+    waveBannerRef.current = {
+      text,
+      sub: opts.sub || "",
+      color: opts.color || "#60a5fa",
+      t0: performance.now(),
+      dur: opts.dur || 1700, // ms
+    };
+  };
 
   // Relógio de jogo (ms) — só anda quando a aba está visível
   useEffect(() => {
@@ -491,9 +502,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
   // energia
   useEffect(() => {
-    setEnergia(estadoAtual.energia);
-    energiaRef.current = estadoAtual.energia;
-  }, [estadoAtual.energia]);
+    setEnergia(estadoAtual?.energia ?? 0);
+    energiaRef.current = estadoAtual?.energia ?? 0;
+  }, [estadoAtual?.energia]);
 
   const [supply, setSupply] = useState({
     cur: SUPPLY_CFG.start,
@@ -667,7 +678,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     });
 
     // hospital/população
-    const hospitalAtual = estadoAtual.hospital ?? {
+    const hospitalAtual = estadoAtual?.hospital ?? {
       fila: [],
       internados: [],
       historicoAltas: [],
@@ -785,7 +796,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     // lembrete/dialog
     if (tipo === "derrota") {
       setDadosDerrota({
-        inimigosMortos: inimigosTotaisRef.current,
+        inimigosMortos: inimigosMortosRef.current,
         tropasRetornadas: tropasParaRetornar,
         feridos: {
           total: feridosLeves + feridosGraves,
@@ -1816,6 +1827,47 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       // HUD fixa
       drawHUD();
 
+      // Banner de onda (start/sucesso)
+      if (waveBannerRef.current) {
+        const { text, sub, color, t0, dur } = waveBannerRef.current;
+        const now = performance.now();
+        const p = Math.min(1, (now - t0) / dur); // 0..1
+        const fade = p < 0.5 ? p / 0.5 : (1 - p) / 0.5; // in/out
+        const W = canvas.clientWidth,
+          H = canvas.clientHeight;
+
+        ctx.save();
+        // fundo escuro suave
+        ctx.globalAlpha = 0.45 * fade;
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, W, H);
+
+        // título com leve glow
+        ctx.globalAlpha = fade;
+        const baseFont = Math.floor(Math.min(W, H) * 0.075);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        ctx.font = `900 ${baseFont}px "Arial Black", Arial, sans-serif`;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 24;
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = color;
+        ctx.strokeText(text, W / 2, H * 0.45);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(text, W / 2, H * 0.45);
+
+        if (sub) {
+          ctx.font = `600 ${Math.floor(baseFont * 0.35)}px Arial, sans-serif`;
+          ctx.fillStyle = "rgba(255,255,255,0.9)";
+          ctx.fillText(sub, W / 2, H * 0.45 + baseFont * 0.9);
+        }
+        ctx.restore();
+
+        if (p >= 1) waveBannerRef.current = null;
+      }
+
       // GAME OVER
       // dentro do draw(), no final:
       if (jogoEncerrado) {
@@ -2238,14 +2290,17 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     if (hud) {
       if (within(hud.waveBtn, x, y)) {
         if (modoPreparacao) {
+          // 👇 banner no início da onda
+          showWaveBanner(`🚀 Onda ${onda} iniciando!`, {
+            color: "#22c55e",
+            dur: 2600,
+          });
+
           setModoPreparacao(false);
           inimigosCriadosRef.current = 0;
           lastSupplyGTRef.current = gameTimeRef.current;
 
-          // spawn imediato do primeiro inimigo
           spawnOneEnemyNow();
-
-          // próximos spawns respeitam a cadence normalmente
           setContadorSpawn(0);
         }
         return;
@@ -2691,6 +2746,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           if (eUltimaOnda) {
             await finalizarRodada("vitoria"); // <<< agora centraliza aqui
           } else {
+            const ondaAtual = onda;
+            showWaveBanner(`✅ Onda ${ondaAtual} concluída!`, {
+              sub: `Prepare-se para a Onda ${ondaAtual + 1}…`,
+              color: "#10b981",
+              dur: 1800,
+            });
             setModoPreparacao(true);
             setOnda((o) => o + 1);
           }

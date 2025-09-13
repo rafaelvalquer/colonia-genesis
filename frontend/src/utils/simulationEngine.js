@@ -360,7 +360,7 @@ export function runSimulationTurn(
   // 1) Trabalhadores: 1 energia por colono alocado
   let energiaTrabalhadores = quantidadePorSetor.energia || 0;
   if (pontos.energia === 1) {
-    energiaTrabalhadores = Math.floor(energiaTrabalhadores * 3); // x3 só nos workers
+    energiaTrabalhadores = Math.floor(energiaTrabalhadores * 5); // x3 só nos workers
   }
 
   // 2) Geradores Solares: +12 cada e +⌊solares/2⌋ de ganho de sustentabilidade (calculado depois)

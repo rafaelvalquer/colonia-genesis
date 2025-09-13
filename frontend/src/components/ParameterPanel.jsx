@@ -349,6 +349,23 @@ function ParameterPanel({
     onConstruir(id); // <- apenas isso
   };
 
+  // coloque perto do handleSubmit (mesmo escopo do componente)
+  const handleApplyClick = () => {
+    if (totalUsado < MAX_PONTOS) {
+      const usar = window.confirm(
+        `Você ainda tem ${
+          MAX_PONTOS - totalUsado
+        } ponto(s) de skill disponível(is). Deseja usá-lo(s) agora?`
+      );
+      if (usar) {
+        setAbaSelecionada("parametros");
+        setAbaParametros("skill");
+        return; // não aplica enquanto o jogador distribui os pontos
+      }
+    }
+    handleSubmit(); // prossegue normalmente
+  };
+
   function LinearProgressWithLabel({ value }) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -1232,11 +1249,11 @@ function ParameterPanel({
                           };
                         }
                         case "energia": {
-                          const out = n * 3;
+                          const out = n * 5;
                           return {
                             valor: out,
                             unidade: "energia/turno",
-                            detalhe: `${n}×3`,
+                            detalhe: `${n}×5`,
                           };
                         }
                         default:
@@ -1256,7 +1273,7 @@ function ParameterPanel({
                     const totalCiencia = nLab * 0.5;
                     const totalReparoPct = Math.floor(nCon / 10);
                     const totalSaude = (nSau / 100) * consumoAgua;
-                    const totalEnergia = nEne * 1;
+                    const totalEnergia = nEne * 5;
 
                     return (
                       <>
@@ -1784,10 +1801,7 @@ function ParameterPanel({
         )}
 
         <button
-          onClick={() => {
-            handleSubmit(); // mantém a função original
-            //setModalAberto(true); // abre o modal com stepper
-          }}
+          onClick={handleApplyClick}
           className="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200"
         >
           Aplicar Parâmetros
