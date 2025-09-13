@@ -478,6 +478,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     };
   };
 
+  // no topo do componente
+  const [timeScale, setTimeScale] = useState(1);
+  const timeScaleRef = useRef(1);
+  useEffect(() => {
+    timeScaleRef.current = timeScale;
+  }, [timeScale]);
+
   // Relógio de jogo (ms) — só anda quando a aba está visível
   useEffect(() => {
     const onVis = () => {
@@ -1510,9 +1517,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       const now = performance.now();
       const dt = now - lastFrameRef.current;
       lastFrameRef.current = now;
-      if (visibleRef.current) {
-        gameTimeRef.current += dt; // dt em ms
-      }
+      if (visibleRef.current) gameTimeRef.current += dt * timeScaleRef.current;
 
       // novo: calcula FPS instantâneo e suaviza (EMA)
       const inst = dt > 0 ? 1000 / dt : 0;
@@ -2586,84 +2591,98 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
   useEffect(() => {
     const linhasValidasParaSpawn = obterLinhasDeCombateValidas();
+
     const loopId = setInterval(() => {
       (async () => {
-        // Regen da “barra” usando game time (sem progredir em background)
+        // Regen baseado em gameTime (que deve estar escalado por timeScaleRef)
         tickSupplyRegen();
         if (jogoEncerrado || modoPreparacao) return;
-        const { inimigos } = gameRef.current;
 
-        // Atualiza posição (não move quem está morrendo)
-        gameRef.current.inimigos = inimigos.map((e) => {
-          if (!e.__death) {
-            const knocking =
-              e.__knock && performance.now() - e.__knock.t0 < e.__knock.dur;
-            const stunned =
-              e.__stunUntil && gameTimeRef.current < e.__stunUntil;
-            if (!knocking && !stunned) e.updatePosition?.();
+        // quantos "passos" de simulação por tick (1x/2x)
+        const steps = Math.max(1, Math.floor(timeScaleRef.current));
+
+        let encerrouAgora = false;
+
+        // ===== simulação (movimento/colisões/mortes) =====
+        for (let i = 0; i < steps; i++) {
+          // Atualiza posição (não move quem está morrendo)
+          {
+            const { inimigos } = gameRef.current;
+            gameRef.current.inimigos = inimigos.map((e) => {
+              if (!e.__death) {
+                const knocking =
+                  e.__knock && performance.now() - e.__knock.t0 < e.__knock.dur;
+                const stunned =
+                  e.__stunUntil && gameTimeRef.current < e.__stunUntil;
+                if (!knocking && !stunned) e.updatePosition?.();
+              }
+              return e;
+            });
           }
-          return e;
-        });
 
-        CollisionManager.inimigosAtacam(gameRef.current);
-        if (gameRef.current.inimigos.some((e) => !e.__death && e.x <= 50)) {
-          setJogoEncerrado(true);
-          return;
+          CollisionManager.inimigosAtacam(gameRef.current);
+          if (gameRef.current.inimigos.some((e) => !e.__death && e.x <= 50)) {
+            setJogoEncerrado(true);
+            encerrouAgora = true;
+            break;
+          }
+          CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
+          CollisionManager.tropasAtacam(gameRef.current);
+
+          // Dispara animação de morte para quem morreu neste passo
+          const mapGeom = getMapGeom(canvasRef.current);
+          gameRef.current.inimigos.forEach((e) => {
+            if ((e.hp ?? 0) <= 0 && !e.__death) {
+              e.__death = { t0: performance.now(), dur: 520 };
+              e.opacity = 1;
+
+              const cy = e.row * mapGeom.tileHeight + mapGeom.tileHeight / 2;
+              for (let i = 0; i < 3; i++) {
+                gameRef.current.particles.push({
+                  kind: "ring",
+                  x: e.x,
+                  y: cy,
+                  t: 0,
+                  max: 12 + i * 7,
+                  cor: i === 0 ? "rgba(255,80,80,1)" : "rgba(255,255,255,0.9)",
+                });
+              }
+              for (let i = 0; i < 14; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                const spd = 1 + Math.random() * 2.2;
+                gameRef.current.particles.push({
+                  kind: "spark",
+                  x: e.x,
+                  y: cy,
+                  vx: Math.cos(ang) * spd,
+                  vy: Math.sin(ang) * spd * 0.7 - 0.2,
+                  g: 0.06,
+                  t: 0,
+                  max: (18 + Math.random() * 14) | 0,
+                  cor: "rgba(255,200,80,1)",
+                });
+              }
+            }
+          });
+
+          // Remove só quando a animação de morte terminar
+          gameRef.current.inimigos = gameRef.current.inimigos.filter((e) => {
+            if (!e.__death) return true;
+            const p = (performance.now() - e.__death.t0) / e.__death.dur;
+            return p < 1;
+          });
         }
-        CollisionManager.updateProjectilesAndCheckCollisions(gameRef.current);
-        CollisionManager.tropasAtacam(gameRef.current);
 
-        // Dispara a animação de morte para quem acabou de morrer
-        const mapGeom = getMapGeom(canvasRef.current);
-        gameRef.current.inimigos.forEach((e) => {
-          if ((e.hp ?? 0) <= 0 && !e.__death) {
-            e.__death = { t0: performance.now(), dur: 520 }; // ms
-            e.opacity = 1;
-            // Partículas no ponto (anéis + faíscas)
-            const cy = e.row * mapGeom.tileHeight + mapGeom.tileHeight / 2;
+        if (encerrouAgora) return;
 
-            for (let i = 0; i < 3; i++) {
-              gameRef.current.particles.push({
-                kind: "ring",
-                x: e.x,
-                y: cy,
-                t: 0,
-                max: 12 + i * 7,
-                cor: i === 0 ? "rgba(255,80,80,1)" : "rgba(255,255,255,0.9)",
-              });
-            }
-            for (let i = 0; i < 14; i++) {
-              const ang = Math.random() * Math.PI * 2;
-              const spd = 1 + Math.random() * 2.2;
-              gameRef.current.particles.push({
-                kind: "spark",
-                x: e.x,
-                y: cy,
-                vx: Math.cos(ang) * spd,
-                vy: Math.sin(ang) * spd * 0.7 - 0.2,
-                g: 0.06,
-                t: 0,
-                max: (18 + Math.random() * 14) | 0,
-                cor: "rgba(255,200,80,1)",
-              });
-            }
-          }
-        });
-
-        // Remove só quando a animação terminar
-        gameRef.current.inimigos = gameRef.current.inimigos.filter((e) => {
-          if (!e.__death) return true;
-          const p = (performance.now() - e.__death.t0) / e.__death.dur;
-          return p < 1;
-        });
-
+        // ===== spawn (acumula por steps para permitir múltiplos spawns no mesmo tick) =====
         setContadorSpawn((prev) => {
-          const novo = prev + 1;
-          const podeSpawnar =
-            novo >= waveConfig.frequenciaSpawn &&
-            inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda);
+          let acc = prev + steps;
 
-          if (podeSpawnar) {
+          while (
+            acc >= waveConfig.frequenciaSpawn &&
+            inimigosCriadosRef.current < waveConfig.quantidadePorOnda(onda)
+          ) {
             const row =
               linhasValidasParaSpawn[
                 Math.floor(Math.random() * linhasValidasParaSpawn.length)
@@ -2672,25 +2691,20 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             const tiposDisponiveis = waveConfig?.tiposPorOnda?.(onda) ?? [
               "medu",
             ];
-
             const tipoAleatorio =
               tiposDisponiveis[
                 Math.floor(Math.random() * tiposDisponiveis.length)
               ];
 
-            // cria inimigo e posiciona no canto direito do MAPA
+            // cria inimigo na borda direita do MAPA
             const enemy = new Enemy(tipoAleatorio, row);
             const mapGeom = getMapGeom(canvasRef.current);
-
-            // Opção A: nasce um pouco fora e entra andando
             enemy.x = mapGeom.w + 10;
 
-            // ---- FX de spawn ----
+            // FX de spawn
             const cy = row * mapGeom.tileHeight + mapGeom.tileHeight / 2;
-            enemy.opacity = 0; // começa invisível
-            enemy.__spawn = { t0: performance.now(), dur: 450 }; // 450ms de animação
-
-            // Anéis de choque
+            enemy.opacity = 0;
+            enemy.__spawn = { t0: performance.now(), dur: 450 };
             for (let i = 0; i < 3; i++) {
               gameRef.current.particles.push({
                 kind: "ring",
@@ -2698,11 +2712,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                 y: cy,
                 t: 0,
                 max: 14 + i * 7,
-                cor: i === 0 ? "rgba(255, 80, 80, 1)" : "rgba(255,255,255,0.9)",
+                cor: i === 0 ? "rgba(255,80,80,1)" : "rgba(255,255,255,0.9)",
               });
             }
-
-            // Faíscas
             for (let i = 0; i < 12; i++) {
               const ang = Math.random() * Math.PI * 2;
               const spd = 1 + Math.random() * 2;
@@ -2712,27 +2724,24 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
                 y: cy,
                 vx: Math.cos(ang) * spd,
                 vy: Math.sin(ang) * spd * 0.6 - 0.4,
-                g: 0.04, // gravidade leve
+                g: 0.04,
                 t: 0,
                 max: (18 + Math.random() * 12) | 0,
                 cor: "rgba(255,200,80,1)",
               });
             }
-            // ----------------------
-
-            // (ou Opção B, dentro do último tile: enemy.x = mapGeom.w - mapGeom.tileWidth / 2;)
 
             gameRef.current.inimigos.push(enemy);
-
-            // atualiza contadores UMA vez
             inimigosCriadosRef.current += 1;
             inimigosTotaisRef.current += 1;
 
-            return 0;
+            acc -= waveConfig.frequenciaSpawn;
           }
-          return novo;
+
+          return acc;
         });
 
+        // ===== checagem de fim de onda =====
         const todosInimigosMortos = gameRef.current.inimigos.length === 0;
         const todosInimigosGerados =
           inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
@@ -2744,13 +2753,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           const eUltimaOnda = onda >= totalOndas;
 
           if (eUltimaOnda) {
-            await finalizarRodada("vitoria"); // <<< agora centraliza aqui
+            await finalizarRodada("vitoria");
           } else {
             const ondaAtual = onda;
             showWaveBanner(`✅ Onda ${ondaAtual} concluída!`, {
               sub: `Prepare-se para a Onda ${ondaAtual + 1}…`,
               color: "#10b981",
-              dur: 1800,
+              dur: 2600,
             });
             setModoPreparacao(true);
             setOnda((o) => o + 1);
@@ -2758,6 +2767,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         }
       })();
     }, 32);
+
     return () => clearInterval(loopId);
   }, [jogoEncerrado, onda, modoPreparacao, waveConfig]);
 
@@ -2770,6 +2780,16 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         width: "100%",
       }}
     >
+      {/* Botão 1x/2x — canto sup. direito */}
+      <Button
+        variant="contained"
+        size="small"
+        onClick={() => setTimeScale((v) => (v === 1 ? 2 : 1))}
+        style={{ position: "fixed", top: 12, right: 12, zIndex: 10000 }}
+      >
+        {timeScale}x
+      </Button>
+
       {/* Canvas com HUD fixa à esquerda */}
       <div
         ref={boxRef}
