@@ -180,18 +180,7 @@ export const CollisionManager = {
     function acquireProjectile() {
       const p = gameRef.projectilePool.find((q) => !q.active);
       if (p) return p;
-      const bounds = { minX: 0, maxX, minY: 0, maxY: tileH * 7 };
-      const np = new Projectile({
-        x: 0,
-        y: 0,
-        vx: 0,
-        vy: 0,
-        row: 0,
-        tipo: "gen",
-        dano: 0,
-        bounds,
-        active: false,
-      });
+      const np = new Projectile({ active: false });
       gameRef.projectilePool.push(np);
       return np;
     }
@@ -203,19 +192,29 @@ export const CollisionManager = {
         y: (t.row + 0.5) * tileH,
       };
       const p = acquireProjectile();
-      const bounds = { minX: 0, maxX, minY: 0, maxY: tileH * 7 };
-      Object.assign(p, {
-        x: muzzle.x,
-        y: muzzle.y,
-        vx: t.config.velocidadeProjetil || 6,
-        vy: 0,
-        row: t.row,
-        tipo: t.tipo, // usado para cor
-        dano: t.config.dano | 0,
-        bounds,
-        active: true,
-        cor: t.config.corProjetil || "#fff",
-      });
+      const bounds = {
+        minX: 0,
+        maxX,
+        minY: 0,
+        maxY: gameRef.view?.h ?? tileH * 7,
+      };
+      // re-inicializa TUDO que afeta colisão/vida do projétil
+      p.x = muzzle.x;
+      p.y = muzzle.y;
+      p.vx = t.config.velocidadeProjetil || 6;
+      p.vy = 0;
+      p.row = t.row;
+      p.tipo = t.tipo;
+      p.dano = t.config.dano | 0;
+      p.bounds = bounds;
+      p.tileH = tileH; // 🔑 altura real do tile p/ colisão
+      p.radius = 5;
+      p.ticks = 0; // 🔑 reseta TTL
+      p.hit = false; // 🔑 limpa estado de impacto antigo
+      p.justHit = false;
+      p.active = true;
+      p.maxTicks = 300;
+      p.cor = t.config.corProjetil || "#fff";
     }
 
     // dispara "laser" instantâneo na linha inteira até o alcance
@@ -315,24 +314,46 @@ export const CollisionManager = {
       const { framesNow } = getTriggeredFramesThisTick(t, fireSpec, "attack");
       if (!framesNow.length) return;
 
-      const tipo = t.config.projetil || "bola";
-      if (tipo === "laser") fireLaser(t);
-      else if (tipo === "bola") fireBall(t);
-      else if (tipo === "melee") {
-        // dano direto no inimigo mais próximo no alcance
-        const alvo = gameRef.inimigos
-          .filter(
-            (e) =>
-              e.row === t.row &&
-              Math.floor(e.x / tileW) >= t.col &&
-              Math.floor(e.x / tileW) <= t.col + alcance
-          )
-          .sort((a, b) => a.x - b.x)[0];
-        if (alvo) alvo.hp = Math.max(0, (alvo.hp ?? 0) - (t.config.dano | 0));
+      // ---- burst logic ----
+      const framesArr = Array.isArray(fireSpec)
+        ? fireSpec.map((n) => n | 0)
+        : [fireSpec | 0];
+      const isBurst = framesArr.length > 1;
+      const cooldownPerShot =
+        t.config.cooldownPerShot !== undefined
+          ? !!t.config.cooldownPerShot
+          : !isBurst; // default: burst só dá cooldown no fim
+      const lastFrameTarget = framesArr.length ? Math.max(...framesArr) : null;
+
+      let firedAny = false;
+      let firedLastFrame = false;
+
+      for (const f of framesNow) {
+        const tipo = t.config.projetil || "bola";
+        if (tipo === "laser") {
+          fireLaser(t);
+        } else if (tipo === "bola") {
+          fireBall(t);
+        } else if (tipo === "melee") {
+          const alvo = gameRef.inimigos
+            .filter(
+              (e) =>
+                e.row === t.row &&
+                Math.floor(e.x / tileW) >= t.col &&
+                Math.floor(e.x / tileW) <= t.col + alcance
+            )
+            .sort((a, b) => a.x - b.x)[0];
+          if (alvo) alvo.hp = Math.max(0, (alvo.hp ?? 0) - (t.config.dano | 0));
+        }
+        firedAny = true;
+        if (isBurst && f === lastFrameTarget) firedLastFrame = true;
+        if (cooldownPerShot) t.cooldown = t.config.cooldown | 0; // espaça cada tiro
       }
 
-      // cooldown
-      t.cooldown = t.config.cooldown | 0;
+      // cooldown só no fim do burst
+      if (firedAny && !cooldownPerShot) {
+        if (!isBurst || firedLastFrame) t.cooldown = t.config.cooldown | 0;
+      }
     });
   },
 
