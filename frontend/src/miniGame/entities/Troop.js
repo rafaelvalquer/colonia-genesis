@@ -103,6 +103,31 @@ export const troopTypes = {
     deployCost: 7,
     deployCooldownMs: 6000,
   },
+  ranger: {
+    preco: 25,
+    hp: 4,
+    alcance: 9,
+    cooldown: 80,
+    dano: 1,
+    retornaAoFinal: true,
+    cor: "#F4511E",
+    projetil: "laser",
+    corProjetil: "#fc5ad4ff",
+    velocidadeProjetil: 6,
+    estados: ["idle", "attack"],
+    animacoes: {
+      idle: { frameCount: 39, frameInterval: 4 },
+      attack: { frameCount: 34, frameInterval: 2 },
+    },
+    muzzle: {
+      units: "spritePx",
+      attack: { x: 200, y: -350 },
+    },
+    fireFrame: [12], // dispara projétil no frame 12 da animação de attack
+    cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
+    deployCost: 7,
+    deployCooldownMs: 6000,
+  },
   muralhaReforcada: {
     preco: 15,
     hp: 20,

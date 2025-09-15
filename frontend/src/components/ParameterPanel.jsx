@@ -203,14 +203,14 @@ function ParameterPanel({
       },
     },
     {
-      id: "escudeiro",
-      nome: "Escudeiro",
+      id: "ranger",
+      nome: "Ranger",
       descricao: "Unidade defensiva com alta resistência.",
-      imagem: "/images/escudeiro.png",
+      imagem: "/images/ranger.png",
       custo: {
-        comida: 35,
-        agua: 25,
-        ferro: 25,
+        comida: 20,
+        energia: 40,
+        agua: 2,
       },
     },
   ];
