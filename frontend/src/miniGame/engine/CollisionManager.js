@@ -174,6 +174,101 @@ export const CollisionManager = {
   tropasAtacam(gameRef) {
     const tileW = gameRef.view?.tileWidth ?? 64;
     const tileH = gameRef.view?.tileHeight ?? 64;
+    const maxX = gameRef.view?.w ?? tileW * 12;
+
+    // helper: pega projétil ocioso da pool
+    function acquireProjectile() {
+      const p = gameRef.projectilePool.find((q) => !q.active);
+      if (p) return p;
+      const bounds = { minX: 0, maxX, minY: 0, maxY: tileH * 7 };
+      const np = new Projectile({
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        row: 0,
+        tipo: "gen",
+        dano: 0,
+        bounds,
+        active: false,
+      });
+      gameRef.projectilePool.push(np);
+      return np;
+    }
+
+    // dispara 1 projétil "bola"
+    function fireBall(t) {
+      const muzzle = gameRef.getMuzzleWorldPos?.(t) ?? {
+        x: t.col * tileW + tileW / 2,
+        y: (t.row + 0.5) * tileH,
+      };
+      const p = acquireProjectile();
+      const bounds = { minX: 0, maxX, minY: 0, maxY: tileH * 7 };
+      Object.assign(p, {
+        x: muzzle.x,
+        y: muzzle.y,
+        vx: t.config.velocidadeProjetil || 6,
+        vy: 0,
+        row: t.row,
+        tipo: t.tipo, // usado para cor
+        dano: t.config.dano | 0,
+        bounds,
+        active: true,
+        cor: t.config.corProjetil || "#fff",
+      });
+    }
+
+    // dispara "laser" instantâneo na linha inteira até o alcance
+    function fireLaser(t) {
+      // origem no muzzle.attack já convertido para mundo
+      const muzzle = gameRef.getMuzzleWorldPos?.(t) ?? {
+        x: t.col * tileW + tileW / 2,
+        y: t.row * tileH + tileH / 2,
+      };
+
+      const alcanceCols = t.config.alcance | 0;
+      const x0 = muzzle.x;
+      const y0 = muzzle.y;
+
+      // fim do feixe limitado ao alcance à direita
+      const xReach = (t.col + alcanceCols + 0.5) * tileW;
+      const x1 = Math.min(maxX, xReach);
+
+      // faixa [xmin, xmax] para aplicar dano
+      const xmin = Math.min(x0, x1);
+      const xmax = Math.max(x0, x1);
+
+      const dano = t.config.dano | 0;
+      const hits = gameRef.inimigos.filter(
+        (e) => !e.__death && e.row === t.row && e.x >= xmin && e.x <= xmax
+      );
+      for (const e of hits) e.hp = Math.max(0, (e.hp ?? 0) - dano);
+
+      // FX do feixe alinhado ao muzzle
+      (gameRef.particles ||= []).push({
+        kind: "beam",
+        x0,
+        y0,
+        x1,
+        y1: y0,
+        w: 10, // largura máxima do feixe
+        t: 0,
+        max: 14, // duração curta
+        cor: t.config.corProjetil || "#6cf",
+        seed:
+          ((Math.random() * 1e9) | 0) ^ (t.row << 5) ^ (Date.now() & 0xffff), // << NOVO
+      });
+      for (const e of hits) {
+        gameRef.particles.push({
+          kind: "ring",
+          x: e.x,
+          y: y0,
+          t: 0,
+          max: 10,
+          cor: "rgba(255,255,255,0.9)",
+        });
+      }
+    }
 
     gameRef.tropas.forEach((t) => {
       // 🛑 não processa quem já morreu/está removendo
@@ -185,16 +280,15 @@ export const CollisionManager = {
       // anda cooldown, mas não dá return ainda (para manter animação fluindo)
       t.updateCooldown();
 
-      // procura alvo na mesma linha e dentro do alcance (colunas)
-      const alcance = t.config.alcance;
-      const alvo = gameRef.inimigos.find(
+      const alcance = t.config.alcance | 0;
+      const temAlvo = gameRef.inimigos.some(
         (e) =>
           e.row === t.row &&
           Math.floor(e.x / tileW) >= t.col &&
           Math.floor(e.x / tileW) <= t.col + alcance
       );
 
-      if (!alvo) {
+      if (!temAlvo) {
         if (t.state !== "idle") {
           // NÃO zera frameIndex/frameTick — deixa o updateAnimation cuidar
           t.state = "idle";
@@ -212,81 +306,33 @@ export const CollisionManager = {
         t.state = "attack";
         t.frameIndex = 0;
         const atkInt = t.config.animacoes?.attack?.frameInterval ?? 1;
-        t.frameTick = Math.floor(Math.random() * atkInt);
+        t.frameTick = 0 | (Math.random() * atkInt);
         t._firedFramesCycle = undefined;
         t._lastFI = undefined;
       }
 
       const fireSpec = t.config.fireFrame ?? t.fireFrame;
       const { framesNow } = getTriggeredFramesThisTick(t, fireSpec, "attack");
-      const free = framesNow.length === 1 && framesNow[0] === "__free__";
-      const framesToFire = free ? [null] : framesNow;
-      if (framesToFire.length === 0) return;
+      if (!framesNow.length) return;
 
-      const framesArr = normalizeFrames(fireSpec);
-      const isBurst = Array.isArray(fireSpec) && framesArr.length > 1;
-      const cooldownPerShot =
-        t.config.cooldownPerShot !== undefined
-          ? !!t.config.cooldownPerShot
-          : !isBurst;
-
-      let firedAny = false;
-      let firedLastFrame = false;
-      const lastFrameTarget =
-        framesArr && framesArr.length
-          ? Math.max(...framesArr)
-          : typeof fireSpec === "number"
-          ? fireSpec
-          : null;
-
-      for (const f of framesToFire) {
-        // ❗ agora aborta se a tropa não tem ataque
-        const projData = t.attack(tileW, tileH);
-        if (!projData) continue;
-
-        projData.tipo = t.tipo;
-
-        const muzzle =
-          typeof gameRef.getMuzzleWorldPos === "function"
-            ? gameRef.getMuzzleWorldPos(t)
-            : { x: (t.col + 0.5) * tileW, y: (t.row + 0.5) * tileH };
-
-        projData.x = muzzle.x;
-        projData.y = muzzle.y;
-
-        if (projData.vx == null || projData.vy == null) {
-          const speed = projData.speed ?? t.config.velocidadeProjetil ?? 5;
-          projData.vx = Math.abs(speed);
-          projData.vy = 0;
-        }
-
-        projData.bounds = {
-          minX: 0,
-          maxX: gameRef.view?.w ?? Infinity,
-          minY: 0,
-          maxY: gameRef.view?.h ?? Infinity,
-        };
-        projData.tileH = tileH;
-        projData.row = t.row;
-
-        const reused = gameRef.projectilePool.find((p) => !p.active);
-        if (reused) {
-          Object.assign(reused, new Projectile(projData));
-          reused.active = true;
-          reused.ticks = 0;
-        } else {
-          gameRef.projectilePool.push(new Projectile(projData));
-        }
-
-        firedAny = true;
-        if (isBurst && f === lastFrameTarget) firedLastFrame = true;
-
-        if (cooldownPerShot) t.cooldown = t.config.cooldown;
+      const tipo = t.config.projetil || "bola";
+      if (tipo === "laser") fireLaser(t);
+      else if (tipo === "bola") fireBall(t);
+      else if (tipo === "melee") {
+        // dano direto no inimigo mais próximo no alcance
+        const alvo = gameRef.inimigos
+          .filter(
+            (e) =>
+              e.row === t.row &&
+              Math.floor(e.x / tileW) >= t.col &&
+              Math.floor(e.x / tileW) <= t.col + alcance
+          )
+          .sort((a, b) => a.x - b.x)[0];
+        if (alvo) alvo.hp = Math.max(0, (alvo.hp ?? 0) - (t.config.dano | 0));
       }
 
-      if (firedAny && !cooldownPerShot) {
-        if (!isBurst || firedLastFrame) t.cooldown = t.config.cooldown;
-      }
+      // cooldown
+      t.cooldown = t.config.cooldown | 0;
     });
   },
 

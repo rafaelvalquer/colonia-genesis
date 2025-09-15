@@ -11,6 +11,7 @@ export const troopTypes = {
     dano: 4,
     retornaAoFinal: true,
     cor: "#8D6E63",
+    projetil: "melee",
     corProjetil: "yellow",
     velocidadeProjetil: 6,
     estados: ["idle", "attack"],
@@ -22,21 +23,22 @@ export const troopTypes = {
       units: "spritePx", // interpreta offsets no espaço do sprite
       attack: { x: 200, y: -350 }, // ajuste fino por tropa
     },
-    fireFrame: [7], // dispara projétil no frame 12 da animação de attack
+    fireFrame: [7], // dispara projétil no frame 7 da animação de attack
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
     deployCost: 3,
     deployCooldownMs: 4000,
   },
   guarda: {
-    preco: 10,
-    hp: 5,
+    preco: 12,
+    hp: 6,
     alcance: 5,
-    cooldown: 20,
-    dano: 1,
+    cooldown: 12,
+    dano: 2,
     retornaAoFinal: true,
     cor: "#8D6E63",
+    projetil: "bola",
     corProjetil: "yellow",
-    velocidadeProjetil: 6,
+    velocidadeProjetil: 8,
     estados: ["idle", "attack"],
     animacoes: {
       idle: { frameCount: 25, frameInterval: 4 },
@@ -48,8 +50,8 @@ export const troopTypes = {
     },
     fireFrame: [7], // dispara projétil no frame 12 da animação de attack
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
-    deployCost: 3,
-    deployCooldownMs: 4000,
+    deployCost: 4,
+    deployCooldownMs: 5000,
   },
   marine: {
     preco: 15,
@@ -59,6 +61,7 @@ export const troopTypes = {
     dano: 1,
     retornaAoFinal: true,
     cor: "#4FC3F7",
+    projetil: "bola",
     corProjetil: "#B3E5FC",
     velocidadeProjetil: 6,
     estados: ["idle", "attack"],
@@ -83,6 +86,7 @@ export const troopTypes = {
     dano: 4,
     retornaAoFinal: true,
     cor: "#F4511E",
+    projetil: "bola",
     corProjetil: "#FF8A65",
     velocidadeProjetil: 6,
     estados: ["idle", "attack"],
@@ -209,6 +213,7 @@ export class Troop {
       speed: this.config.velocidadeProjetil,
       row: this.row,
       tipo: this.tipo,
+      projetil: this.config.projetil || "bola", // << NOVO
       active: true,
       dano: this.config.dano,
       cor: this.config.corProjetil || "#fff",

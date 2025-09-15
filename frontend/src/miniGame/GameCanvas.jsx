@@ -1812,6 +1812,119 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           pt.x += pt.vx || 0;
           pt.y += pt.vy || 0;
           pt.vy = (pt.vy || 0) + (pt.g || 0.05);
+        } else if (pt.kind === "beam") {
+          // Envelope temporal: afina -> engorda -> afina
+          const life = pt.t / pt.max; // 0..1
+          const easeInOut = (x) =>
+            x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+          const k = easeInOut(life);
+          const wMax = pt.w || 10;
+          const w = Math.max(1.5, wMax * (0.35 + 0.65 * k)); // largura do “glow”
+          const core = Math.max(1, w * 0.35); // núcleo branco
+
+          // Vetores do feixe
+          const dx = pt.x1 - pt.x0,
+            dy = pt.y1 - pt.y0;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len,
+            uy = dy / len; // direção
+          const nx = -uy,
+            ny = ux; // normal
+
+          // Taper nas pontas: w0 (início) < wMid > w1 (fim)
+          const w0 = Math.max(0.6, w * 0.45);
+          const wMid = w;
+          const w1 = Math.max(0.6, w * 0.45);
+
+          // Pontos ao longo do feixe (0, 0.5, 1) com larguras diferentes
+          const xMid = pt.x0 + dx * 0.5,
+            yMid = pt.y0 + dy * 0.5;
+
+          // Polígono do “glow” com taper
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = 0.55 * (1 - life); // desvanece no fim
+
+          const grad = ctx.createLinearGradient(pt.x0, pt.y0, pt.x1, pt.y1);
+          grad.addColorStop(0, pt.cor || "#6cf");
+          grad.addColorStop(0.5, pt.cor || "#6cf");
+          grad.addColorStop(1, pt.cor || "#6cf");
+          ctx.fillStyle = grad;
+
+          ctx.beginPath();
+          // lado esquerdo
+          ctx.moveTo(pt.x0 + nx * w0, pt.y0 + ny * w0);
+          ctx.lineTo(xMid + nx * wMid, yMid + ny * wMid);
+          ctx.lineTo(pt.x1 + nx * w1, pt.y1 + ny * w1);
+          // lado direito
+          ctx.lineTo(pt.x1 - nx * w1, pt.y1 - ny * w1);
+          ctx.lineTo(xMid - nx * wMid, yMid - ny * wMid);
+          ctx.lineTo(pt.x0 - nx * w0, pt.y0 - ny * w0);
+          ctx.closePath();
+          ctx.fill();
+
+          // Núcleo fino
+          ctx.globalAlpha = 0.9 * (1 - life);
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = core;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(pt.x0, pt.y0);
+          ctx.lineTo(pt.x1, pt.y1);
+          ctx.stroke();
+
+          // —— Raios laterais (zig-zag) com ruído seedado ——
+          let s = (pt.seed | 0) >>> 0;
+          const rnd = () => {
+            // xorshift32
+            s ^= s << 13;
+            s >>>= 0;
+            s ^= s >> 17;
+            s >>>= 0;
+            s ^= s << 5;
+            s >>>= 0;
+            return (s >>> 0) / 4294967296;
+          };
+
+          const branches = 2; // quantidade de raios
+          const segs = 10; // segmentos por raio
+          const ampBase = w * 0.55 * (0.4 + 0.6 * k); // amplitude cresce no meio
+
+          ctx.lineJoin = "round";
+          for (let b = 0; b < branches; b++) {
+            const sign = rnd() < 0.5 ? -1 : 1;
+            const alpha = 0.38 * (1 - life);
+            const lw = Math.max(1, core * 0.55);
+
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = pt.cor || "#6cf";
+            ctx.lineWidth = lw;
+            ctx.beginPath();
+
+            for (let i = 0; i <= segs; i++) {
+              const t = i / segs; // 0..1 ao longo do feixe
+              const bx = pt.x0 + dx * t;
+              const by = pt.y0 + dy * t;
+              // envelope de jitter: 0 nas pontas, pico no meio
+              const env = Math.sin(Math.PI * t);
+              const j = (rnd() * 2 - 1) * ampBase * env;
+              const x = bx + nx * j * sign;
+              const y = by + ny * j * sign;
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+
+              // pequenas ramificações curtas
+              if (rnd() < 0.12 && i > 1 && i < segs - 1) {
+                const lenBr = 6 + rnd() * 10;
+                const dir = sign * (rnd() < 0.5 ? 1 : -1);
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + nx * lenBr * dir, y + ny * lenBr * dir);
+              }
+            }
+            ctx.stroke();
+          }
+
+          ctx.restore();
         }
 
         ctx.restore();
