@@ -1,3 +1,5 @@
+//backend/controllers/coloniaController.js
+const bcrypt = require("bcryptjs");
 const Colonia = require("../models/colonia");
 
 /* ===== Helpers de água ===== */
@@ -41,23 +43,94 @@ async function ensureWaterDefaults(doc) {
 // Criar uma nova colônia a partir apenas de { nome }
 exports.criarColonia = async (req, res) => {
   try {
-    const { nome } = req.body || {};
+    const { usuario, senha, nome, landingSite, doutrina } = req.body || {};
+
+    // valida nome (sempre)
     if (!nome || !nome.trim()) {
       return res.status(400).json({ erro: "O campo 'nome' é obrigatório." });
     }
 
-    // (opcional) evitar nomes duplicados
-    const existe = await Colonia.findOne({ nome: nome.trim() }).lean();
-    if (existe) {
+    // checa duplicidades de nome/usuario
+    const [existeNome, existeUsuario] = await Promise.all([
+      Colonia.findOne({ nome: nome.trim() }).lean(),
+      usuario ? Colonia.findOne({ usuario: usuario.trim() }).lean() : null,
+    ]);
+    if (existeNome)
       return res
         .status(409)
         .json({ erro: "Já existe uma colônia com esse nome." });
+    if (existeUsuario)
+      return res.status(409).json({ erro: "Usuário já cadastrado." });
+
+    // presets de bônus por local de pouso (percentual em fração)
+    const landingPresets = {
+      vale_nebuloso: { agricultura: +0.2, mineracao: 0.0, energia: -0.1 },
+      escarpa_basalto: { agricultura: -0.1, mineracao: +0.2, energia: 0.0 },
+      planicie_vento_frio: {
+        agricultura: -0.05,
+        mineracao: -0.05,
+        energia: +0.15,
+      },
+    };
+    const mods =
+      landingSite && landingPresets[landingSite]
+        ? landingPresets[landingSite]
+        : { agricultura: 0, mineracao: 0, energia: 0 };
+
+    // prédios iniciais por doutrina
+    const baseBuildings = {
+      fazenda: 0,
+      sistemaDeIrrigacao: 0,
+      matrizDeGravidade: 0,
+      muralhaReforcada: 0,
+      minaDeCarvao: 0,
+      minaProfunda: 0,
+      centroDePesquisa: 0,
+      laboratorioAvancado: 0,
+      postoMedico: 0,
+      hospitalCentral: 0,
+      geradorSolar: 0,
+      reatorGeotermico: 0,
+      estacaoDeTratamento: 0,
+      coletorAtmosferico: 0,
+    };
+    if (doutrina === "agronomia") baseBuildings.fazenda = 1;
+    if (doutrina === "saude") baseBuildings.postoMedico = 1;
+    if (doutrina === "mineracao") baseBuildings.minaDeCarvao = 1;
+    if (doutrina === "energia") baseBuildings.geradorSolar = 1;
+
+    // hash da senha (se veio via novo fluxo)
+    let senhaHash = null;
+    if (usuario || senha) {
+      if (!usuario || !usuario.trim() || !senha) {
+        return res.status(400).json({ erro: "Informe 'usuario' e 'senha'." });
+      }
+      if (String(senha).length < 6) {
+        return res
+          .status(400)
+          .json({ erro: "A senha deve ter pelo menos 6 caracteres." });
+      }
+      senhaHash = await bcrypt.hash(String(senha), 10);
     }
 
+    // defaults gerais
     const defaults = {
+      usuario: usuario?.trim() || null,
+      senhaHash,
       nome: nome.trim(),
+      avatarIndex: 1,
+
+      landingSite: landingSite || null,
+      doutrina: doutrina || null,
+      landingModifiers: {
+        agricultura: mods.agricultura,
+        mineracao: mods.mineracao,
+        energia: mods.energia,
+      },
+
       turno: 1,
       integridadeEstrutural: 100,
+
       populacao: {
         colonos: 100,
         guardas: 0,
@@ -66,34 +139,20 @@ exports.criarColonia = async (req, res) => {
         snipers: 0,
       },
       exploradores: [],
+
       energia: 200,
       agua: 100,
       maxAgua: 100,
-      // novos defaults (schema também cobre, mas deixo explícito):
       waterLastTs: Date.now(),
       waterRateMs: 60000,
+
       comida: 150,
       minerais: 100,
       saude: 100,
       sustentabilidade: 100,
       ciencia: 100,
 
-      construcoes: {
-        fazenda: 0,
-        sistemaDeIrrigacao: 0,
-        matrizDeGravidade: 0,
-        muralhaReforcada: 0,
-        minaDeCarvao: 0,
-        minaProfunda: 0,
-        centroDePesquisa: 0,
-        laboratorioAvancado: 0,
-        postoMedico: 0,
-        hospitalCentral: 0,
-        geradorSolar: 0,
-        reatorGeotermico: 0,
-        estacaoDeTratamento: 0,
-        coletorAtmosferico: 0,
-      },
+      construcoes: baseBuildings,
 
       hospital: { fila: [], internados: [], historicoAltas: [] },
 
@@ -134,23 +193,23 @@ exports.atualizarColonia = async (req, res) => {
   try {
     const { id } = req.params;
     const dadosAtualizados = req.body;
+    // nunca permitir atualização direta da senha em claro
+    if ("senha" in dadosAtualizados) delete dadosAtualizados.senha;
 
     const coloniaAtualizada = await Colonia.findByIdAndUpdate(
       id,
       dadosAtualizados,
-      {
-        new: true,
-      }
+      { new: true }
     );
-
-    if (!coloniaAtualizada) {
+    if (!coloniaAtualizada)
       return res.status(404).json({ erro: "Colônia não encontrada." });
-    }
 
-    res.status(200).json({
-      ...coloniaAtualizada.toObject(),
-      water: metaFrom(coloniaAtualizada),
-    });
+    res
+      .status(200)
+      .json({
+        ...coloniaAtualizada.toObject(),
+        water: metaFrom(coloniaAtualizada),
+      });
   } catch (error) {
     console.error("Erro ao atualizar colônia:", error);
     res.status(500).json({ erro: "Erro ao atualizar colônia." });

@@ -199,9 +199,40 @@ const battleCampaignSchema = new mongoose.Schema(
 /* ---------------------------------------------- */
 
 const coloniaSchema = new mongoose.Schema({
-  nome: { type: String, required: true },
-  turno: { type: Number, default: 1 },
+  /* Conta */
+  usuario: {
+    type: String,
+    trim: true,
+    index: true,
+    unique: true,
+    sparse: true,
+  }, // opcional para retrocompat
+  senhaHash: { type: String, default: null }, // NUNCA salve senha em claro
+
+  /* Personalização */
+  nome: { type: String, required: true, trim: true, index: true, unique: true },
   avatarIndex: { type: Number, default: 1, min: 1, max: 10 },
+
+  /* Setup inicial: pouso + doutrina */
+  landingSite: {
+    type: String,
+    enum: ["vale_nebuloso", "escarpa_basalto", "planicie_vento_frio"],
+    default: null,
+  },
+  doutrina: {
+    type: String,
+    enum: ["agronomia", "saude", "mineracao", "energia"],
+    default: null,
+  },
+  // modificadores percentuais (ex.: 0.20 = +20%, -0.10 = -10%)
+  landingModifiers: {
+    agricultura: { type: Number, default: 0 },
+    mineracao: { type: Number, default: 0 },
+    energia: { type: Number, default: 0 },
+  },
+
+  /* Estado geral */
+  turno: { type: Number, default: 1 },
   integridadeEstrutural: { type: Number, default: 100 },
   populacao: {
     colonos: { type: Number, default: 0 },

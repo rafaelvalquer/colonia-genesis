@@ -11,6 +11,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Slide from "@mui/material/Slide";
 import AuthPage from "./pages/AuthPage"; // nova página de login
+import IntroFlow from "./pages/IntroFlow"; // << ADICIONE
 import coloniaService from "./services/coloniaService";
 import useWaterTicker from "./hooks/useWaterTicker";
 import MiniGamePage from "./pages/TowerDefensePage.jsx"; // novo
@@ -323,7 +324,9 @@ function GamePage({
 
   return (
     <>
-      <h1 className="text-3xl font-bold text-center mb-6">Colônia Gênesis</h1>
+      <h1 className="text-3xl font-bold text-center mb-6">
+        Colônia {estadoAtual.nome}
+      </h1>
 
       <section
         id="status"
@@ -371,6 +374,8 @@ function App() {
               path="/"
               element={<AuthPage setEstadoAtual={setEstadoAtual} />}
             />
+            {/* Intro/Tutorial mostrado após criar conta */}
+            <Route path="/intro" element={<IntroFlow />} />
             <Route
               path="/jogo"
               element={
