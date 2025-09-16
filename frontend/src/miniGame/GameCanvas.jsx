@@ -132,10 +132,11 @@ function setCanvasSize(canvas, cssW, cssH) {
 
 // ===== HUD fixa (compacta) =====
 const HUD_PAD = 4; // margem externa mínima
-const HUD_GUTTER = 6; // espaço entre painel e mapa
-const PANEL_PCT = 0.14; // % da largura do canvas
-const PANEL_MIN = 150; // largura mínima do painel
-const PANEL_MAX = 210; // largura máxima do painel
+const HUD_GUTTER = 2; // espaço entre painel e mapa
+const PANEL_PCT = 0.2; // % da largura do canvas
+const PANEL_MIN = 180; // largura mínima do painel
+const PANEL_MAX = 260; // largura máxima do painel
+const SCROLL_COL_W = 24;
 
 function clr(a) {
   return `rgba(20,20,20,${a})`;
@@ -144,7 +145,9 @@ function within(r, x, y) {
   return x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h;
 }
 
-function buildHudLayout(canvas) {
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function buildHudLayout(canvas, slotOffset = 0) {
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.width / dpr;
   const H = canvas.height / dpr;
@@ -152,11 +155,9 @@ function buildHudLayout(canvas) {
   const panelW = Math.max(PANEL_MIN, Math.min(W * PANEL_PCT, PANEL_MAX));
   const panel = { x: HUD_PAD, y: HUD_PAD, w: panelW, h: H - HUD_PAD * 2 };
 
-  // alturas básicas
   const titleH = 26;
-  const energyH = 75; // aumentado para caber a barra de Capacidade
+  const energyH = 75;
 
-  // áreas fixas do topo
   const title = { x: panel.x + 10, y: panel.y + 8, w: panel.w - 20, h: titleH };
   const energy = {
     x: title.x,
@@ -165,15 +166,14 @@ function buildHudLayout(canvas) {
     h: energyH,
   };
 
-  // slots responsivos
-  const compact = panel.w < 170; // modo compacto em painéis estreitos
+  const compact = panel.w < 170;
 
   const waveBtnH = 52;
   const removeBtnH = 42;
 
   const slotsArea = {
     x: panel.x + 10,
-    y: energy.y + energy.h + 10, // imediatamente abaixo da energia
+    y: energy.y + energy.h + 10,
     w: panel.w - 20,
     h:
       panel.y +
@@ -182,19 +182,32 @@ function buildHudLayout(canvas) {
       (removeBtnH + 8 + waveBtnH + 10),
   };
 
-  const slotH = compact ? 64 : 80;
+  const slotH = compact ? 56 : 68;
   const slotGap = 8;
-  const slotW = slotsArea.w;
+  const slotW = slotsArea.w - (SCROLL_COL_W + 6);
+
+  const entries = Object.keys(troopTypes);
+  const visibleCount = Math.max(
+    1,
+    Math.floor((slotsArea.h + slotGap) / (slotH + slotGap))
+  );
+  const maxOffset = Math.max(0, entries.length - visibleCount);
+  const start = clamp(slotOffset, 0, maxOffset);
+  const end = Math.min(entries.length, start + visibleCount);
 
   const slots = [];
-  const entries = Object.keys(troopTypes);
-  for (let i = 0; i < entries.length; i++) {
-    const sy = slotsArea.y + i * (slotH + slotGap);
-    if (sy + slotH > slotsArea.y + slotsArea.h) break;
-    slots.push({ x: slotsArea.x, y: sy, w: slotW, h: slotH, tipo: entries[i] });
+  for (let i = start, j = 0; i < end; i++, j++) {
+    const sy = slotsArea.y + j * (slotH + slotGap);
+    slots.push({
+      x: slotsArea.x,
+      y: sy,
+      w: slotW,
+      h: slotH,
+      tipo: entries[i],
+      index: i,
+    });
   }
 
-  // botões fixos no rodapé do painel
   const waveBtn = {
     x: panel.x + 10,
     y: panel.y + panel.h - 10 - waveBtnH,
@@ -208,6 +221,44 @@ function buildHudLayout(canvas) {
     h: removeBtnH,
   };
 
+  // UI de scroll
+  const btn = 26; // tamanho do botão (w/h)
+  const btnPad = 6; // margem interna nos slots
+
+  // agora os botões ficam DENTRO da área de slots — não encostam na barra de supply
+  const scrollX = slotsArea.x + slotsArea.w - SCROLL_COL_W; // início da coluna
+  const upBtn = {
+    x: scrollX + Math.floor((SCROLL_COL_W - btn) / 2),
+    y: slotsArea.y + btnPad,
+    w: btn,
+    h: btn,
+  };
+  const downBtn = {
+    x: scrollX + Math.floor((SCROLL_COL_W - btn) / 2),
+    y: slotsArea.y + slotsArea.h - btnPad - btn,
+    w: btn,
+    h: btn,
+  };
+
+  // trilho entre os botões
+  const track = {
+    x: scrollX + Math.floor((SCROLL_COL_W - 6) / 2),
+    y: upBtn.y + upBtn.h + btnPad,
+    w: 6,
+    h: Math.max(0, downBtn.y - (upBtn.y + upBtn.h + btnPad) - btnPad),
+  };
+
+  let thumb = null;
+  if (entries.length > visibleCount && track.h > 0) {
+    const thumbH = Math.max(
+      18,
+      Math.round((track.h * visibleCount) / entries.length)
+    );
+    const frac = maxOffset === 0 ? 0 : start / maxOffset;
+    const thumbY = Math.round(track.y + (track.h - thumbH) * frac);
+    thumb = { x: track.x - 1, y: thumbY, w: track.w + 2, h: thumbH };
+  }
+
   return {
     panel,
     compact,
@@ -217,6 +268,18 @@ function buildHudLayout(canvas) {
     slots,
     removeBtn,
     waveBtn,
+    scroll: {
+      total: entries.length,
+      visibleCount,
+      start,
+      maxOffset,
+      hasPrev: start > 0,
+      hasNext: end < entries.length,
+      upBtn,
+      downBtn,
+      track,
+      thumb,
+    },
   };
 }
 
@@ -479,12 +542,17 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     };
   };
 
-  // no topo do componente
   const [timeScale, setTimeScale] = useState(1);
   const timeScaleRef = useRef(1);
   useEffect(() => {
     timeScaleRef.current = timeScale;
   }, [timeScale]);
+
+  const [slotOffset, setSlotOffset] = useState(0);
+  const slotOffsetRef = useRef(0);
+  useEffect(() => {
+    slotOffsetRef.current = slotOffset;
+  }, [slotOffset]);
 
   // Relógio de jogo (ms) — só anda quando a aba está visível
   useEffect(() => {
@@ -935,7 +1003,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     let animationId;
 
     const drawHUD = () => {
-      const layout = buildHudLayout(canvas);
+      const layout = buildHudLayout(canvas, slotOffsetRef.current);
+
       hudRectsRef.current = layout;
 
       const now = performance.now();
@@ -1227,7 +1296,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const cfg = troopTypes[s.tipo];
         const disabled = isDisabledTroop(s.tipo, cfg);
 
-        const iconSize = layout.compact ? 44 : 56;
+        const iconSize = layout.compact ? 40 : 50;
         const nameFont = layout.compact ? "bold 12px Arial" : "bold 14px Arial";
         const priceFont = "12px Arial";
 
@@ -1455,6 +1524,88 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.restore();
       });
 
+      // ---- Controles de rolagem (aparecem só quando necessário) ----
+      if (layout.scroll && layout.scroll.total > layout.scroll.visibleCount) {
+        const sc = layout.scroll;
+
+        // trilho
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.fillRect(sc.track.x, sc.track.y, sc.track.w, sc.track.h);
+        ctx.restore();
+
+        // thumb
+        if (sc.thumb) {
+          ctx.save();
+          ctx.shadowColor = "rgba(96,165,250,0.6)";
+          ctx.shadowBlur = 8;
+          const th = sc.thumb;
+          ctx.fillStyle = "rgba(96,165,250,0.9)"; // azul 400
+          ctx.fillRect(th.x, th.y, th.w, th.h);
+          ctx.restore();
+        }
+
+        // botões ▲ / ▼
+        const drawArrowBtn = (r, dir, enabled) => {
+          const cx = r.x + r.w / 2;
+          const cy = r.y + r.h / 2;
+          const rad = Math.min(r.w, r.h) / 2;
+
+          ctx.save();
+          ctx.globalAlpha = enabled ? 0.95 : 0.4;
+
+          // sombra externa
+          ctx.shadowColor = "rgba(0,0,0,0.35)";
+          ctx.shadowBlur = 10;
+
+          // corpo circular com gradiente
+          const g = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+          g.addColorStop(0, "rgba(59,130,246,0.95)"); // azul 500
+          g.addColorStop(1, "rgba(37,99,235,0.95)"); // azul 600
+          ctx.fillStyle = g;
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, rad - 1, 0, Math.PI * 2);
+          ctx.fill();
+
+          // borda leve
+          ctx.shadowBlur = 0;
+          ctx.lineWidth = 1.6;
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.stroke();
+
+          // brilho "gloss" superior
+          ctx.globalAlpha *= 0.45;
+          ctx.beginPath();
+          ctx.arc(cx, cy - rad * 0.25, rad * 0.7, Math.PI, 0);
+          ctx.fillStyle = "rgba(255,255,255,0.55)";
+          ctx.fill();
+
+          // seta
+          ctx.globalAlpha = enabled ? 1 : 0.45;
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          const s = 5.5;
+          if (dir === "up") {
+            ctx.moveTo(cx, cy - s);
+            ctx.lineTo(cx - s, cy + s);
+            ctx.lineTo(cx + s, cy + s);
+          } else {
+            ctx.moveTo(cx, cy + s);
+            ctx.lineTo(cx - s, cy - s);
+            ctx.lineTo(cx + s, cy - s);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.restore();
+        };
+
+        drawArrowBtn(sc.upBtn, "up", sc.hasPrev);
+        drawArrowBtn(sc.downBtn, "down", sc.hasNext);
+      }
+
       // --- separador antes dos botões ---
       drawSeparator(layout.removeBtn.y - 10);
 
@@ -1516,19 +1667,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       ctx.restore();
     };
 
-    {
-      const now = performance.now();
-      const dt = now - lastFrameRef.current;
-      lastFrameRef.current = now;
-      if (visibleRef.current) gameTimeRef.current += dt * timeScaleRef.current;
-
-      // novo: calcula FPS instantâneo e suaviza (EMA)
-      const inst = dt > 0 ? 1000 / dt : 0;
-      const alpha = 0.12; // 0..1 (maior = reage mais rápido)
-      fpsRef.current.ema = fpsRef.current.ema
-        ? fpsRef.current.ema * (1 - alpha) + inst * alpha
-        : inst;
-    }
     function roundRectPath(ctx, x, y, w, h, r) {
       const rr = Math.min(r, h / 2, w / 2);
       ctx.beginPath();
@@ -1550,7 +1688,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const now = performance.now();
         const dt = now - lastFrameRef.current;
         lastFrameRef.current = now;
-        if (visibleRef.current) gameTimeRef.current += dt;
+        if (visibleRef.current)
+          gameTimeRef.current += dt * timeScaleRef.current; // ver item 5
+        const inst = dt > 0 ? 1000 / dt : 0;
+        const alpha = 0.12;
+        fpsRef.current.ema = fpsRef.current.ema
+          ? fpsRef.current.ema * (1 - alpha) + inst * alpha
+          : inst;
       }
       const map = getMapGeom(canvas);
 
@@ -2384,18 +2528,20 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const handleMouseMove = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left,
-      y = e.clientY - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-    // cursor no botão de game over
-    if (jogoEncerrado && gameOverBtnRef.current) {
-      const r = gameOverBtnRef.current;
-      const inside = x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h;
-      canvas.style.cursor = inside ? "pointer" : "default";
-    } else if (!isDragging) {
-      canvas.style.cursor = "default";
+    const hud = hudRectsRef.current;
+    if (hud?.scroll) {
+      if (
+        (hud.scroll.hasPrev && within(hud.scroll.upBtn, x, y)) ||
+        (hud.scroll.hasNext && within(hud.scroll.downBtn, x, y))
+      ) {
+        canvas.style.cursor = "pointer";
+      } else if (!isDragging) {
+        canvas.style.cursor = "default";
+      }
     }
-
     if (!isDragging) return;
     setDragPosition({ x, y });
   };
@@ -2408,6 +2554,17 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     // Interação com HUD
     const hud = hudRectsRef.current;
+    if (hud && hud.scroll) {
+      if (within(hud.scroll.upBtn, x, y) && hud.scroll.hasPrev) {
+        setSlotOffset((o) => Math.max(0, o - 1));
+        return;
+      }
+      if (within(hud.scroll.downBtn, x, y) && hud.scroll.hasNext) {
+        setSlotOffset((o) => Math.min(hud.scroll.maxOffset, o + 1));
+        return;
+      }
+    }
+
     if (hud) {
       if (within(hud.waveBtn, x, y)) {
         if (modoPreparacao) {
@@ -2552,6 +2709,20 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     setIsDragging(false);
     setDraggedTroop(null);
+  };
+
+  const handleWheel = (e) => {
+    const hud = hudRectsRef.current;
+    if (!hud) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
+    if (!within(hud.panel, x, y)) return; // só rola se o mouse estiver no painel
+    const dir = Math.sign(e.deltaY);
+    if (dir > 0 && hud.scroll?.hasNext)
+      setSlotOffset((o) => Math.min(hud.scroll.maxOffset, o + 1));
+    if (dir < 0 && hud.scroll?.hasPrev)
+      setSlotOffset((o) => Math.max(0, o - 1));
   };
 
   const handleClick = (e) => {
