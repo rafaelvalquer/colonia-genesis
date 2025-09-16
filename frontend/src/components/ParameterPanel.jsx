@@ -565,21 +565,30 @@ function ParameterPanel({
               {grupo.icone}
               {grupo.grupo}
             </h3>
-            <ul className="flex flex-col gap-2 border-l border-gray-600 pl-3">
-              {grupo.itens.map((aba) => (
-                <li key={aba.id}>
-                  <button
-                    onClick={() => setAbaSelecionada(aba.id)}
-                    className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 ${
-                      abaSelecionada === aba.id
-                        ? "border-blue-400 text-white font-semibold"
-                        : "border-transparent text-gray-400 hover:text-white"
-                    } transition-colors`}
-                  >
-                    {aba.label}
-                  </button>
-                </li>
-              ))}
+            <ul className="flex flex-col gap-2 pl-3">
+              {/* remova a borda fixa para não “forçar” a barra em todas */}
+              {grupo.itens.map((aba) => {
+                const ativo = abaSelecionada === aba.id;
+                return (
+                  <li key={aba.id}>
+                    <button
+                      onClick={() => setAbaSelecionada(aba.id)}
+                      data-tab={aba.id}
+                      data-tour={
+                        aba.id === "parametros" ? "aba-parametros" : undefined
+                      }
+                      className={`text-left w-full px-2 py-1 border-l-4 flex items-center gap-2 transition-colors
+            ${
+              ativo
+                ? "border-blue-400 text-white font-semibold"
+                : "border-transparent text-gray-400 hover:text-white"
+            }`}
+                    >
+                      {aba.label}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}
@@ -635,7 +644,7 @@ function ParameterPanel({
                 {abaInternaCentral === "recursos" && (
                   <>
                     <h3 className="text-xl font-semibold mb-2">Recursos</h3>
-                    <ul className="space-y-2">
+                    <ul className="space-y-2" data-tour="central-comandos">
                       <li className="group relative inline-block">
                         <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
                           <span className="mr-1">👥</span>
@@ -1081,7 +1090,12 @@ function ParameterPanel({
 
         {abaSelecionada === "parametros" && (
           <>
-            <h2 className="text-xl font-semibold mb-4">Parâmetros</h2>
+            <h2
+              className="text-xl font-semibold mb-4"
+              data-tour="aba-parametros"
+            >
+              Parâmetros
+            </h2>
 
             <Tabs
               value={abaParametros}
@@ -1109,7 +1123,21 @@ function ParameterPanel({
                 { id: "agua", label: "Consumo de Água" },
                 { id: "alocacao", label: "Alocação de Colonos" },
               ].map((t) => (
-                <Tab key={t.id} value={t.id} label={t.label} />
+                <Tab
+                  key={t.id}
+                  value={t.id}
+                  label={t.label}
+                  data-tour={
+                    t.id === "skill"
+                      ? "skill"
+                      : t.id === "agua"
+                      ? "agua"
+                      : t.id === "alocacao"
+                      ? "alocacao"
+                      : undefined
+                  }
+                  onClick={() => setAbaParametros(t.id)} // ⬅️ garante seleção
+                />
               ))}
             </Tabs>
 
@@ -1531,6 +1559,7 @@ function ParameterPanel({
                           >
                             <IconButton
                               size="small"
+                              data-tour="btn-fila"
                               onClick={() => setDrawerAberto(true)}
                               sx={{
                                 color: "#334155",
@@ -1833,6 +1862,7 @@ function ParameterPanel({
 
         <button
           onClick={handleApplyClick}
+          data-tour="apply"
           className="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200"
         >
           Aplicar Parâmetros
@@ -1842,7 +1872,10 @@ function ParameterPanel({
           open={drawerAberto}
           onClose={() => setDrawerAberto(false)}
         >
-          <div className="w-80 p-4 bg-white h-full flex flex-col">
+          <div
+            className="w-80 p-4 bg-white h-full flex flex-col"
+            data-tour="fila"
+          >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold">Fila de Construção</h2>
               <IconButton onClick={() => setDrawerAberto(false)}>

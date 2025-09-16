@@ -50,6 +50,7 @@ export default function IntroFlow() {
   const finish = () => {
     if (coloniaId) localStorage.setItem("coloniaId", coloniaId);
     localStorage.setItem(KEY, "1");
+    localStorage.setItem("shouldStartMainTour", "1"); // flag simples
     navigate("/jogo", { replace: true });
   };
 

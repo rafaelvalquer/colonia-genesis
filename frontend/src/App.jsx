@@ -1,6 +1,11 @@
 //src/App.jsx
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
 import ParameterPanel from "./components/ParameterPanel";
 import StatusPanel from "./components/StatusPanel";
 import { runSimulationTurn } from "./utils/simulationEngine";
@@ -14,8 +19,8 @@ import AuthPage from "./pages/AuthPage"; // nova página de login
 import IntroFlow from "./pages/IntroFlow"; // << ADICIONE
 import coloniaService from "./services/coloniaService";
 import useWaterTicker from "./hooks/useWaterTicker";
-import MiniGamePage from "./pages/TowerDefensePage.jsx"; // novo
-import { useNavigate } from "react-router-dom";
+import MiniGamePage from "./pages/TowerDefensePage.jsx";
+import useMainTour from "./hooks/useMainTour";
 
 function GamePage({
   estadoAtual,
@@ -24,6 +29,9 @@ function GamePage({
   setFilaConstrucoes,
   showSnackbar,
 }) {
+  const { run } = useMainTour();
+  const { state } = useLocation(); // opcional
+
   useEffect(() => {
     const buscarColoniaAtualizada = async () => {
       try {
@@ -58,6 +66,33 @@ function GamePage({
     rateMs: estadoAtual?.water?.rateMs ?? 60000,
     onTick: refetchEstado,
   });
+
+  // Inicia o tour principal após o IntroFlow (quando os elementos estiverem prontos)
+  useEffect(() => {
+    if (!estadoAtual) return;
+
+    const seenKey = `mainTour::${estadoAtual._id || "anon"}::v1`;
+    const should = localStorage.getItem("shouldStartMainTour") === "1";
+    const already = localStorage.getItem(seenKey) === "1";
+    if (!should || already) return;
+
+    const ready = () =>
+      document.querySelector('[data-tour="status"]') &&
+      document.querySelector('[data-tour="apply"]');
+
+    let tries = 0;
+    const maxTries = 80; // ~9.6s a 120ms
+    const id = setInterval(() => {
+      if (ready() || tries++ > maxTries) {
+        run();
+        localStorage.setItem("shouldStartMainTour", "0");
+        localStorage.setItem(seenKey, "1");
+        clearInterval(id);
+      }
+    }, 120);
+
+    return () => clearInterval(id);
+  }, [estadoAtual, run]);
 
   // App.jsx (dentro de GamePage)
   const handleParametrosChange = async (parametrosSelecionados) => {
@@ -330,6 +365,7 @@ function GamePage({
 
       <section
         id="status"
+        data-tour="status"
         className="bg-slate-800 rounded-lg p-4 flex flex-wrap justify-around mb-6 shadow-lg"
       >
         <StatusPanel estado={estadoAtual} />
