@@ -573,6 +573,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     feridosPorTipo: {},
   });
   const gameOverBtnRef = useRef(null); // área clicável do botão "GAME OVER"
+  const pointerRef = useRef({ x: 0, y: 0 });
+  const hoveredSlotRef = useRef(null); // guarda slot sob o mouse
+  const dragStartRef = useRef(null); // início do drag para fade do ghost
 
   const [dadosVitoria, setDadosVitoria] = useState({ inimigosMortos: 0 });
 
@@ -1301,6 +1304,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const priceFont = "12px Arial";
 
         ctx.save();
+        const isHover = hoveredSlotRef.current?.index === s.index && !disabled;
         // sombra nos slots
         ctx.shadowColor = "rgba(0,0,0,0.35)";
         ctx.shadowBlur = 8;
@@ -1308,14 +1312,18 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         ctx.fillStyle = disabled
           ? "rgba(65,65,65,0.95)"
+          : isHover
+          ? "rgba(30,144,255,0.28)"
           : "rgba(30,144,255,0.18)";
         ctx.fillRect(s.x, s.y, s.w, s.h);
 
         // borda (sem sombra)
         ctx.shadowColor = "transparent";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = isHover ? 3 : 2;
         ctx.strokeStyle = disabled
           ? "rgba(140,140,140,0.9)"
+          : isHover
+          ? "rgba(56,189,248,1)"
           : "rgba(30,144,255,0.85)";
         ctx.strokeRect(s.x, s.y, s.w, s.h);
 
@@ -1329,6 +1337,19 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             iconSize,
             iconSize
           );
+        }
+
+        // “ghost” do drag no slot de origem (fade 0.3s)
+        if (isDragging && draggedTroop === s.tipo && dragStartRef.current) {
+          const p = Math.min(1, (now - dragStartRef.current) / 300);
+          const a = 1 - p;
+          if (a > 0 && img && img.complete) {
+            ctx.save();
+            ctx.globalAlpha = 0.6 * a;
+            const g = Math.min(iconSize * 1.2, s.h - 8);
+            ctx.drawImage(img, s.x + (s.w - g) / 2, s.y + (s.h - g) / 2, g, g);
+            ctx.restore();
+          }
         }
 
         // Badge arredondado com gradiente + stroke
@@ -1514,12 +1535,22 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.fillStyle = "#fff";
         drawClampedText(s.tipo, textX, nameY, maxNameW, nameFont);
 
-        // preço
-        const priceY = s.y + (layout.compact ? s.h - 12 : 48);
+        // meta em UMA faixa: 💰 ⛽ ⏱ (cooldown só se houver)
+        const metaY = s.y + (layout.compact ? s.h - 10 : s.h - 12);
         ctx.fillStyle = "#fff";
         ctx.font = priceFont;
         const capCost = getDeployCost(s.tipo);
-        ctx.fillText(`💰 ${cfg.preco}   ⛽ ${capCost}`, textX, priceY);
+        const cdMs = getDeployCooldownMs(s.tipo);
+        const meta =
+          `💰 ${cfg.preco}  ⛽ ${capCost}` +
+          (cdMs > 0 ? `  ⏱ ${(cdMs / 1000) | 0}s` : "");
+        drawClampedText(
+          meta,
+          textX,
+          metaY,
+          Math.max(24, s.x + s.w - 12 - textX),
+          priceFont
+        );
 
         ctx.restore();
       });
@@ -2495,15 +2526,27 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.restore(); // caixa
 
         // --- 10) percentual textual opcional ao lado ---
+        // --- 10) % no centro da divisória ---
         const pctNum = Math.round((tot > 0 ? friendly / tot : 1) * 100);
+        const cx = x + barW / 2;
         ctx.save();
         ctx.font = "bold 11px Arial";
-        ctx.textAlign = "right";
+        ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.shadowColor = "rgba(0,0,0,0.6)";
-        ctx.shadowBlur = 4;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(0,0,0,0.45)";
+        ctx.strokeText(`${pctNum}%`, cx, edgeY);
         ctx.fillStyle = "#fff";
-        ctx.fillText(`${pctNum}%`, x - 6, yTop + barH / 2);
+        ctx.fillText(`${pctNum}%`, cx, edgeY);
+        ctx.restore();
+
+        // rótulos pequenos
+        ctx.save();
+        ctx.font = "10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillText("🟥 Inimigos", cx, yTop - 8);
+        ctx.fillText("🟦 Aliados", cx, yTop + barH + 10);
         ctx.restore();
       }
 
@@ -2530,6 +2573,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    pointerRef.current = { x, y };
 
     const hud = hudRectsRef.current;
     if (hud?.scroll) {
@@ -2541,6 +2585,17 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       } else if (!isDragging) {
         canvas.style.cursor = "default";
       }
+    }
+
+    // acha slot sob o mouse
+    if (hud?.slots) {
+      let hov = null;
+      for (const s of hud.slots)
+        if (within(s, x, y)) {
+          hov = s;
+          break;
+        }
+      hoveredSlotRef.current = hov;
     }
     if (!isDragging) return;
     setDragPosition({ x, y });
@@ -2569,8 +2624,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       if (within(hud.waveBtn, x, y)) {
         if (modoPreparacao) {
           // 👇 banner no início da onda
-          showWaveBanner(`🚀 Onda ${onda} iniciando!`, {
-            color: "#22c55e",
+          showWaveBanner(`📡 Horda ${onda} detectada!`, {
+            color: "#60a5fa",
             dur: 2600,
           });
 
@@ -2597,6 +2652,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
           setIsDragging(true);
           setDraggedTroop(s.tipo);
+          dragStartRef.current = performance.now();
           setTropaSelecionada(s.tipo);
           setDragPosition({ x, y });
           return;
@@ -3053,7 +3109,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           } else {
             const ondaAtual = onda;
             showWaveBanner(`✅ Onda ${ondaAtual} concluída!`, {
-              sub: `Prepare-se para a Onda ${ondaAtual + 1}…`,
+              sub: `Prepare-se: Horda ${ondaAtual + 1} chegando…`,
               color: "#10b981",
               dur: 2600,
             });
