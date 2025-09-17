@@ -346,9 +346,32 @@ export function runSimulationTurn(
       `💡 Irrigação consumiu ${custoEnergiaIrrigacao} de energia (${irrigadores}×30).`
     );
   }
+
   // MINERAIS
-  let mineraisProduzidos = quantidadePorSetor.minas * consumoAgua;
-  if (pontos.mineracao === 1) mineraisProduzidos *= 2;
+  const baseMineracaoWorkers = quantidadePorSetor.minas * consumoAgua;
+  let mineraisProduzidos =
+    pontos.mineracao === 1 ? baseMineracaoWorkers * 2 : baseMineracaoWorkers;
+
+  const minasCarvao = construcoes.minaDeCarvao || 0;
+  const minasProfundas = construcoes.minaProfunda || 0;
+
+  const extraCarvao = minasCarvao * 15; // +15 minerais por minaDeCarvao
+  const extraProfunda = minasProfundas * 40; // +40 minerais por minaProfunda
+  mineraisProduzidos += extraCarvao + extraProfunda;
+
+  const custoEnergiaMinasProfundas = minasProfundas * 20; // -20 energia por minaProfunda
+  if (custoEnergiaMinasProfundas > 0) energia -= custoEnergiaMinasProfundas;
+
+  log.push(
+    `⛏️ Minerais — workers:${baseMineracaoWorkers}${
+      pontos.mineracao === 1 ? "→" + baseMineracaoWorkers * 2 : ""
+    } | carvão:+${extraCarvao} (x${minasCarvao}) | profunda:+${extraProfunda} (x${minasProfundas}) ⇒ total:+${mineraisProduzidos}.`
+  );
+  if (custoEnergiaMinasProfundas > 0) {
+    log.push(
+      `🔋 Minas profundas consumiram ${custoEnergiaMinasProfundas} de energia (${minasProfundas}×20).`
+    );
+  }
 
   // CIÊNCIA
   let cienciaProduzida = Math.floor(quantidadePorSetor.laboratorio / 2);

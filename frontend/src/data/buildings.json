@@ -62,7 +62,7 @@
   "minaDeCarvao": {
     "nome": "Mina de Carvão",
     "categoria": "minas",
-    "descricao": "Extrai carvão necessário para alimentar geradores e construções.",
+    "descricao": "Cada unidade extrai +15 de minerais por turno",
     "imagem": "/images/mina-carvao.png",
     "tempo": 3,
     "custo": {
@@ -77,7 +77,7 @@
   "minaProfunda": {
     "nome": "Mina Profunda",
     "categoria": "minas",
-    "descricao": "Permite acesso a minerais raros em profundidades maiores.",
+    "descricao": "Por unidade: +40 🪨 minerais/turno, −20 ⚡ energia/turno.",
     "imagem": "/images/mina-profunda.png",
     "tempo": 5,
     "custo": {
