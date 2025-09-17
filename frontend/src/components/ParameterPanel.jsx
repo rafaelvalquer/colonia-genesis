@@ -251,10 +251,10 @@ function ParameterPanel({
   const [alocacaoColonos, setAlocacaoColonos] = useState({
     fazenda: 20,
     minas: 20,
-    laboratorio: 15,
-    construcao: 15,
-    saude: 15,
-    energia: 15,
+    laboratorio: 20,
+    construcao: 10,
+    saude: 10,
+    energia: 20,
   });
 
   const [tempAlocacao, setTempAlocacao] = useState(alocacaoColonos);
@@ -274,6 +274,17 @@ function ParameterPanel({
   const filaHospital = estadoAtual?.hospital?.fila?.length ?? 0;
 
   const steps = ["Recursos", "Eventos", "Resultado Final"];
+
+  const persistParametrosSnapshot = async (deltaSnap) => {
+    const nextSnap = {
+      ...(estadoAtual?.parametrosSnapshot || {}),
+      ...deltaSnap,
+    };
+    await coloniaService.atualizarColonia(estadoAtual._id, {
+      parametrosSnapshot: nextSnap,
+    });
+    onEstadoChange?.({ ...estadoAtual, parametrosSnapshot: nextSnap });
+  };
 
   const handleSliderChange = (campo, novoValor) => {
     setTempAlocacao((old) => ({ ...old, [campo]: novoValor }));
@@ -309,6 +320,14 @@ function ParameterPanel({
     setTempAlocacao({ ...novaDistribuicao, [campo]: novoValor });
   };
 
+  useEffect(() => {
+    const saved = estadoAtual?.parametrosSnapshot?.alocacaoColonos;
+    if (saved) {
+      setAlocacaoColonos(saved);
+      setTempAlocacao(saved);
+    }
+  }, [estadoAtual?._id, estadoAtual?.parametrosSnapshot?.alocacaoColonos]);
+
   const handleSwitchToggle = (campo) => {
     const ativo = distribuicao[campo] === 1;
     if (ativo) {
@@ -338,11 +357,18 @@ function ParameterPanel({
         console.error("Falha ao salvar skillsDistribuicao:", e);
       }
 
-      // pede ao pai para debitar água no backend antes de simular
+      // 2) Salva a alocação atual (o que está na tela)
+      try {
+        await persistParametrosSnapshot({ alocacaoColonos: tempAlocacao });
+      } catch (e) {
+        console.error("Falha ao salvar parametrosSnapshot.alocacaoColonos:", e);
+      }
+
+      // 3) Roda o turno usando a alocação visível
       const report = await onChange({
         distribuicao: skillsDistribuicao,
         agua: consumo,
-        alocacaoColonos,
+        alocacaoColonos: tempAlocacao, // <- usa o que o usuário está vendo
         filaConstrucoes: estadoAtual.filaConstrucoes,
         filaMissoes: estadoAtual.filaMissoes,
         custoAgua: aguaNecessaria,
