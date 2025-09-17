@@ -194,7 +194,8 @@ function ParameterPanel({
     {
       id: "snipers",
       nome: "Sniper",
-      descricao: "Unidade de ataque à distância.",
+      descricao:
+        "Atirador de elite da colônia. Rifle de precisão de pulso. Elimina alvos-chave à longa distância. Vulnerável a curta distância.",
       imagem: "/images/sniper.png",
       custo: {
         comida: 20,
@@ -203,9 +204,10 @@ function ParameterPanel({
       },
     },
     {
-      id: "ranger",
+      id: "rangers",
       nome: "Ranger",
-      descricao: "Unidade defensiva com alta resistência.",
+      descricao:
+        "Atiradora de linha da colônia. Dispara laser perfurante que acerta todos os inimigos na mesma trajetória. Leve e móvel, frágil a curta distância.",
       imagem: "/images/ranger.png",
       custo: {
         comida: 20,
@@ -679,14 +681,14 @@ function ParameterPanel({
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
-                                <span className="w-6 text-center">⚔️</span>
+                                <span className="w-6 text-center">🪖</span>
                                 <span>Guardas:</span>
                               </div>
                               <span>{estadoAtual.populacao.guardas}</span>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
-                                <span className="w-6 text-center">⚔️</span>
+                                <span className="w-6 text-center">💥</span>
                                 <span>Marines:</span>
                               </div>
                               <span>{estadoAtual.populacao.marines}</span>
@@ -697,6 +699,13 @@ function ParameterPanel({
                                 <span>Snipers:</span>
                               </div>
                               <span>{estadoAtual.populacao.snipers}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-6 text-center">⚡</span>
+                                <span>Rangers:</span>
+                              </div>
+                              <span>{estadoAtual.populacao.rangers}</span>
                             </div>
                             <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
                               <span>Total:</span>
@@ -845,6 +854,7 @@ function ParameterPanel({
                             const guardas = estadoAtual.populacao?.guardas || 0;
                             const marines = estadoAtual.populacao?.marines || 0;
                             const snipers = estadoAtual.populacao?.snipers || 0;
+                            const rangers = estadoAtual.populacao?.rangers || 0;
 
                             const consumoColonos = Math.floor(
                               (colonos || 0) * 0.5
@@ -853,12 +863,14 @@ function ParameterPanel({
                             const consumoGuardas = guardas * 2;
                             const consumoMarines = marines * 2;
                             const consumoSnipers = snipers * 2;
+                            const consumoRangers = rangers * 2;
                             const consumoTotal =
                               consumoColonos +
                               consumoExploradores +
                               consumoGuardas +
                               consumoMarines +
-                              consumoSnipers;
+                              consumoSnipers +
+                              consumoRangers;
 
                             const fazendas =
                               estadoAtual.construcoes?.fazenda || 0;
@@ -939,6 +951,14 @@ function ParameterPanel({
                                     <span>Snipers:</span>
                                   </div>
                                   <span>-{consumoSnipers}</span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🎯</span>
+                                    <span>Rangers:</span>
+                                  </div>
+                                  <span>-{consumoRangers}</span>
                                 </div>
 
                                 <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">

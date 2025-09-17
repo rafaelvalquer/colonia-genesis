@@ -223,7 +223,7 @@ border border-gray-700 text-white"
 
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <span className="w-6 text-center">⚔️</span>
+              <span className="w-6 text-center">🪖</span>
               <span>Guardas:</span>
             </div>
             <span>{estado.populacao.guardas}</span>
@@ -231,7 +231,7 @@ border border-gray-700 text-white"
 
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <span className="w-6 text-center">⚔️</span>
+              <span className="w-6 text-center">💥</span>
               <span>Marines:</span>
             </div>
             <span>{estado.populacao.marines}</span>
@@ -243,6 +243,14 @@ border border-gray-700 text-white"
               <span>Snipers:</span>
             </div>
             <span>{estado.populacao.snipers}</span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <span className="w-6 text-center">⚡</span>
+              <span>Rangers:</span>
+            </div>
+            <span>{estado.populacao.rangers}</span>
           </div>
           <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
             <span>Total:</span>
@@ -356,19 +364,22 @@ border border-gray-700 text-white"
             const guardas = estado.populacao?.guardas || 0;
             const marines = estado.populacao?.marines || 0;
             const snipers = estado.populacao?.snipers || 0;
+            const rangers = estado.populacao?.rangers || 0;
 
             const consumoColonos = Math.floor((colonos || 0) * 0.5); // 0.5 por colono, arredonda p/ baixo
             const consumoExploradores = exploradores * 2;
             const consumoGuardas = guardas * 2;
             const consumoMarines = marines * 2;
             const consumoSnipers = snipers * 2;
+            const consumoRangers = rangers * 2;
 
             const consumoTotal =
               consumoColonos +
               consumoExploradores +
               consumoGuardas +
               consumoMarines +
-              consumoSnipers;
+              consumoSnipers +
+              consumoRangers;
 
             const fazendas = estado.construcoes?.fazenda || 0;
             const irrigadores = estado.construcoes?.sistemaDeIrrigacao || 0;
@@ -425,7 +436,7 @@ border border-gray-700 text-white"
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <span className="w-6 text-center">⚔️</span>
+                    <span className="w-6 text-center">🪖</span>
                     <span>Guardas:</span>
                   </div>
                   <span>-{consumoGuardas}</span>
@@ -433,7 +444,7 @@ border border-gray-700 text-white"
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <span className="w-6 text-center">⚔️</span>
+                    <span className="w-6 text-center">💥</span>
                     <span>Marines:</span>
                   </div>
                   <span>-{consumoMarines}</span>
@@ -445,6 +456,14 @@ border border-gray-700 text-white"
                     <span>Snipers:</span>
                   </div>
                   <span>-{consumoSnipers}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">⚡</span>
+                    <span>Rangers:</span>
+                  </div>
+                  <span>-{consumoRangers}</span>
                 </div>
 
                 <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">

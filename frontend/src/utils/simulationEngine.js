@@ -26,6 +26,7 @@ export function runSimulationTurn(
     construcoes,
     pesquisa,
     battleCampaign,
+    landingModifiers,
   } = currentState;
 
   // 👇 baseline para calcular deltas no fim
@@ -323,13 +324,15 @@ export function runSimulationTurn(
   const consumoGuardas = (populacao.guardas || 0) * 2;
   const consumoMarines = (populacao.marines || 0) * 2;
   const consumoSnipers = (populacao.snipers || 0) * 2;
+  const consumoRangers = (populacao.rangers || 0) * 2;
 
   const consumoPop =
     consumoColonos +
     consumoExploradores +
     consumoGuardas +
     consumoMarines +
-    consumoSnipers;
+    consumoSnipers +
+    consumoRangers;
 
   // 7) Resultado líquido deste turno
   let comidaProduzida = Math.floor(comidaBruta - consumoPop);
@@ -499,10 +502,33 @@ export function runSimulationTurn(
   log.push(`Sustentabilidade aumentada em ${ganhoSustentabilidade}.`);
 
   // *** AQUI aplica o penal do hospital nas produções ***
-  comidaProduzida = Math.floor(comidaProduzida * (1 - prodPenalty));
-  mineraisProduzidos = Math.floor(mineraisProduzidos * (1 - prodPenalty));
+
+  const lm = landingModifiers || {};
+  const applyLM = (base, key, label) => {
+    const m = Number(lm?.[key] ?? 0);
+    if (!Number.isFinite(m) || m === 0) return base;
+    const out = Math.floor(base * (1 + m));
+    log.push(
+      `🪐 ${label}: ${m > 0 ? "+" : ""}${(m * 100).toFixed(
+        0
+      )}% ⇒ ${base}→${out}.`
+    );
+    return out;
+  };
+
+  comidaProduzida = applyLM(
+    comidaProduzida,
+    "agricultura",
+    "Agricultura (landing)"
+  );
+  mineraisProduzidos = applyLM(
+    mineraisProduzidos,
+    "mineracao",
+    "Mineração (landing)"
+  );
+  energiaGerada = applyLM(energiaGerada, "energia", "Energia (landing)");
   cienciaProduzida = Math.floor(cienciaProduzida * (1 - prodPenalty));
-  energiaGerada = Math.floor(energiaGerada * (1 - prodPenalty));
+
   // (se quiser, pode aplicar também a energiaGerada)
 
   // *** Só agora some as produções no estado ***
@@ -717,6 +743,7 @@ export function runSimulationTurn(
       distribuicao: pontos, // já normalizado
     },
     battleCampaign,
+    landingModifiers,
   };
 
   // Aplicar construções finalizadas

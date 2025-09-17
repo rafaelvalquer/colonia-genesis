@@ -773,6 +773,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       if (t === "guarda") novaPopulacao.guardas += qtd;
       if (t === "marine") novaPopulacao.marines += qtd;
       if (t === "sniper") novaPopulacao.snipers += qtd;
+      if (t === "ranger") novaPopulacao.rangers += qtd;
     });
 
     // ===== integridade estrutural (só em DERROTA)
@@ -914,6 +915,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     guarda: ["populacao", "guardas"],
     marine: ["populacao", "marines"],
     sniper: ["populacao", "snipers"],
+    ranger: ["populacao", "rangers"],
     muralhaReforcada: ["construcoes", "muralhaReforcada"],
   };
   const getByPath = (obj, path) =>
@@ -2731,6 +2733,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     } else if (draggedTroop === "sniper" && novaPopulacao.snipers > 0) {
       novaPopulacao.snipers -= 1;
       estadoAtual.populacao.snipers -= 1;
+    } else if (draggedTroop === "ranger" && novaPopulacao.rangers > 0) {
+      novaPopulacao.rangers -= 1;
+      estadoAtual.populacao.rangers -= 1;
     } else if (
       draggedTroop === "muralhaReforcada" &&
       novaConstrucoes.muralhaReforcada > 0
@@ -2840,6 +2845,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         } else if (tipo === "sniper") {
           novaPopulacao.snipers += 1;
           estadoAtual.populacao.snipers += 1;
+        } else if (tipo === "ranger") {
+          novaPopulacao.rangers += 1;
+          estadoAtual.populacao.rangers += 1;
         } else if (tipo === "muralhaReforcada") {
           novaConstrucoes.muralhaReforcada += 1;
           estadoAtual.construcoes.muralhaReforcada += 1;
@@ -2900,6 +2908,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     } else if (tropaSelecionada === "sniper" && novaPopulacao.snipers > 0) {
       novaPopulacao.snipers -= 1;
       estadoAtual.populacao.snipers -= 1;
+    } else if (tropaSelecionada === "ranger" && novaPopulacao.rangers > 0) {
+      novaPopulacao.rangers -= 1;
+      estadoAtual.populacao.rangers -= 1;
     } else if (
       tropaSelecionada === "muralhaReforcada" &&
       novaConstrucoes.muralhaReforcada > 0

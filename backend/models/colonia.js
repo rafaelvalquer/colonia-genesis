@@ -240,6 +240,7 @@ const coloniaSchema = new mongoose.Schema({
     guardas: { type: Number, default: 0 },
     marines: { type: Number, default: 0 },
     snipers: { type: Number, default: 0 },
+    rangers: { type: Number, default: 0 },
   },
   exploradores: {
     type: [exploradorSchema],
