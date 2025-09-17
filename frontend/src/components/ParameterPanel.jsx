@@ -134,6 +134,8 @@ function ParameterPanel({
   const [aguaNecessaria, setAguaNecessaria] = useState(0);
   const [colonos, setColonos] = useState(10);
   const [turnReport, setTurnReport] = useState(null);
+  const [buildSelecionada, setBuildSelecionada] = useState(null);
+  const [destruindo, setDestruindo] = useState(false);
   const [distribuicao, setDistribuicao] = useState({
     agricultura: 0,
     mineracao: 0,
@@ -142,6 +144,38 @@ function ParameterPanel({
     saude: 0,
     energia: 0,
   });
+
+  const handleSelectBuilding = (key, qtd) => {
+    if (qtd < 1) return; // só abre se houver pelo menos 1
+    setBuildSelecionada((prev) => (prev === key ? null : key));
+  };
+
+  const handleDestruirConstrucao = async (key, qtd = 1) => {
+    const atual = estadoAtual?.construcoes?.[key] ?? 0;
+    if (atual < 1) return;
+    const qtdFinal = Math.max(0, atual - qtd);
+
+    const ok = window.confirm(
+      qtd === 1
+        ? `Destruir 1 "${buildings[key]?.nome || key}"?`
+        : `Destruir TODAS (${atual}) "${buildings[key]?.nome || key}"?`
+    );
+    if (!ok) return;
+
+    try {
+      setDestruindo(true);
+      const novas = { ...(estadoAtual.construcoes || {}), [key]: qtdFinal };
+      await coloniaService.atualizarColonia(estadoAtual._id, {
+        construcoes: novas,
+      });
+      onEstadoChange?.({ ...estadoAtual, construcoes: novas });
+
+      // se zerou, fecha o expand
+      if (qtdFinal === 0 && buildSelecionada === key) setBuildSelecionada(null);
+    } finally {
+      setDestruindo(false);
+    }
+  };
 
   const populacoes = [
     {
@@ -1086,34 +1120,111 @@ function ParameterPanel({
                         </h4>
 
                         <div className="space-y-3">
-                          {construcoes.map((item, idx) => (
-                            <motion.div
-                              key={item.key}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: idx * 0.1, duration: 0.4 }}
-                              className="bg-white rounded-lg shadow p-3 flex items-center gap-4 hover:shadow-md hover:scale-[1.01] transition-transform duration-300"
-                            >
-                              <img
-                                src={item.imagem}
-                                alt={item.nome}
-                                className="w-12 h-12 object-contain rounded"
-                              />
+                          {construcoes.map((item, idx) => {
+                            const isOpen = buildSelecionada === item.key;
+                            const hasAny = item.qtd > 0;
 
-                              <div className="flex-1">
-                                <h5 className="text-base font-bold text-slate-800">
-                                  {item.nome}
-                                </h5>
-                                <p className="text-sm text-gray-600">
-                                  {item.descricao}
-                                </p>
+                            return (
+                              <div key={item.key} className="space-y-2">
+                                <motion.div
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{
+                                    delay: idx * 0.1,
+                                    duration: 0.4,
+                                  }}
+                                  onClick={() =>
+                                    handleSelectBuilding(item.key, item.qtd)
+                                  }
+                                  className={`bg-white rounded-lg shadow p-3 flex items-center gap-4 transition-transform duration-300
+            ${
+              hasAny
+                ? "hover:shadow-md hover:scale-[1.01] cursor-pointer"
+                : "opacity-70 cursor-not-allowed"
+            }`}
+                                  title={
+                                    hasAny
+                                      ? "Clique para gerenciar"
+                                      : "Nenhuma construída"
+                                  }
+                                >
+                                  <img
+                                    src={item.imagem}
+                                    alt={item.nome}
+                                    className="w-12 h-12 object-contain rounded"
+                                  />
+
+                                  <div className="flex-1">
+                                    <h5 className="text-base font-bold text-slate-800">
+                                      {item.nome}
+                                    </h5>
+                                    <p className="text-sm text-gray-600">
+                                      {item.descricao}
+                                    </p>
+                                  </div>
+
+                                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
+                                    {item.qtd} construída{item.qtd > 1 && "s"}
+                                  </span>
+                                </motion.div>
+
+                                {/* EXPAND: aparece logo abaixo do card selecionado */}
+                                <AnimatePresence>
+                                  {isOpen && hasAny && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      className="pl-4"
+                                    >
+                                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+                                        <div className="text-sm text-slate-700">
+                                          Você possui <b>{item.qtd}</b>{" "}
+                                          {item.nome.toLowerCase()}(s).
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <MuiButton
+                                            size="small"
+                                            variant="outlined"
+                                            color="error"
+                                            disabled={
+                                              destruindo || item.qtd < 1
+                                            }
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDestruirConstrucao(
+                                                item.key,
+                                                1
+                                              );
+                                            }}
+                                          >
+                                            Destruir 1
+                                          </MuiButton>
+                                          <MuiButton
+                                            size="small"
+                                            variant="contained"
+                                            color="error"
+                                            disabled={
+                                              destruindo || item.qtd < 1
+                                            }
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDestruirConstrucao(
+                                                item.key,
+                                                item.qtd
+                                              );
+                                            }}
+                                          >
+                                            Destruir todas
+                                          </MuiButton>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
-
-                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
-                                {item.qtd} construída{item.qtd > 1 && "s"}
-                              </span>
-                            </motion.div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
