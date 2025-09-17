@@ -53,6 +53,25 @@ export const enemyTypes = {
     hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: "middle", // ou -1
   },
+  krakhul: {
+    nome: "krakhul",
+    hp: 30,
+    alcance: 1,
+    speed: 0.6,
+    dano: 6,
+    cooldown: 120,
+    cor: "purple",
+    estados: ["walking", "attack", "idle"],
+    animacoes: {
+      walking: { frameCount: 43, frameInterval: 2 },
+      attack: { frameCount: 43, frameInterval: 1 },
+      idle: { frameCount: 43, frameInterval: 2 },
+    },
+    //hitFrameIndexBase: 1, // << usa contagem humana (1..50)
+    hitFrame: 27, // ou -1
+    spriteScale: 1.6, // <<< maior que 1 aumenta o tamanho (1 = padrão)
+    spriteLiftPx: -70, // << +sobe / -desce (em px)
+  },
   /*
   robot: {
     nome: "Robô",

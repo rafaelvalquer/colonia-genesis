@@ -7,8 +7,8 @@ export const missionDefs = {
     intervalBetweenWavesMs: 25000,
     defaultSpawnCadence: 150, // menor = mais rápido
     waves: [
-      { enemies: [{ type: "medu", count: 5 }] },
-      { enemies: [{ type: "medu", count: 10 }] },
+      { enemies: [{ type: "krakhul", count: 5 }] },
+      { enemies: [{ type: "krakhul", count: 10 }] },
       /*{ enemies: [{ type: "krulax", count: 10 }] },
       {
         enemies: [

@@ -1843,6 +1843,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           squashX = 1,
           squashY = 1,
           tilt = 0;
+
+        // knockback squash/tilt
         if (e.__knock) {
           const p = Math.min(1, (now - e.__knock.t0) / e.__knock.dur);
           const c1 = 1.70158,
@@ -1851,10 +1853,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
           const eased = easeOutBack(p);
           drawX = e.__knock.fromX + (e.__knock.toX - e.__knock.fromX) * eased;
-          const s = Math.sin(Math.PI * Math.min(1, p * 1.2)); // squash no começo
-          squashX = 1 + 0.25 * s; // “achata” no Y e estica no X
+          const s = Math.sin(Math.PI * Math.min(1, p * 1.2));
+          squashX = 1 + 0.25 * s;
           squashY = 1 - 0.2 * s;
-          tilt = -0.15 * s; // leve inclinação
+          tilt = -0.15 * s;
           if (p >= 1) delete e.__knock;
         }
 
@@ -1865,17 +1867,53 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const img = frames[e.frameIndex];
         if (!img?.complete) return;
 
-        const escalaBase = 0.27; // Escala do inimigo
-        const alturaDesejada = 425 * escalaBase;
-        const y = e.row * tileHeight + tileHeight / 2;
+        // -------- parâmetros por tipo (escala e lift) --------
+        const sizeMul = e.config?.spriteScale ?? 1; // ex.: krakhul => 1.35
+        const escalaBase = 0.27 * sizeMul; // escala global do inimigo
+        const alturaDesejada = 425 * escalaBase; // alvo em px (antes de pop)
+        const lift = e.config?.spriteLiftPx ?? 0; // px; positivo = sobe
 
-        // ====== SOMBRA ======
+        // -------- pop/opacity/sink --------
+        let pop = 1;
+        if (e.__spawn) {
+          const p = Math.min(1, (now - e.__spawn.t0) / e.__spawn.dur);
+          e.opacity = p;
+          const c1 = 1.70158,
+            c3 = c1 + 1;
+          const easeOutBack = (x) =>
+            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+          pop = 0.85 + 0.25 * easeOutBack(p);
+          if (p >= 1) delete e.__spawn;
+        }
+        if (e.__death) {
+          const p = Math.min(1, (now - e.__death.t0) / e.__death.dur);
+          const ease = 1 - Math.pow(1 - p, 3);
+          e.opacity = 1 - ease;
+          pop *= 1 - 0.2 * ease;
+          e.__sink = 10 * ease;
+        }
+
+        // -------- dimensões do frame + escala final --------
+        const src = img.__bmp || img;
+        const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
+        const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
+
+        const scale = (alturaDesejada / ih) * pop;
+        const w = iw * scale;
+        const h = ih * scale;
+
+        // -------- posicionamento ancorado nos "pés" --------
+        const feetBase = e.row * tileHeight + tileHeight / 2 - lift; // linha dos pés
+        const y = feetBase - h / 2 + 2; // centro do sprite
+
+        // ====== SOMBRA (segue o tamanho) ======
         {
           const baseX = drawX;
-          const feetY = y + alturaDesejada / 2 - 2 + (e.__sink || 0);
-          const rx = tileWidth * 0.34;
-          const ry = tileHeight * 0.14;
+          const feetY = feetBase - 2 + (e.__sink || 0);
+          const rx = tileWidth * 0.34 * sizeMul;
+          const ry = tileHeight * 0.14 * sizeMul;
           const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9;
+
           ctx.save();
           ctx.globalAlpha = alphaBase;
           ctx.translate(baseX, feetY);
@@ -1893,54 +1931,19 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // ====== SPRITE ======
         ctx.save();
-
-        // >>> Fade-in + “pop” no spawn
-        let pop = 1;
-        if (e.__spawn) {
-          const now = performance.now();
-          const p = Math.min(1, (now - e.__spawn.t0) / e.__spawn.dur); // 0..1
-          // opacidade cresce de 0 a 1
-          e.opacity = p;
-          // pop com leve overshoot (easeOutBack)
-          const c1 = 1.70158,
-            c3 = c1 + 1;
-          const easeOutBack = (x) =>
-            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
-          pop = 0.85 + 0.25 * easeOutBack(p);
-          if (p >= 1) delete e.__spawn; // terminou a animação
-        }
-
-        // Fade-out/encolhe/afunda na morte
-        if (e.__death) {
-          const now = performance.now();
-          const p = Math.min(1, (now - e.__death.t0) / e.__death.dur);
-          const ease = 1 - Math.pow(1 - p, 3); // easeOutCubic
-          e.opacity = 1 - ease; // some
-          pop *= 1 - 0.2 * ease; // encolhe um pouco
-          e.__sink = 10 * ease; // afunda levemente
-        }
-
-        const src = img.__bmp || img;
-        const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
-        const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
-
-        const scale = (alturaDesejada / ih) * pop;
-        const w = iw * scale,
-          h = ih * scale;
-
-        ctx.globalAlpha = e.opacity ?? 1; // <<< usa opacidade
+        ctx.globalAlpha = e.opacity ?? 1;
         ctx.translate(drawX, y + (e.__sink || 0));
         ctx.rotate(tilt);
         ctx.scale(squashX, squashY);
         ctx.drawImage(src, -w / 2, -h / 2, w, h);
         ctx.restore();
 
-        // barra de vida...
+        // ====== BARRA DE VIDA ======
         if (!e.__death) {
           const barWidth = 30;
           const barHeight = 4;
           const barX = drawX - barWidth / 2;
-          const barY = y - 30;
+          const barY = y - h / 2 - 10; // fixa acima da cabeça, independente da escala
           ctx.fillStyle = "red";
           ctx.fillRect(barX, barY, barWidth, barHeight);
           ctx.fillStyle = "lime";

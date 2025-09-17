@@ -2,6 +2,7 @@
 
 import { Projectile } from "../entities/Projectile";
 
+//#region Helpers
 // ===================== helpers (gating por frames) ==========================
 function normalizeFrames(spec) {
   if (spec == null) return null;
@@ -46,33 +47,6 @@ function getTriggeredFramesThisTick(
 
   entity._lastFI = fi;
   return { framesNow, looped };
-}
-
-/** Borda simples (usada nos inimigos, opcional). */
-function shouldTriggerThisFrame(entity, framesSpec, expectedState = "attack") {
-  const frames = normalizeFrames(framesSpec);
-  if (!frames) return true;
-  if (expectedState && entity.state !== expectedState) {
-    entity._lastFI = undefined;
-    entity._didTriggerThisCycle = false;
-    return false;
-  }
-  const fi = entity.frameIndex | 0;
-  const prev = entity._lastFI ?? fi;
-  if (fi < prev) entity._didTriggerThisCycle = false;
-
-  let hit = false;
-  if (!entity._didTriggerThisCycle) {
-    for (const f of frames) {
-      if (prev < f && fi >= f) {
-        hit = true;
-        break;
-      }
-    }
-  }
-  entity._lastFI = fi;
-  if (hit) entity._didTriggerThisCycle = true;
-  return hit;
 }
 
 // Resolve hitFrame: número, array, por-estado, "last", "middle", -1, base 1 opcional
@@ -132,8 +106,39 @@ function resolveHitFrames(enemy, state = "attack") {
   return count ? [count - 1] : null;
 }
 
+const isAttackLocked = (e) => e.state === "attack" && e._attackLock;
+
+function finishAttackCycle(enemy) {
+  const cd =
+    enemy.cooldownOnFinish ??
+    enemy.config?.cooldownOnFinish ??
+    enemy.config?.cooldown ??
+    enemy.cooldown ??
+    0;
+
+  if (cd > 0) enemy.cooldownTimer = cd;
+
+  enemy._attackLock = false;
+  enemy._attackStopX = undefined;
+
+  enemy.state = "idle";
+  enemy.frameIndex = 0;
+  enemy._lastFI = undefined;
+  enemy._didTriggerThisCycle = false;
+  enemy._firedFramesCycle = undefined;
+}
+
+function tickLockedAttack(enemy) {
+  if (!isAttackLocked(enemy)) return false;
+  const hitFrames = resolveHitFrames(enemy, "attack");
+  const { looped } = getTriggeredFramesThisTick(enemy, hitFrames, "attack");
+  if (looped) finishAttackCycle(enemy);
+  return true; // houve lock; não ande este tick
+}
+
 // -----------------------------------------------------------------------------
 
+//#region CollisionManager
 export const CollisionManager = {
   updateProjectilesAndCheckCollisions(gameRef) {
     gameRef.projectilePool.forEach((p) => {
@@ -376,6 +381,10 @@ export const CollisionManager = {
       );
 
       if (tropasLinha.length === 0) {
+        if (tickLockedAttack(enemy)) {
+          enemy.speed = 0;
+          return;
+        }
         enemy.speed = enemy.baseSpeed ?? enemy.speed;
         if (enemy.state !== "walking") {
           enemy.state = "walking";
@@ -384,10 +393,13 @@ export const CollisionManager = {
         }
         return;
       }
-
       // tropas "à frente" do inimigo (ele vem da direita → esquerda)
       const candidatas = tropasLinha.filter((t) => t.col <= enemyColFloat);
       if (candidatas.length === 0) {
+        if (tickLockedAttack(enemy)) {
+          enemy.speed = 0;
+          return;
+        }
         enemy.speed = enemy.baseSpeed ?? enemy.speed;
         if (enemy.state !== "walking") {
           enemy.state = "walking";
@@ -409,7 +421,10 @@ export const CollisionManager = {
       const distCols = enemyColFloat - alvo.col; // >= 0
 
       if (distCols - extraCols > alcanceCols) {
-        // ainda fora do alcance → continua andando
+        if (tickLockedAttack(enemy)) {
+          enemy.speed = 0;
+          return;
+        }
         enemy.speed = enemy.baseSpeed;
         if (enemy.state !== "walking") {
           enemy.state = "walking";
@@ -438,14 +453,17 @@ export const CollisionManager = {
       enemy.x = desiredStopX;
       enemy.speed = 0;
 
-      // ===== cooldown gate =====
+      // pronto p/ atacar?
       const canAtk =
         typeof enemy.canAttack === "function"
           ? enemy.canAttack()
           : (enemy.cooldownTimer ?? 0) <= 0;
 
-      // Se está em cooldown, fica em IDLE (parado) e não reentra em 'attack'
       if (!canAtk) {
+        if (tickLockedAttack(enemy)) {
+          enemy.x = enemy._attackStopX ?? enemy.x;
+          return;
+        }
         if (enemy.state !== "idle") {
           enemy.state = "idle";
           enemy.frameIndex = 0;
@@ -456,15 +474,17 @@ export const CollisionManager = {
         return;
       }
 
-      // Pronto para atacar → entra em 'attack' apenas quando pode
+      // entrar em 'attack' e TRAVAR ciclo
       if (enemy.state !== "attack") {
         enemy.state = "attack";
-        enemy.frameIndex = 0; // garante ciclo completo
+        enemy.frameIndex = 0;
         const atkInt = enemy.animacoes?.attack?.frameInterval ?? 1;
         enemy.frameTick = Math.floor(Math.random() * atkInt);
         enemy._lastFI = undefined;
         enemy._didTriggerThisCycle = false;
         enemy._firedFramesCycle = undefined;
+        enemy._attackLock = true; // << lock
+        enemy._attackStopX = desiredStopX; // << fixa posição
       }
 
       // Frames que disparam o hit + detecção de loop da animação
@@ -475,13 +495,12 @@ export const CollisionManager = {
         "attack"
       );
 
-      // Aplica dano quando atingir os frames configurados
+      // Quando o ciclo de 'attack' termina, entra em IDLE e inicia cooldown
       if (framesNow.length > 0) {
         enemy.attack(alvo);
-        if (alvo.hp <= 0) alvo.startDeath?.();
+        if (alvo.hp <= 0) alvo.startDeath?.(); // alvo pode morrer; lock mantém animação
       }
 
-      // Quando o ciclo de 'attack' termina, entra em IDLE e inicia cooldown
       if (looped) {
         const cd =
           enemy.cooldownOnFinish ??
@@ -489,17 +508,18 @@ export const CollisionManager = {
           enemy.config?.cooldown ??
           enemy.cooldown ??
           0;
-
         if (cd > 0) enemy.cooldownTimer = cd;
+
+        enemy._attackLock = false; // << libera
+        enemy._attackStopX = undefined;
 
         enemy.state = "idle";
         enemy.frameIndex = 0;
         enemy._lastFI = undefined;
         enemy._didTriggerThisCycle = false;
         enemy._firedFramesCycle = undefined;
-        return; // não continua este tick
+        return;
       }
-
       // se estiver em cooldown, fica apenas animando "attack"
     });
 
