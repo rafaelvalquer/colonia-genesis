@@ -116,15 +116,15 @@ export const troopTypes = {
     velocidadeProjetil: 6,
     estados: ["idle", "attack"],
     animacoes: {
-      idle: { frameCount: 39, frameInterval: 4 },
-      attack: { frameCount: 34, frameInterval: 2 },
+      idle: { frameCount: 25, frameInterval: 4 },
+      attack: { frameCount: 37, frameInterval: 3 },
     },
     muzzle: {
       units: "spritePx",
       attack: { x: 200, y: -350 },
     },
-    fireFrame: [12], // dispara projétil no frame 12 da animação de attack
-    cooldownPerShot: false, // (opcional) faz o cooldown só depois do último frame
+    fireFrame: [7], // dispara projétil no frame 7 da animação de attack
+    cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
     deployCost: 7,
     deployCooldownMs: 6000,
   },
