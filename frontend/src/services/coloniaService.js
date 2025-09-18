@@ -8,6 +8,7 @@ const BASE = (
 ).replace(/\/+$/, ""); // remove barra final
 
 const api = axios.create({ baseURL: BASE });
+console.log(api);
 
 const coloniaService = {
   criarColonia: async (payload) => {
@@ -21,7 +22,7 @@ const coloniaService = {
             landingSite: payload.landingSite,
             doutrina: payload.doutrina,
           };
-    const { data } = await api.post("/");
+    const { data } = await api.post("/", body); // <<< enviar o body
     return data;
   },
 
