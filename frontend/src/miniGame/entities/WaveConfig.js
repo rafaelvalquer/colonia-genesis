@@ -7,8 +7,8 @@ export const missionDefs = {
     intervalBetweenWavesMs: 25000,
     defaultSpawnCadence: 150, // menor = mais rápido
     waves: [
-      { enemies: [{ type: "krakhul", count: 5 }] },
-      { enemies: [{ type: "krakhul", count: 10 }] },
+      { enemies: [{ type: "medu", count: 5 }] },
+      { enemies: [{ type: "medu", count: 10 }] },
       /*{ enemies: [{ type: "krulax", count: 10 }] },
       {
         enemies: [
@@ -20,7 +20,7 @@ export const missionDefs = {
     ],
   },
 
-  /*fase_02: {
+  fase_02: {
     id: "fase_02",
     nome: "Falésia Sul",
     intervalBetweenWavesMs: 28000,
@@ -32,27 +32,51 @@ export const missionDefs = {
           { type: "crix", count: 4 },
         ],
       },
-      { enemies: [{ type: "crix", count: 12 }] },
+    ],
+  },
+
+  fase_03: {
+    id: "fase_03",
+    nome: "Falésia Sul",
+    intervalBetweenWavesMs: 28000,
+    defaultSpawnCadence: 28,
+    waves: [
       {
         enemies: [
-          { type: "krulax", count: 3 },
-          { type: "medu", count: 10 },
+          { type: "medu", count: 8 },
+          { type: "crix", count: 6 },
         ],
       },
       {
         enemies: [
-          { type: "krulax", count: 4 },
-          { type: "crix", count: 8 },
-        ],
-      },
-      {
-        enemies: [
-          { type: "krulax", count: 1 },
-          { type: "crix", count: 10 },
+          { type: "medu", count: 8 },
+          { type: "krulax", count: 6 },
         ],
       },
     ],
-  },*/
+  },
+  fase_04: {
+    id: "fase_04",
+    nome: "Falésia Sul",
+    intervalBetweenWavesMs: 28000,
+    defaultSpawnCadence: 28,
+    waves: [
+      {
+        enemies: [
+          { type: "medu", count: 8 },
+          { type: "crix", count: 6 },
+          { type: "krulax", count: 2 },
+        ],
+      },
+      {
+        enemies: [
+          { type: "medu", count: 8 },
+          { type: "krulax", count: 6 },
+          { type: "krakhul", count: 2 },
+        ],
+      },
+    ],
+  },
 
   // adicione outras fases aqui...
 };
