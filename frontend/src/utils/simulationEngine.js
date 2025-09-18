@@ -354,13 +354,21 @@ export function runSimulationTurn(
 
   const minasCarvao = construcoes.minaDeCarvao || 0;
   const minasProfundas = construcoes.minaProfunda || 0;
+  const geoSolar = construcoes.geoSolar || 0;
 
   const extraCarvao = minasCarvao * 15; // +15 minerais por minaDeCarvao
   const extraProfunda = minasProfundas * 40; // +40 minerais por minaProfunda
-  mineraisProduzidos += extraCarvao + extraProfunda;
+  const extraGeoSolar = geoSolar * 30; // +40 minerais por minaProfunda
+  const extraEnergiaGeoSolar = geoSolar * 10; // +10 de energia por geoSolar
 
-  const custoEnergiaMinasProfundas = minasProfundas * 20; // -20 energia por minaProfunda
+  mineraisProduzidos += extraCarvao + extraProfunda + extraGeoSolar;
+
+  // energia: custo/ganhos de construções ligadas à mineração
+  const custoEnergiaMinasProfundas = minasProfundas * 20; // -20 por minaProfunda
   if (custoEnergiaMinasProfundas > 0) energia -= custoEnergiaMinasProfundas;
+
+  // ganho de energia do geoSolar
+  if (extraEnergiaGeoSolar > 0) energia += extraEnergiaGeoSolar;
 
   log.push(
     `⛏️ Minerais — workers:${baseMineracaoWorkers}${
@@ -370,6 +378,11 @@ export function runSimulationTurn(
   if (custoEnergiaMinasProfundas > 0) {
     log.push(
       `🔋 Minas profundas consumiram ${custoEnergiaMinasProfundas} de energia (${minasProfundas}×20).`
+    );
+  }
+  if (extraEnergiaGeoSolar > 0) {
+    log.push(
+      `⚡ geoSolar gerou ${extraEnergiaGeoSolar} de energia (${geoSolar}×10).`
     );
   }
 

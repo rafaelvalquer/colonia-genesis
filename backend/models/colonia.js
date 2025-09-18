@@ -264,6 +264,7 @@ const coloniaSchema = new mongoose.Schema({
     muralhaReforcada: { type: Number, default: 0 },
     minaDeCarvao: { type: Number, default: 0 },
     minaProfunda: { type: Number, default: 0 },
+    geoSolar: { type: Number, default: 0 },
     centroDePesquisa: { type: Number, default: 0 },
     laboratorioAvancado: { type: Number, default: 0 },
     postoMedico: { type: Number, default: 0 },

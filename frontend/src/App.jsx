@@ -21,6 +21,16 @@ import coloniaService from "./services/coloniaService";
 import useWaterTicker from "./hooks/useWaterTicker";
 import MiniGamePage from "./pages/TowerDefensePage.jsx";
 import useMainTour from "./hooks/useMainTour";
+import {
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+} from "@mui/material";
+import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
+import { useNavigate } from "react-router-dom";
 
 function GamePage({
   estadoAtual,
@@ -32,6 +42,18 @@ function GamePage({
   const { run } = useMainTour();
   const { state } = useLocation(); // opcional
   const [isCreating, setIsCreating] = useState(false); // 👈 adicione
+
+  const navigate = useNavigate();
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  const handleConfirmLogout = () => {
+    try {
+      localStorage.removeItem("nomeColonia");
+      localStorage.removeItem("shouldStartMainTour"); // opcional
+    } catch {}
+    setEstadoAtual(null);
+    navigate("/");
+  };
 
   useEffect(() => {
     const buscarColoniaAtualizada = async () => {
@@ -341,9 +363,49 @@ function GamePage({
 
   return (
     <>
-      <h1 className="text-3xl font-bold text-center mb-6">
-        Colônia {estadoAtual.nome}
-      </h1>
+      <div className="relative mb-6">
+        <h1 className="text-3xl font-bold text-center">
+          Colônia {estadoAtual.nome}
+        </h1>
+
+        <IconButton
+          aria-label="Sair"
+          onClick={() => setLogoutOpen(true)}
+          sx={{
+            position: "absolute",
+            right: 0,
+            top: 0,
+            bgcolor: "rgba(239,68,68,0.12)", // vermelho translúcido
+            "&:hover": { bgcolor: "rgba(239,68,68,0.2)" },
+          }}
+          color="error"
+          size="small"
+        >
+          <PowerSettingsNewIcon fontSize="small" />
+        </IconButton>
+
+        <Dialog
+          open={logoutOpen}
+          onClose={() => setLogoutOpen(false)}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Deseja sair?</DialogTitle>
+          <DialogContent>
+            Tem certeza de que deseja deslogar da sua colônia?
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setLogoutOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={handleConfirmLogout}
+              color="error"
+              variant="contained"
+            >
+              Confirma
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </div>
 
       <section
         id="status"
