@@ -89,6 +89,21 @@
       "bonusMinerais": 30
     }
   },
+  "geoSolar": {
+    "nome": "Geo Solar",
+    "categoria": "minas",
+    "descricao": "Torre solar com poço geotérmico acoplado a escavadora. Produz +30 🪨 minerais/turno, +10 ⚡ energia/turno.",
+    "imagem": "/images/geo-solar.png",
+    "tempo": 6,
+    "custo": {
+      "minerais": 120,
+      "energia": 50,
+      "agua": 30
+    },
+    "efeitos": {
+      "bonusMinerais": 30
+    }
+  },
   "centroDePesquisa": {
     "nome": "Centro de Pesquisa",
     "categoria": "laboratorio",
