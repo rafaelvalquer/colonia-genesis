@@ -1,7 +1,13 @@
 // src/services/coloniaService.js
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/colonia"; // ajuste se for deploy
+//const API_URL = "http://localhost:5000/colonia"; // ajuste se for deploy
+
+const BASE = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000/colonia"
+).replace(/\/+$/, ""); // remove barra final
+
+const axios = axios.create({ baseURL: BASE });
 
 const coloniaService = {
   criarColonia: async (payload) => {
@@ -15,9 +21,8 @@ const coloniaService = {
             landingSite: payload.landingSite,
             doutrina: payload.doutrina,
           };
-
-    const { data } = await axios.post(`${API_URL}/`, body);
-    return data; // deve retornar o estado inicial da colônia/conta
+    const { data } = await axios.post("/");
+    return data;
   },
   buscarColonia: async (nome) =>
     (await axios.get(`${API_URL}/buscar/${nome}`)).data,
