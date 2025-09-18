@@ -1867,11 +1867,14 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         const img = frames[e.frameIndex];
         if (!img?.complete) return;
 
-        // -------- parâmetros por tipo (escala e lift) --------
-        const sizeMul = e.config?.spriteScale ?? 1; // ex.: krakhul => 1.35
-        const escalaBase = 0.27 * sizeMul; // escala global do inimigo
-        const alturaDesejada = 425 * escalaBase; // alvo em px (antes de pop)
-        const lift = e.config?.spriteLiftPx ?? 0; // px; positivo = sobe
+        // -------- parâmetros (com fallback p/ legado) --------
+        const hasCustomScale =
+          e.config && ("spriteScale" in e.config || "spriteLiftPx" in e.config);
+
+        const sizeMul = hasCustomScale ? e.config?.spriteScale ?? 1 : 1;
+        const escalaBase = 0.27 * (hasCustomScale ? sizeMul : 1); // legado = 0.27 puro
+        const alturaDesejada = 425 * escalaBase;
+        const lift = hasCustomScale ? e.config?.spriteLiftPx ?? 0 : 0;
 
         // -------- pop/opacity/sink --------
         let pop = 1;
@@ -1893,30 +1896,41 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           e.__sink = 10 * ease;
         }
 
-        // -------- dimensões do frame + escala final --------
+        // -------- dimensões do frame + escala --------
         const src = img.__bmp || img;
         const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
         const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
-
         const scale = (alturaDesejada / ih) * pop;
-        const w = iw * scale;
-        const h = ih * scale;
+        const w = iw * scale,
+          h = ih * scale;
 
-        // -------- posicionamento ancorado nos "pés" --------
-        const feetBase = e.row * tileHeight + tileHeight / 2 - lift; // linha dos pés
-        const y = feetBase - h / 2 + 2; // centro do sprite
+        // -------- posição (LEGADO vs NOVO) --------
+        let y; // centro do sprite
+        let feetYShadow; // Y da sombra (pés)
+        let rx = tileWidth * 0.34;
+        let ry = tileHeight * 0.14;
 
-        // ====== SOMBRA (segue o tamanho) ======
+        if (!hasCustomScale) {
+          // === COMPORTAMENTO ANTIGO ===
+          y = e.row * tileHeight + tileHeight / 2;
+          feetYShadow = y + alturaDesejada / 2 - 2 + (e.__sink || 0);
+          // sombra SEM multiplicar por sizeMul (mantém antiga)
+        } else {
+          // === NOVO (com lift e sombra proporcional ao sizeMul) ===
+          const feetBase = e.row * tileHeight + tileHeight / 2 - lift;
+          y = feetBase - h / 2 + 2;
+          feetYShadow = feetBase - 2 + (e.__sink || 0);
+          rx *= sizeMul;
+          ry *= sizeMul;
+        }
+
+        // ====== SOMBRA ======
         {
           const baseX = drawX;
-          const feetY = feetBase - 2 + (e.__sink || 0);
-          const rx = tileWidth * 0.34 * sizeMul;
-          const ry = tileHeight * 0.14 * sizeMul;
           const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9;
-
           ctx.save();
           ctx.globalAlpha = alphaBase;
-          ctx.translate(baseX, feetY);
+          ctx.translate(baseX, feetYShadow);
           ctx.scale(rx / ry, 1);
           const r = ry;
           const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
@@ -1940,10 +1954,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
         // ====== BARRA DE VIDA ======
         if (!e.__death) {
-          const barWidth = 30;
-          const barHeight = 4;
+          const barWidth = 30,
+            barHeight = 4;
           const barX = drawX - barWidth / 2;
-          const barY = y - h / 2 - 10; // fixa acima da cabeça, independente da escala
+          const barY = !hasCustomScale
+            ? y - 30 // legado: posição fixa
+            : y - h / 2 - 10; // novo: sempre acima da cabeça
           ctx.fillStyle = "red";
           ctx.fillRect(barX, barY, barWidth, barHeight);
           ctx.fillStyle = "lime";
