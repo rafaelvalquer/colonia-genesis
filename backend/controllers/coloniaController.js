@@ -20,12 +20,12 @@ function computeRegen(doc, now = Date.now()) {
   return { add, newLastTs, nextAt, rateMs: rate };
 }
 
-function metaFrom(doc) {
-  const nextAt =
-    doc.agua < doc.maxAgua
-      ? Number(doc.waterLastTs) + Number(doc.waterRateMs)
-      : null;
-  return { nextAt, rateMs: Number(doc.waterRateMs ?? 60000) };
+function metaFrom(doc, now = Date.now()) {
+  const rate = Number(doc.waterRateMs ?? 60000);
+  const last = Number(doc.waterLastTs ?? now);
+  const base = Math.max(last, now);
+  const nextAt = doc.agua < doc.maxAgua ? base + rate : null;
+  return { nextAt, rateMs: rate };
 }
 
 async function ensureWaterDefaults(doc) {
@@ -194,8 +194,12 @@ exports.atualizarColonia = async (req, res) => {
   try {
     const { id } = req.params;
     const dadosAtualizados = req.body;
-    // nunca permitir atualização direta da senha em claro
     if ("senha" in dadosAtualizados) delete dadosAtualizados.senha;
+
+    // 👇 defesa: se mudar água e não vier lastTs, reinicia o ciclo
+    if ("agua" in dadosAtualizados && !("waterLastTs" in dadosAtualizados)) {
+      dadosAtualizados.waterLastTs = Date.now();
+    }
 
     const coloniaAtualizada = await Colonia.findByIdAndUpdate(
       id,
@@ -205,10 +209,12 @@ exports.atualizarColonia = async (req, res) => {
     if (!coloniaAtualizada)
       return res.status(404).json({ erro: "Colônia não encontrada." });
 
-    res.status(200).json({
-      ...coloniaAtualizada.toObject(),
-      water: metaFrom(coloniaAtualizada),
-    });
+    res
+      .status(200)
+      .json({
+        ...coloniaAtualizada.toObject(),
+        water: metaFrom(coloniaAtualizada),
+      });
   } catch (error) {
     console.error("Erro ao atualizar colônia:", error);
     res.status(500).json({ erro: "Erro ao atualizar colônia." });
@@ -281,20 +287,12 @@ exports.gastarAgua = async (req, res) => {
 
     await ensureWaterDefaults(doc);
 
-    // regen on-write
-    const patch = computeRegen(doc);
-    if (patch) {
-      await Colonia.updateOne(
-        { _id: doc._id, agua: doc.agua, waterLastTs: doc.waterLastTs },
-        { $inc: { agua: patch.add }, $set: { waterLastTs: patch.newLastTs } }
-      );
-      doc = await Colonia.findById(id);
-    }
+    // ❌ nada de computeRegen aqui
 
-    // débito atômico
+    const now = Date.now();
     const updated = await Colonia.findOneAndUpdate(
       { _id: id, agua: { $gte: cost } },
-      { $inc: { agua: -cost } },
+      { $inc: { agua: -cost }, $set: { waterLastTs: now } }, // 👈 reinicia o ciclo
       { new: true }
     );
     if (!updated) return res.status(409).json({ erro: "Água insuficiente" });

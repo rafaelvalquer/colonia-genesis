@@ -22,6 +22,7 @@ import {
   Step,
   StepLabel,
   MobileStepper,
+  CircularProgress,
   Button as MuiButton,
   Badge,
 } from "@mui/material";
@@ -118,6 +119,7 @@ function ParameterPanel({
   onGastarCiencia,
   onCriarTropa,
   onEstadoChange,
+  isCreating,
 }) {
   const [abaSelecionada, setAbaSelecionada] = useState("central");
   const [abaConstrucao, setAbaConstrucao] = useState("fazenda");
@@ -1899,15 +1901,37 @@ function ParameterPanel({
                     </ul>
 
                     <button
-                      onClick={() => handleCriarTropa(item)}
-                      disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${
-                        temRecursos
-                          ? "bg-purple-600 text-white hover:bg-purple-700"
-                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                      } transition`}
+                      onClick={() => !isCreating && handleCriarTropa(item)}
+                      disabled={!temRecursos || isCreating}
+                      aria-busy={isCreating}
+                      className={`mt-auto px-4 py-2 rounded font-semibold transition flex items-center gap-2 ${
+                        !temRecursos || isCreating
+                          ? "bg-gray-400 text-gray-700 cursor-not-allowed"
+                          : "bg-yellow-600 text-white hover:bg-yellow-700"
+                      }`}
                     >
-                      Criar
+                      {isCreating && (
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          />
+                        </svg>
+                      )}
+                      {isCreating ? "Criando..." : "Criar"}
                     </button>
                   </div>
                 );
@@ -1972,15 +1996,37 @@ function ParameterPanel({
                     </ul>
 
                     <button
-                      onClick={() => handleCriarTropa(item)}
-                      disabled={!temRecursos}
-                      className={`mt-auto px-4 py-2 rounded font-semibold ${
-                        temRecursos
-                          ? "bg-yellow-600 text-white hover:bg-yellow-700"
-                          : "bg-gray-400 text-gray-700 cursor-not-allowed"
-                      } transition`}
+                      onClick={() => !isCreating && handleCriarTropa(item)}
+                      disabled={!temRecursos || isCreating}
+                      aria-busy={isCreating}
+                      className={`mt-auto px-4 py-2 rounded font-semibold transition flex items-center gap-2 ${
+                        !temRecursos || isCreating
+                          ? "bg-gray-400 text-gray-700 cursor-not-allowed"
+                          : "bg-yellow-600 text-white hover:bg-yellow-700"
+                      }`}
                     >
-                      Criar
+                      {isCreating && (
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          />
+                        </svg>
+                      )}
+                      {isCreating ? "Criando..." : "Criar"}
                     </button>
                   </div>
                 );

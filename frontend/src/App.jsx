@@ -31,6 +31,7 @@ function GamePage({
 }) {
   const { run } = useMainTour();
   const { state } = useLocation(); // opcional
+  const [isCreating, setIsCreating] = useState(false); // 👈 adicione
 
   useEffect(() => {
     const buscarColoniaAtualizada = async () => {
@@ -102,41 +103,35 @@ function GamePage({
         Number(parametrosSelecionados.custoAgua) ??
         (consumo === 0.5 ? 5 : consumo === 1.5 ? 20 : 10);
 
-      // valida e debita água
+      let base = estadoAtual;
       if (custoAgua > 0) {
         if ((estadoAtual.agua ?? 0) < custoAgua) {
           showSnackbar(
             "❌ Água insuficiente para aplicar os parâmetros.",
             "error"
           );
-          // lança no formato esperado pelo catch do ParameterPanel
-          throw { response: { status: 409 }, message: "agua_insuficiente" };
+          throw { response: { status: 409 } };
         }
+        // ✅ debita e atualiza waterLastTs no servidor
+        base = await coloniaService.gastarAgua(estadoAtual._id, custoAgua);
       }
 
-      const estadoComDebito = {
-        ...estadoAtual,
-        agua: Math.max(0, (estadoAtual.agua ?? 0) - (custoAgua || 0)),
-      };
-
       const { novoEstado, novaFila, turnReport } = runSimulationTurn(
-        estadoComDebito, // <<< usa estado já debitado
+        base, // <<< usa a BASE vinda do servidor
         parametrosSelecionados,
         scenarioList?.[0],
-        parametrosSelecionados.filaConstrucoes ?? estadoAtual.filaConstrucoes,
+        parametrosSelecionados.filaConstrucoes ?? base.filaConstrucoes,
         buildings
       );
 
       setEstadoAtual(novoEstado);
       setFilaConstrucoes(novaFila);
-
       await coloniaService.atualizarColonia(
-        novoEstado._id ?? estadoAtual._id,
+        novoEstado._id ?? base._id,
         novoEstado
       );
       return turnReport;
     } catch (err) {
-      // propaga para o ParameterPanel abrir o modal de água se for 409
       throw err;
     }
   };
@@ -181,117 +176,104 @@ function GamePage({
   };
 
   const handleCriarTropa = async (item) => {
-    const { id, nome, custo } = item;
-
-    console.log(id);
-
-    // 1) Verifica recursos
-    const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
-      const valorFinal = recurso === "agua" ? Math.min(valor, 100) : valor;
-      return estadoAtual[recurso] >= valorFinal;
-    });
-
-    if (!temRecursos) {
-      showSnackbar("❌ Recursos insuficientes para criar tropa.", "error");
-      return;
-    }
-
-    // 2) Clona estado e desconta recursos
-    const novoEstado = {
-      ...estadoAtual,
-      exploradores: [...(estadoAtual.exploradores || [])], // garante array
-      populacao: { ...estadoAtual.populacao },
-    };
-
-    // debita água no servidor primeiro
-    const aguaCost = Math.min(custo.agua || 0, 100);
-    if (aguaCost > 0) {
-      try {
-        const d = await coloniaService.gastarAgua(estadoAtual._id, aguaCost);
-        setEstadoAtual(d);
-        // sincroniza base para descontos locais
-        novoEstado.agua = d.agua;
-      } catch (e) {
-        if (e?.response?.status === 409) {
-          showSnackbar("❌ Água insuficiente para criar.", "error");
-          return;
-        }
-        throw e;
-      }
-    }
-    // desconta demais recursos localmente
-    Object.entries(custo).forEach(([recurso, valor]) => {
-      if (recurso === "agua") return;
-      novoEstado[recurso] -= valor;
-    });
-
-    // 3) Ramo normal (colonos, marines etc.)
-    if (id !== "exploradores") {
-      novoEstado.populacao[id] = (novoEstado.populacao[id] || 0) + 1;
-    } else {
-      // 3b) Criar EXPLORADOR completo + incrementar populacao.exploradores
-      const nextId = generateNextExplorerId(novoEstado.exploradores);
-      // usa o número gerado para montar "exploradorN"
-      const ordinal = parseInt(nextId.split("_")[1], 10); // ex: "exp_007" -> 7
-      const novoExplorador = createExplorer(nextId, ordinal);
-
-      novoEstado.exploradores.push(novoExplorador);
-      novoEstado.populacao.exploradores =
-        (novoEstado.populacao.exploradores || 0) + 1;
-    }
-
-    console.log(novoEstado);
-
-    // 4) Atualiza UI
-    setEstadoAtual(novoEstado);
-    showSnackbar(`✅ ${nome} criado com sucesso!`, "success");
-
-    // 5) Sincroniza com backend
+    if (isCreating) return; // evita reentrar
+    setIsCreating(true);
     try {
-      await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
-    } catch (err) {
-      console.error("Erro ao atualizar colônia no backend:", err);
+      const { id, nome, custo } = item;
+
+      // 1) valida recursos com snapshot atual
+      const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
+        const val = recurso === "agua" ? Math.min(valor || 0, 100) : valor || 0;
+        return (estadoAtual?.[recurso] ?? 0) >= val;
+      });
+      if (!temRecursos) {
+        showSnackbar("❌ Recursos insuficientes para criar tropa.", "error");
+        return;
+      }
+
+      // 2) debita ÁGUA primeiro e usa a resposta como BASE
+      let base = estadoAtual;
+      const aguaCost = Math.min(custo.agua || 0, 100);
+      if (aguaCost > 0) {
+        try {
+          const d = await coloniaService.gastarAgua(estadoAtual._id, aguaCost);
+          base = d; // <- água já atualizada (ex.: 99 -> 98, etc.)
+        } catch (e) {
+          if (e?.response?.status === 409) {
+            showSnackbar("❌ Água insuficiente para criar.", "error");
+            return;
+          }
+          throw e;
+        }
+      }
+
+      // 3) monta novoEstado a partir da BASE (não do snapshot antigo)
+      const novoEstado = {
+        ...base,
+        exploradores: [...(base.exploradores || [])],
+        populacao: { ...(base.populacao || {}) },
+      };
+
+      // 4) desconta os demais recursos localmente a partir da BASE
+      Object.entries(custo).forEach(([recurso, valor]) => {
+        if (recurso === "agua") return;
+        novoEstado[recurso] = Math.max(0, (base[recurso] || 0) - (valor || 0));
+      });
+
+      // 5) aplica criação
+      if (id !== "exploradores") {
+        novoEstado.populacao[id] = (novoEstado.populacao[id] || 0) + 1;
+      } else {
+        const nextId = generateNextExplorerId(novoEstado.exploradores);
+        const ordinal = parseInt(nextId.split("_")[1], 10);
+        const novoExplorador = createExplorer(nextId, ordinal);
+        novoEstado.exploradores.push(novoExplorador);
+        novoEstado.populacao.exploradores =
+          (novoEstado.populacao.exploradores || 0) + 1;
+      }
+
+      // 6) atualiza UI uma única vez e sincroniza
+      setEstadoAtual(novoEstado);
+      showSnackbar(`✅ ${nome} criado com sucesso!`, "success");
+      try {
+        await coloniaService.atualizarColonia(
+          novoEstado._id ?? estadoAtual._id,
+          novoEstado
+        );
+      } catch (err) {
+        console.error("Erro ao atualizar colônia no backend:", err);
+      }
+    } finally {
+      setIsCreating(false);
     }
   };
 
   const handleConstruir = async (tipo) => {
-    const construcao = buildings[tipo];
-    if (!construcao) return;
+    const c = buildings[tipo];
+    if (!c) return;
 
-    console.log("filaConstrucoes --- " + filaConstrucoes);
-    const { custo, tempo, nome } = construcao;
+    const { custo, tempo, nome } = c;
 
-    const quantidadeNaFila = filaConstrucoes.filter(
-      (fc) => fc.id === tipo
-    ).length;
-    const quantidadeConstruida = estadoAtual.construcoes?.[tipo] || 0;
+    const naFila = filaConstrucoes.filter((fc) => fc.id === tipo).length;
+    const construidas = estadoAtual.construcoes?.[tipo] || 0;
+    const mult = 2 ** (construidas + naFila);
 
-    const multiplicador = 2 ** (quantidadeConstruida + quantidadeNaFila);
-
-    console.log("multiplicador");
-    console.log(multiplicador);
-
-    // Verifica se há recursos suficientes, limitando a água em 100
-    const temRecursos = Object.entries(custo).every(([recurso, valor]) => {
-      const total = valor * multiplicador;
-      const valorFinal = recurso === "agua" ? Math.min(total, 100) : total;
-      return estadoAtual[recurso] >= valorFinal;
+    const temRecursos = Object.entries(custo).every(([recurso, val]) => {
+      const total = recurso === "agua" ? Math.min(val * mult, 100) : val * mult;
+      return (estadoAtual[recurso] ?? 0) >= total;
     });
-
     if (!temRecursos) {
       showSnackbar("❌ Recursos insuficientes para construção.", "error");
       return;
     }
 
-    // Atualiza o estado com o desconto dos recursos, limitando a água
-    const novoEstado = { ...estadoAtual };
-    // debita água no servidor primeiro
-    const totalAgua = Math.min((custo.agua || 0) * multiplicador, 100);
-    if (totalAgua > 0) {
+    // ✅ base vem do servidor após debitar a água (mantém d.water)
+    let base = estadoAtual;
+    const aguaTotal = Math.min((custo.agua || 0) * mult, 100);
+    if (aguaTotal > 0) {
       try {
-        const d = await coloniaService.gastarAgua(estadoAtual._id, totalAgua);
-        setEstadoAtual(d);
-        novoEstado.agua = d.agua;
+        const d = await coloniaService.gastarAgua(estadoAtual._id, aguaTotal);
+        base = d;
       } catch (e) {
         if (e?.response?.status === 409) {
           showSnackbar("❌ Água insuficiente para construir.", "error");
@@ -300,30 +282,30 @@ function GamePage({
         throw e;
       }
     }
-    // desconta demais recursos localmente
-    Object.entries(custo).forEach(([recurso, valor]) => {
+
+    const novoEstado = {
+      ...base,
+      filaConstrucoes: [
+        ...(base.filaConstrucoes || []),
+        { id: tipo, nome, tempoRestante: tempo },
+      ],
+    };
+
+    // desconta os demais recursos a partir da BASE
+    Object.entries(custo).forEach(([recurso, val]) => {
       if (recurso === "agua") return;
-      const total = valor * multiplicador;
-      novoEstado[recurso] -= total;
+      const total = val * mult;
+      novoEstado[recurso] = Math.max(0, (base[recurso] || 0) - total);
     });
 
-    const novaFila = [
-      ...filaConstrucoes,
-      { id: tipo, nome, tempoRestante: tempo },
-    ];
-
-    novoEstado.filaConstrucoes = novaFila;
-
     setEstadoAtual(novoEstado);
-    setFilaConstrucoes(novaFila);
-
+    setFilaConstrucoes(novoEstado.filaConstrucoes);
     showSnackbar(`✅ Construção de ${nome} iniciada!`, "success");
-
-    console.log(JSON.stringify(novoEstado));
-
-    // Envia para o backend
     try {
-      await coloniaService.atualizarColonia(estadoAtual._id, novoEstado);
+      await coloniaService.atualizarColonia(
+        novoEstado._id ?? estadoAtual._id,
+        novoEstado
+      );
     } catch (err) {
       console.error("Erro ao atualizar colônia no backend:", err);
     }
@@ -381,6 +363,7 @@ function GamePage({
           onGastarCiencia={handleGastarCiencia}
           onCriarTropa={handleCriarTropa}
           onEstadoChange={setEstadoAtual}
+          isCreating={isCreating}
         />
       </section>
     </>

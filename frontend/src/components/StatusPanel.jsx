@@ -177,16 +177,23 @@ border border-gray-700 text-white"
                     {pct}%
                   </div>
 
-                  {/* faixa de carregamento até o próximo +1 de água */}
-                  {nextAt ? (
-                    <div
-                      className="absolute left-0 bottom-0 h-1 bg-cyan-400/80"
-                      style={{
-                        "--start": `${pctMinuteStart}%`,
-                        animation: `minuteFill ${remaining}ms linear forwards`,
-                      }}
-                    />
-                  ) : null}
+                  {/* faixa de carregamento até o próximo +1 de água (sempre dura rateMs) */}
+                  {(() => {
+                    const rateMs = Number(estado?.water?.rateMs ?? 60000);
+                    const nextAt = estado?.water?.nextAt ?? null;
+                    const cheio = (estado?.agua ?? 0) >= (estado?.maxAgua ?? 0);
+                    const show = !!nextAt && !cheio;
+
+                    return show ? (
+                      <div
+                        key={nextAt} // reseta a cada ciclo de +1 água
+                        className="absolute left-0 bottom-0 h-1 bg-cyan-400/80"
+                        style={{
+                          animation: `minuteFill ${rateMs}ms linear forwards`,
+                        }}
+                      />
+                    ) : null;
+                  })()}
                 </div>
 
                 <div className="text-xs text-slate-400 pt-1">
