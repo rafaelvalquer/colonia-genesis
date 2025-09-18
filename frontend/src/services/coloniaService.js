@@ -7,7 +7,7 @@ const BASE = (
   import.meta.env.VITE_API_URL || "http://localhost:5000/colonia"
 ).replace(/\/+$/, ""); // remove barra final
 
-const axios = axios.create({ baseURL: BASE });
+const api = axios.create({ baseURL: BASE });
 
 const coloniaService = {
   criarColonia: async (payload) => {
@@ -21,16 +21,15 @@ const coloniaService = {
             landingSite: payload.landingSite,
             doutrina: payload.doutrina,
           };
-    const { data } = await axios.post("/");
+    const { data } = await api.post("/");
     return data;
   },
-  buscarColonia: async (nome) =>
-    (await axios.get(`${API_URL}/buscar/${nome}`)).data,
-  atualizarColonia: async (id, dados) =>
-    (await axios.put(`${API_URL}/${id}`, dados)).data,
-  getEstado: async (id) => (await axios.get(`${API_URL}/${id}/estado`)).data,
+
+  buscarColonia: async (nome) => (await api.get(`/buscar/${nome}`)).data,
+  atualizarColonia: async (id, dados) => (await api.put(`/${id}`, dados)).data,
+  getEstado: async (id) => (await api.get(`/${id}/estado`)).data,
   gastarAgua: async (id, cost) =>
-    (await axios.post(`${API_URL}/${id}/gastar-agua`, { cost })).data,
+    (await api.post(`/${id}/gastar-agua`, { cost })).data,
 };
 
 export default coloniaService;
