@@ -1033,7 +1033,137 @@ function ParameterPanel({
                         </div>
                       </li>
 
-                      <li>⛏️ Minerais: {estadoAtual.minerais}</li>
+                      <li className="group relative block w-full mt-2">
+                        <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
+                          <span className="mr-1">⛏️</span>
+                          Minerais: {estadoAtual.minerais}
+                        </div>
+
+                        {/* Tooltip Minerais */}
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-72 p-3 bg-gray-800 rounded-lg shadow-xl
+    opacity-0 invisible group-hover:opacity-100 group-hover:visible
+    transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+    border border-gray-700 text-white"
+                        >
+                          {(() => {
+                            // ---- entradas de estado ----
+                            const consumoAgua =
+                              consumoAguaOpcoes?.[aguaIndex]?.value ?? 1;
+                            const colonosTot =
+                              estadoAtual?.populacao?.colonos || 0;
+
+                            // % alocado em minas (usa snapshot salvo nos parâmetros)
+                            const pctMinas =
+                              estadoAtual?.parametrosSnapshot?.alocacaoColonos
+                                ?.minas ?? 0;
+                            const miners = Math.round(
+                              (pctMinas / 100) * colonosTot
+                            );
+
+                            // skill de mineração ativa? (0/1)
+                            const skillMin = estadoAtual?.skillsDistribuicao
+                              ?.mineracao
+                              ? 1
+                              : 0;
+
+                            // produção por colono e total (regra do engine: 1 × consumoÁgua, com skill dobrando o total)
+                            const prodPorColono = 1 * consumoAgua; // minerais/turno por colono em minas
+                            const baseWorkers = miners * prodPorColono; // sem skill
+                            const totalWorkers =
+                              skillMin === 1 ? baseWorkers * 2 : baseWorkers;
+
+                            // construções
+                            const qCarvao =
+                              estadoAtual?.construcoes?.minaDeCarvao || 0;
+                            const qProfunda =
+                              estadoAtual?.construcoes?.minaProfunda || 0;
+                            const qGeoSolar =
+                              estadoAtual?.construcoes?.geoSolar || 0;
+
+                            const porCarvao = 15;
+                            const porProfunda = 40;
+                            const porGeoSolar = 30;
+
+                            const extraCarvao = qCarvao * porCarvao;
+                            const extraProfunda = qProfunda * porProfunda;
+                            const extraGeoSolar = qGeoSolar * porGeoSolar;
+
+                            // energia ligada às minas
+                            const energiaGeoSolar = qGeoSolar * 10; // +10 por geoSolar
+                            const custoEnergiaProf = qProfunda * 20; // -20 por minaProfunda
+
+                            const totalConstrucoes =
+                              extraCarvao + extraProfunda + extraGeoSolar;
+                            const totalTurno = Math.floor(
+                              totalWorkers + totalConstrucoes
+                            );
+
+                            return (
+                              <div className="text-sm space-y-2">
+                                {/* Construções */}
+                                <div className="font-semibold text-slate-200">
+                                  Construções
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🪨</span>
+                                    <span>Mina de Carvão (x{qCarvao}):</span>
+                                  </div>
+                                  <span>
+                                    +{extraCarvao}
+                                    <span className="text-slate-400 ml-1 text-xs">
+                                      ({qCarvao}×{porCarvao})
+                                    </span>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⛏️</span>
+                                    <span>Mina Profunda (x{qProfunda}):</span>
+                                  </div>
+                                  <span>
+                                    +{extraProfunda}
+                                    <span className="text-slate-400 ml-1 text-xs">
+                                      ({qProfunda}×{porProfunda})
+                                    </span>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⚙️</span>
+                                    <span>GeoSolar (x{qGeoSolar}):</span>
+                                  </div>
+                                  <span>
+                                    +{extraGeoSolar}
+                                    <span className="text-slate-400 ml-1 text-xs">
+                                      ({qGeoSolar}×{porGeoSolar})
+                                    </span>
+                                  </span>
+                                </div>
+
+                                {/* Energia colateral */}
+                                <div className="text-xs text-slate-400 mt-1">
+                                  ⚡ GeoSolar: +{energiaGeoSolar} energia (
+                                  {qGeoSolar}×10)
+                                  <br />
+                                  🔋 Minas Profundas: −{custoEnergiaProf}{" "}
+                                  energia ({qProfunda}×20)
+                                </div>
+
+                                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between text-slate-200">
+                                  <span>Total/turno:</span>
+                                  <span>+{totalTurno}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </li>
+
                       <li>🧪 Ciência: {estadoAtual.ciencia}</li>
                       <li className="group relative inline-block">
                         <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
