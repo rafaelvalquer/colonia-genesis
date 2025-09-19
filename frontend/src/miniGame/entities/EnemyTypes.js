@@ -35,6 +35,7 @@ export const enemyTypes = {
     },
     hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: "middle", // ou -1
+            spriteLiftPx: -23, // << +sobe / -desce (em px)
   },
   krulax: {
     nome: "krulax",
@@ -52,6 +53,7 @@ export const enemyTypes = {
     },
     hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: "middle", // ou -1
+        spriteLiftPx: -20, // << +sobe / -desce (em px)
   },
   krakhul: {
     nome: "krakhul",
@@ -70,7 +72,7 @@ export const enemyTypes = {
     //hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: 27, // ou -1
     spriteScale: 1.6, // <<< maior que 1 aumenta o tamanho (1 = padrão)
-    spriteLiftPx: -70, // << +sobe / -desce (em px)
+    spriteLiftPx: -45, // << +sobe / -desce (em px)
   },
   /*
   robot: {
