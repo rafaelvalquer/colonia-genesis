@@ -532,6 +532,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const visibleRef = useRef(!document.hidden);
   const lastSupplyGTRef = useRef(0); // âncora do relógio de jogo p/ regen
   const waveBannerRef = useRef(null);
+  const [showBriefing, setShowBriefing] = useState(true);
+
   const showWaveBanner = (text, opts = {}) => {
     waveBannerRef.current = {
       text,
@@ -1836,121 +1838,130 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         ctx.restore();
       });
 
-// INIMIGOS (escala por tile + ajustes finos via spriteScale/spriteLiftPx)
-gameRef.current.inimigos.forEach((e) => {
-  const now = performance.now();
-  let drawX = e.x, squashX = 1, squashY = 1, tilt = 0;
+      // INIMIGOS (escala por tile + ajustes finos via spriteScale/spriteLiftPx)
+      gameRef.current.inimigos.forEach((e) => {
+        const now = performance.now();
+        let drawX = e.x,
+          squashX = 1,
+          squashY = 1,
+          tilt = 0;
 
-  // knockback squash/tilt
-  if (e.__knock) {
-    const p = Math.min(1, (now - e.__knock.t0) / e.__knock.dur);
-    const c1 = 1.70158, c3 = c1 + 1;
-    const easeOutBack = (x) => 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
-    const eased = easeOutBack(p);
-    drawX = e.__knock.fromX + (e.__knock.toX - e.__knock.fromX) * eased;
-    const s = Math.sin(Math.PI * Math.min(1, p * 1.2));
-    squashX = 1 + 0.25 * s;
-    squashY = 1 - 0.2 * s;
-    tilt = -0.15 * s;
-    if (p >= 1) delete e.__knock;
-  }
+        // knockback squash/tilt
+        if (e.__knock) {
+          const p = Math.min(1, (now - e.__knock.t0) / e.__knock.dur);
+          const c1 = 1.70158,
+            c3 = c1 + 1;
+          const easeOutBack = (x) =>
+            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+          const eased = easeOutBack(p);
+          drawX = e.__knock.fromX + (e.__knock.toX - e.__knock.fromX) * eased;
+          const s = Math.sin(Math.PI * Math.min(1, p * 1.2));
+          squashX = 1 + 0.25 * s;
+          squashY = 1 - 0.2 * s;
+          tilt = -0.15 * s;
+          if (p >= 1) delete e.__knock;
+        }
 
-  const frames =
-    (e.framesByState && e.state && e.framesByState[e.state]) ||
-    e.frames || [];
-  const img = frames[e.frameIndex];
-  if (!img?.complete) return;
+        const frames =
+          (e.framesByState && e.state && e.framesByState[e.state]) ||
+          e.frames ||
+          [];
+        const img = frames[e.frameIndex];
+        if (!img?.complete) return;
 
-  // ===== escala por tile + ajustes finos =====
-  const sizeMul = e.config?.spriteScale ?? 1;      // ajuste fino opcional
-  const lift    = e.config?.spriteLiftPx ?? 0;     // ajuste fino dos “pés”
+        // ===== escala por tile + ajustes finos =====
+        const sizeMul = e.config?.spriteScale ?? 1; // ajuste fino opcional
+        const lift = e.config?.spriteLiftPx ?? 0; // ajuste fino dos “pés”
 
-  // use os mesmos fatores das tropas
-  const COVER = 1.2;
-  const SIZE_BOOST = 1.15;
-  const ENEMY_GROUND_OFFSET_PX = 2; // leve ajuste vertical como já usava
+        // use os mesmos fatores das tropas
+        const COVER = 1.2;
+        const SIZE_BOOST = 1.15;
+        const ENEMY_GROUND_OFFSET_PX = 2; // leve ajuste vertical como já usava
 
-  // altura-alvo baseada no tile (igual tropa), com multiplicador fino
-  const alturaDesejadaTile = (tileHeight * COVER * SIZE_BOOST) * sizeMul;
+        // altura-alvo baseada no tile (igual tropa), com multiplicador fino
+        const alturaDesejadaTile = tileHeight * COVER * SIZE_BOOST * sizeMul;
 
-  // pop/opacity/sink
-  let pop = 1;
-  if (e.__spawn) {
-    const p = Math.min(1, (now - e.__spawn.t0) / e.__spawn.dur);
-    e.opacity = p;
-    const c1 = 1.70158, c3 = c1 + 1;
-    const easeOutBack = (x) => 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
-    pop = 0.85 + 0.25 * easeOutBack(p);
-    if (p >= 1) delete e.__spawn;
-  }
-  if (e.__death) {
-    const p = Math.min(1, (now - e.__death.t0) / e.__death.dur);
-    const ease = 1 - Math.pow(1 - p, 3);
-    e.opacity = 1 - ease;
-    pop *= 1 - 0.2 * ease;
-    e.__sink = 10 * ease;
-  }
+        // pop/opacity/sink
+        let pop = 1;
+        if (e.__spawn) {
+          const p = Math.min(1, (now - e.__spawn.t0) / e.__spawn.dur);
+          e.opacity = p;
+          const c1 = 1.70158,
+            c3 = c1 + 1;
+          const easeOutBack = (x) =>
+            1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+          pop = 0.85 + 0.25 * easeOutBack(p);
+          if (p >= 1) delete e.__spawn;
+        }
+        if (e.__death) {
+          const p = Math.min(1, (now - e.__death.t0) / e.__death.dur);
+          const ease = 1 - Math.pow(1 - p, 3);
+          e.opacity = 1 - ease;
+          pop *= 1 - 0.2 * ease;
+          e.__sink = 10 * ease;
+        }
 
-  // dimensões do frame + escala final
-  const src = img.__bmp || img;
-  const iw = src.width  ?? img.naturalWidth  ?? img.width  ?? 1;
-  const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
+        // dimensões do frame + escala final
+        const src = img.__bmp || img;
+        const iw = src.width ?? img.naturalWidth ?? img.width ?? 1;
+        const ih = src.height ?? img.naturalHeight ?? img.height ?? 1;
 
-  const scale = (alturaDesejadaTile / ih) * pop;
-  const w = iw * scale;
-  const h = ih * scale;
+        const scale = (alturaDesejadaTile / ih) * pop;
+        const w = iw * scale;
+        const h = ih * scale;
 
-  // posicionamento ancorado nos “pés” (igual tropa)
-  const feetBase = (e.row + 1) * tileHeight - lift;
-  const baseX = drawX;
-  const baseY = feetBase + ENEMY_GROUND_OFFSET_PX;
+        // posicionamento ancorado nos “pés” (igual tropa)
+        const feetBase = (e.row + 1) * tileHeight - lift;
+        const baseX = drawX;
+        const baseY = feetBase + ENEMY_GROUND_OFFSET_PX;
 
-  // ====== SOMBRA (escala acompanha sizeMul) ======
-  {
-    const feetY = feetBase - 2 + (e.__sink || 0);
-    const rx = tileWidth  * 0.34 * sizeMul;
-    const ry = tileHeight * 0.14 * sizeMul;
-    const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9;
+        // ====== SOMBRA (escala acompanha sizeMul) ======
+        {
+          const feetY = feetBase - 2 + (e.__sink || 0);
+          const rx = tileWidth * 0.34 * sizeMul;
+          const ry = tileHeight * 0.14 * sizeMul;
+          const alphaBase = (e.opacity != null ? e.opacity : 1) * 0.9;
 
-    ctx.save();
-    ctx.globalAlpha = alphaBase;
-    ctx.translate(baseX, feetY);
-    ctx.scale(rx / ry, 1);
-    const r = ry;
-    const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
-    g.addColorStop(0, "rgba(0,0,0,0.28)");
-    g.addColorStop(1, "rgba(0,0,0,0.00)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
+          ctx.save();
+          ctx.globalAlpha = alphaBase;
+          ctx.translate(baseX, feetY);
+          ctx.scale(rx / ry, 1);
+          const r = ry;
+          const g = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+          g.addColorStop(0, "rgba(0,0,0,0.28)");
+          g.addColorStop(1, "rgba(0,0,0,0.00)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
 
-  // ====== SPRITE ======
-  ctx.save();
-  ctx.globalAlpha = e.opacity ?? 1;
-  ctx.translate(baseX, baseY + (e.__sink || 0));
-  ctx.rotate(tilt);
-  ctx.scale(squashX, squashY);
-  ctx.drawImage(src, -w / 2, -h, w, h); // desenha a partir dos “pés” (baseY - h)
-  ctx.restore();
+        // ====== SPRITE ======
+        ctx.save();
+        ctx.globalAlpha = e.opacity ?? 1;
+        ctx.translate(baseX, baseY + (e.__sink || 0));
+        ctx.rotate(tilt);
+        ctx.scale(squashX, squashY);
+        ctx.drawImage(src, -w / 2, -h, w, h); // desenha a partir dos “pés” (baseY - h)
+        ctx.restore();
 
-  // ====== BARRA DE VIDA ======
-  if (!e.__death) {
-    const barWidth = 30, barHeight = 4;
-    const barX = baseX - barWidth / 2;
-    // igual tropa: usa a ALTURA-ALVO (sem pop) para a cabeça
-    const barY = baseY - (alturaDesejadaTile / 2) - 10;
-    ctx.fillStyle = "red";
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-    ctx.fillStyle = "lime";
-    ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barY, barWidth, barHeight);
-  }
-});
+        // ====== BARRA DE VIDA ======
+        if (!e.__death) {
+          const barWidth = 30,
+            barHeight = 4;
+          const barX = baseX - barWidth / 2;
+          // igual tropa: usa a ALTURA-ALVO (sem pop) para a cabeça
+          const barY = baseY - alturaDesejadaTile / 2 - 10;
+          ctx.fillStyle = "red";
+          ctx.fillRect(barX, barY, barWidth, barHeight);
+          ctx.fillStyle = "lime";
+          ctx.fillRect(barX, barY, (barWidth * e.hp) / e.maxHp, barHeight);
+          ctx.strokeStyle = "black";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(barX, barY, barWidth, barHeight);
+        }
+      });
 
       //************************************** */
       // PROJÉTEIS
@@ -3211,6 +3222,77 @@ gameRef.current.inimigos.forEach((e) => {
           onClick={handleClick}
         />
       </div>
+
+      {/* Briefing inicial da fase */}
+      <Dialog open={showBriefing} onClose={() => setShowBriefing(false)}>
+        <DialogTitle
+          style={{
+            backgroundColor: "#0ea5e9",
+            color: "#FFF",
+            textAlign: "center",
+            fontFamily: "Press Start 2P, cursive",
+          }}
+        >
+          📜 Briefing — {missionId}
+        </DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom>
+            Prepare suas defesas antes da horda chegar.
+          </Typography>
+
+          <ul style={{ paddingLeft: 18, marginTop: 8 }}>
+            <li>
+              <Typography>
+                Ondas:{" "}
+                <strong>
+                  {waveConfig?.totalOndas ??
+                    (Array.isArray(waveConfig?.waves)
+                      ? waveConfig.waves.length
+                      : 1)}
+                </strong>
+              </Typography>
+            </li>
+            <li>
+              <Typography>
+                Inimigos na 1ª horda:{" "}
+                <strong>{waveConfig?.quantidadePorOnda?.(1) ?? 0}</strong>
+              </Typography>
+            </li>
+            <li>
+              <Typography>
+                Tipos previstos:{" "}
+                <strong>
+                  {(waveConfig?.tiposPorOnda?.(1) ?? ["?"]).join(", ")}
+                </strong>
+              </Typography>
+            </li>
+            <li>
+              <Typography>
+                Frequência de spawn:{" "}
+                <strong>{waveConfig?.frequenciaSpawn ?? 0}</strong>
+              </Typography>
+            </li>
+          </ul>
+
+          <Typography sx={{ mt: 2 }}>
+            Dica: arraste as tropas do painel à esquerda para o campo.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              setShowBriefing(false); // fecha o briefing
+              setModoPreparacao(true); // garante que estamos na preparação
+              showWaveBanner("🏗 Preparação", { color: "#60a5fa", dur: 1600 });
+            }}
+            style={{ fontFamily: "Press Start 2P, cursive" }}
+          >
+            OK, preparar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Dialog de vitória */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
