@@ -1,6 +1,8 @@
 // src/engine/CollisionManager.js
 
 import { Projectile } from "../entities/Projectile";
+import { tileRows } from "../entities/Tiles";
+import { estaNaAreaDeCombate } from "../entities/mapData";
 
 //#region Helpers
 // ===================== helpers (gating por frames) ==========================
@@ -136,6 +138,65 @@ function tickLockedAttack(enemy) {
   return true; // houve lock; não ande este tick
 }
 
+function spawnShotgunMuzzleFX(gameRef, x, y, cor, tileH) {
+  // shockwave duplo
+  (gameRef.particles ||= []).push(
+    { kind: "ring", x, y, t: 0, max: 10, cor: "rgba(255,255,255,0.95)" },
+    { kind: "ring", x, y, t: 0, max: 18, cor: "rgba(96,165,250,0.85)" } // azul claro sutil
+  );
+
+  // flash cônico: 3 “feixes” curtos à frente
+  const len = 22; // comprimento do flash
+  const offsets = [-tileH * 0.08, 0, tileH * 0.08];
+  offsets.forEach((dy) => {
+    gameRef.particles.push({
+      kind: "beam",
+      x0: x,
+      y0: y,
+      x1: x + len,
+      y1: y + dy,
+      w: 12,
+      t: 0,
+      max: 10,
+      cor,
+      seed: ((Math.random() * 1e9) | 0) ^ (Date.now() & 0xffff),
+    });
+  });
+
+  // faíscas quentes para frente (tracers)
+  for (let i = 0; i < 10; i++) {
+    const ang = (Math.random() - 0.2) * 0.6; // leque frontal
+    const spd = 1.0 + Math.random() * 1.8;
+    gameRef.particles.push({
+      kind: "spark",
+      x,
+      y,
+      vx: Math.cos(ang) * spd + 0.8,
+      vy: Math.sin(ang) * spd * 0.5,
+      g: 0.02,
+      t: 0,
+      max: (12 + Math.random() * 8) | 0,
+      cor,
+    });
+  }
+
+  // “cápsulas” ejetadas para trás (use spark com gravidade)
+  for (let i = 0; i < 3; i++) {
+    const spd = 0.8 + Math.random() * 1.2;
+    gameRef.particles.push({
+      kind: "spark",
+      x,
+      y,
+      vx: -(0.8 + Math.random() * 1.2), // para esquerda
+      vy: -(0.2 + Math.random() * 0.6), // leve para cima
+      g: 0.06, // cai rapidinho
+      t: 0,
+      max: (16 + Math.random() * 8) | 0,
+      cor: "rgba(229,231,235,0.9)", // cinza claro (latão estilizado)
+    });
+  }
+}
+
 // -----------------------------------------------------------------------------
 
 //#region CollisionManager
@@ -145,6 +206,18 @@ export const CollisionManager = {
       if (!p.active) return;
 
       p.update();
+
+      // —— convergência vertical para projéteis com shotgun/steer —— //
+      if (p.__yBlendLeft > 0) {
+        p.__yBlendLeft -= 1;
+        if (p.__yBlendLeft <= 0) {
+          // chega exatamente no alvo e ativa gating por linha
+          p.y = p.__yTarget;
+          p.vy = 0;
+          p.row = p.__rowTarget;
+          p.__yBlendLeft = 0;
+        }
+      }
 
       const candidates = gameRef.inimigos
         .filter((e) => {
@@ -274,6 +347,81 @@ export const CollisionManager = {
       }
     }
 
+    function fireShotgun3(t) {
+      const muzzle = gameRef.getMuzzleWorldPos?.(t) ?? {
+        x: t.col * tileW + tileW / 2,
+        y: (t.row + 0.5) * tileH,
+      };
+
+      const lanes = [t.row - 1, t.row, t.row + 1].filter(
+        (r) => r >= 0 && r < tileRows && estaNaAreaDeCombate(r, t.col)
+      );
+
+      const baseDano = t.config.dano | 0;
+      const danoLane = (idx) =>
+        idx === 1 ? baseDano : Math.max(1, Math.round(baseDano * 0.8));
+      const speed = t.config.velocidadeProjetil || 6;
+      const cor = t.config.corProjetil || "#fff";
+
+      const bounds = {
+        minX: 0,
+        maxX,
+        minY: 0,
+        maxY: gameRef.view?.h ?? tileH * 7,
+      };
+
+      // quantos ticks para “encaixar” na lane alvo (ajuste fino visual)
+      const blendTicks = 12; // 8–16 fica legal
+
+      lanes.forEach((rowAlvo, i) => {
+        const p = acquireProjectile();
+
+        // nasce no MUZZLE (todos juntos)
+        p.x = muzzle.x;
+        p.y = muzzle.y;
+
+        // anda para a direita já
+        p.vx = speed;
+        p.vy = ((rowAlvo + 0.5) * tileH - muzzle.y) / blendTicks; // sobe/desce até a lane
+
+        // ainda sem gating por linha durante o blend
+        p.row = null;
+        p.__rowTarget = rowAlvo;
+        p.__yTarget = (rowAlvo + 0.5) * tileH;
+        p.__yBlendLeft = blendTicks;
+
+        // meta/colisão
+        p.tipo = t.tipo;
+        p.dano = danoLane(i);
+        p.bounds = bounds;
+        p.tileH = tileH;
+        p.radius = 5;
+        p.ticks = 0;
+        p.hit = false;
+        p.justHit = false;
+        p.active = true;
+        p.maxTicks = 300;
+        p.cor = cor;
+
+        // trilha leve
+        (gameRef.particles ||= []).push({
+          kind: "spark",
+          x: p.x,
+          y: p.y,
+          vx: 1.2,
+          vy: 0,
+          g: 0.0,
+          t: 0,
+          max: 10,
+          cor,
+        });
+      });
+
+      // FX no muzzle
+      // FX no muzzle (substitui o bloco antigo)
+      spawnShotgunMuzzleFX(gameRef, muzzle.x, muzzle.y, cor, tileH);
+    }
+
     gameRef.tropas.forEach((t) => {
       // 🛑 não processa quem já morreu/está removendo
       if (t.remove || t.isDead) return;
@@ -339,6 +487,8 @@ export const CollisionManager = {
           fireLaser(t);
         } else if (tipo === "bola") {
           fireBall(t);
+        } else if (tipo === "shotgun") {
+          fireShotgun3(t); // 👈 novo
         } else if (tipo === "melee") {
           const alvo = gameRef.inimigos
             .filter(

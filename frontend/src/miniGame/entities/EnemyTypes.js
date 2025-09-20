@@ -35,7 +35,7 @@ export const enemyTypes = {
     },
     hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: "middle", // ou -1
-            spriteLiftPx: -23, // << +sobe / -desce (em px)
+    spriteLiftPx: -23, // << +sobe / -desce (em px)
   },
   krulax: {
     nome: "krulax",
@@ -53,7 +53,7 @@ export const enemyTypes = {
     },
     hitFrameIndexBase: 1, // << usa contagem humana (1..50)
     hitFrame: "middle", // ou -1
-        spriteLiftPx: -20, // << +sobe / -desce (em px)
+    spriteLiftPx: -20, // << +sobe / -desce (em px)
   },
   krakhul: {
     nome: "krakhul",

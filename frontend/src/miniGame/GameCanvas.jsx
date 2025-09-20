@@ -147,7 +147,7 @@ function within(r, x, y) {
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-function buildHudLayout(canvas, slotOffset = 0) {
+function buildHudLayout(canvas, slotOffset = 0, entriesParam = []) {
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.width / dpr;
   const H = canvas.height / dpr;
@@ -186,7 +186,7 @@ function buildHudLayout(canvas, slotOffset = 0) {
   const slotGap = 8;
   const slotW = slotsArea.w - (SCROLL_COL_W + 6);
 
-  const entries = Object.keys(troopTypes);
+  const entries = entriesParam.length ? entriesParam : [];
   const visibleCount = Math.max(
     1,
     Math.floor((slotsArea.h + slotGap) / (slotH + slotGap))
@@ -532,7 +532,9 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const visibleRef = useRef(!document.hidden);
   const lastSupplyGTRef = useRef(0); // âncora do relógio de jogo p/ regen
   const waveBannerRef = useRef(null);
-  const [showBriefing, setShowBriefing] = useState(true);
+  const [showBriefing, setShowBriefing] = useState(false);
+  const [showTroopPicker, setShowTroopPicker] = useState(true);
+  const [selectedLoadout, setSelectedLoadout] = useState([]); // ['colono','guarda',... até 5]
 
   const showWaveBanner = (text, opts = {}) => {
     waveBannerRef.current = {
@@ -1002,6 +1004,20 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     return true;
   };
 
+  // quais tipos estão realmente disponíveis no estoque atual
+  const availableTroopTypes = useMemo(() => {
+    return Object.keys(troopTypes).filter((t) => getDisponivel(t) > 0);
+  }, [estadoAtual]);
+
+  const toggleLoadout = (tipo) => {
+    setSelectedLoadout((cur) => {
+      const has = cur.includes(tipo);
+      if (has) return cur.filter((x) => x !== tipo);
+      if (cur.length >= 5) return cur; // trava no 5
+      return [...cur, tipo];
+    });
+  };
+
   //#region Desenho
   // ===== desenho
   useEffect(() => {
@@ -1010,7 +1026,12 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     let animationId;
 
     const drawHUD = () => {
-      const layout = buildHudLayout(canvas, slotOffsetRef.current);
+      const entriesForHUD = selectedLoadout; // só as tropas escolhidas
+      const layout = buildHudLayout(
+        canvas,
+        slotOffsetRef.current,
+        entriesForHUD
+      );
 
       hudRectsRef.current = layout;
 
@@ -2579,6 +2600,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     onda,
     energia,
     modoRemocao,
+    selectedLoadout,
   ]);
 
   // ====== eventos de ponteiro ======
@@ -3224,72 +3246,224 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       </div>
 
       {/* Briefing inicial da fase */}
-      <Dialog open={showBriefing} onClose={() => setShowBriefing(false)}>
+      {/* Briefing inicial da fase */}
+      <Dialog
+        open={showTroopPicker}
+        onClose={() => {}}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: "transparent",
+            backgroundImage:
+              "radial-gradient(1200px 600px at 10% -10%, rgba(56,189,248,.12), transparent), radial-gradient(1000px 600px at 110% 110%, rgba(34,197,94,.10), transparent)",
+            backdropFilter: "blur(6px)",
+            border: "1px solid rgba(148,163,184,0.25)",
+            boxShadow: "0 20px 60px rgba(0,0,0,.6)",
+          },
+        }}
+      >
         <DialogTitle
-          style={{
-            backgroundColor: "#0ea5e9",
-            color: "#FFF",
+          sx={{
             textAlign: "center",
-            fontFamily: "Press Start 2P, cursive",
+            color: "#fff",
+            fontFamily: '"Press Start 2P", cursive',
+            background:
+              "linear-gradient(135deg,#1d4ed8 0%, #0ea5e9 45%, #22d3ee 100%)",
+            borderBottom: "1px solid rgba(255,255,255,0.14)",
+            textShadow: "0 2px 10px rgba(34,211,238,.35)",
           }}
         >
-          📜 Briefing — {missionId}
+          🎒 Selecione até 5 tropas
+          <Typography sx={{ mt: 1, fontSize: 12, opacity: 0.9 }}>
+            Monte seu esquadrão para esta fase
+          </Typography>
         </DialogTitle>
-        <DialogContent>
-          <Typography gutterBottom>
-            Prepare suas defesas antes da horda chegar.
+
+        <DialogContent
+          dividers
+          sx={{
+            bgcolor: "linear-gradient(180deg,#0b1220 0%, #0f172a 100%)",
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+            color: "rgba(241,245,249,.95)",
+          }}
+        >
+          <Typography gutterBottom sx={{ mb: 1.5, opacity: 0.9 }}>
+            Escolha as tropas disponíveis para esta fase. Máximo de 5.
           </Typography>
 
-          <ul style={{ paddingLeft: 18, marginTop: 8 }}>
-            <li>
-              <Typography>
-                Ondas:{" "}
-                <strong>
-                  {waveConfig?.totalOndas ??
-                    (Array.isArray(waveConfig?.waves)
-                      ? waveConfig.waves.length
-                      : 1)}
-                </strong>
-              </Typography>
-            </li>
-            <li>
-              <Typography>
-                Inimigos na 1ª horda:{" "}
-                <strong>{waveConfig?.quantidadePorOnda?.(1) ?? 0}</strong>
-              </Typography>
-            </li>
-            <li>
-              <Typography>
-                Tipos previstos:{" "}
-                <strong>
-                  {(waveConfig?.tiposPorOnda?.(1) ?? ["?"]).join(", ")}
-                </strong>
-              </Typography>
-            </li>
-            <li>
-              <Typography>
-                Frequência de spawn:{" "}
-                <strong>{waveConfig?.frequenciaSpawn ?? 0}</strong>
-              </Typography>
-            </li>
-          </ul>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+              gap: 14,
+              marginTop: 12,
+            }}
+          >
+            {availableTroopTypes.map((tipo) => {
+              const selected = selectedLoadout.includes(tipo);
+              const img = getTroopThumb(tipo);
+              const qtd = getDisponivel(tipo);
+              return (
+                <div
+                  key={tipo}
+                  onClick={() => toggleLoadout(tipo)}
+                  style={{
+                    cursor: "pointer",
+                    userSelect: "none",
+                    borderRadius: 14,
+                    padding: 12,
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "center",
+                    background: selected
+                      ? "linear-gradient(135deg, rgba(16,185,129,.18), rgba(34,197,94,.15))"
+                      : "linear-gradient(135deg, rgba(30,41,59,.55), rgba(15,23,42,.6))",
+                    border: selected
+                      ? "1.5px solid rgba(34,197,94,.85)"
+                      : "1.5px solid rgba(148,163,184,.25)",
+                    boxShadow: selected
+                      ? "0 10px 28px rgba(16,185,129,.25), inset 0 1px 0 rgba(255,255,255,.06)"
+                      : "inset 0 1px 0 rgba(255,255,255,.04)",
+                    transition:
+                      "transform .12s ease, box-shadow .12s ease, border-color .12s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.transform = "translateY(-2px)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.transform = "translateY(0)")
+                  }
+                >
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      background:
+                        "linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "inset 0 0 0 1px rgba(148,163,184,.25)",
+                    }}
+                  >
+                    {img && img.complete ? (
+                      <img src={img.src} alt={tipo} width={52} height={52} />
+                    ) : (
+                      <div style={{ width: 52, height: 52 }} />
+                    )}
+                  </div>
 
-          <Typography sx={{ mt: 2 }}>
-            Dica: arraste as tropas do painel à esquerda para o campo.
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800, color: "#e2e8f0" }}>
+                      {tipo}
+                    </Typography>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        marginTop: 4,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: "rgba(148,163,184,.18)",
+                          border: "1px solid rgba(148,163,184,.25)",
+                        }}
+                      >
+                        Disponíveis: <strong>{qtd}</strong>
+                      </span>
+                      {selected && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background:
+                              "linear-gradient(135deg, rgba(16,185,129,.35), rgba(34,197,94,.35))",
+                            border: "1px solid rgba(34,197,94,.55)",
+                          }}
+                        >
+                          Selecionado ✓
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 6,
+                      border: selected
+                        ? "2px solid rgba(34,197,94,1)"
+                        : "2px solid rgba(148,163,184,.65)",
+                      background: selected
+                        ? "rgba(34,197,94,.9)"
+                        : "transparent",
+                      boxShadow: selected
+                        ? "0 0 0 4px rgba(34,197,94,.18)"
+                        : "none",
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <Typography sx={{ mt: 2, fontSize: 12, opacity: 0.9 }}>
+            Selecionadas: <strong>{selectedLoadout.length}</strong> / 5
           </Typography>
         </DialogContent>
-        <DialogActions>
+
+        <DialogActions
+          sx={{
+            bgcolor: "rgba(2,6,23,.8)",
+            borderTop: "1px solid rgba(255,255,255,.08)",
+            p: 2,
+          }}
+        >
           <Button
             variant="contained"
-            color="primary"
+            disabled={
+              selectedLoadout.length === 0 || selectedLoadout.length > 5
+            }
             onClick={() => {
-              setShowBriefing(false); // fecha o briefing
-              setModoPreparacao(true); // garante que estamos na preparação
-              showWaveBanner("🏗 Preparação", { color: "#60a5fa", dur: 1600 });
+              setShowTroopPicker(false);
+              setShowBriefing(true);
+              // 👇 banner de preparação melhorado
+              showWaveBanner("🔧 Preparação de Defesa", {
+                color: "#22d3ee",
+                dur: 2000,
+              });
             }}
-            style={{ fontFamily: "Press Start 2P, cursive" }}
+            sx={{
+              fontFamily: '"Press Start 2P", cursive',
+              textTransform: "none",
+              fontWeight: 900,
+              px: 2.4,
+              py: 1.2,
+              borderRadius: "999px",
+              color: "#051018",
+              background:
+                "linear-gradient(135deg,#22d3ee 0%, #0ea5e9 45%, #3b82f6 100%)",
+              boxShadow:
+                "0 12px 28px rgba(14,165,233,.35), inset 0 1px 0 rgba(255,255,255,.5)",
+              "&:hover": {
+                boxShadow:
+                  "0 16px 36px rgba(14,165,233,.45), inset 0 1px 0 rgba(255,255,255,.65)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": { transform: "translateY(0) scale(.98)" },
+            }}
           >
-            OK, preparar
+            Confirmar Loadout
           </Button>
         </DialogActions>
       </Dialog>

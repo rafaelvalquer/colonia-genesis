@@ -36,7 +36,7 @@ export const troopTypes = {
     dano: 2,
     retornaAoFinal: true,
     cor: "#8D6E63",
-    projetil: "bola",
+    projetil: "shotgun",
     corProjetil: "yellow",
     velocidadeProjetil: 8,
     estados: ["idle", "attack"],
