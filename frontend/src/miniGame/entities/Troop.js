@@ -128,6 +128,50 @@ export const troopTypes = {
     deployCost: 7,
     deployCooldownMs: 6000,
   },
+  // Adicione em troopTypes
+  bombardeiro: {
+    preco: 18,
+    hp: 5,
+    alcance: 6,
+    cooldown: 18, // recarga base entre salvas
+    dano: 2, // dano por micro-míssil
+    retornaAoFinal: true,
+    cor: "#F97316",
+
+    // projétil
+    projetil: "microMissile",
+    corProjetil: "#ffd080",
+    velocidadeProjetil: 9,
+
+    // animações (ajuste aos seus sprites)
+    estados: ["idle", "attack"],
+    animacoes: {
+      idle: { frameCount: 24, frameInterval: 4 },
+      attack: { frameCount: 36, frameInterval: 3 },
+    },
+
+    // posição do cano (muzzle) em pixels do sprite
+    muzzle: {
+      units: "spritePx",
+      attack: { x: 210, y: -340 },
+    },
+
+    // dispara em dois frames do ciclo de ataque (salva em 2 rajadas)
+    fireFrame: [8, 12],
+    cooldownPerShot: false, // só entra em cooldown ao fim do burst
+
+    // implantação
+    deployCost: 5,
+    deployCooldownMs: 6000,
+
+    // parâmetros do micro-míssil
+    count: 4, // 3–5 fica legal; aqui 4 por padrão
+    spreadDeg: 14, // abertura da salva
+    homeStrength: 0.12, // quão forte curva
+    maxTurnDeg: 8, // limite de curva por tick
+    lookAheadPx: 22, // “antecipa” alvos à frente
+  },
+
   muralhaReforcada: {
     preco: 15,
     hp: 20,

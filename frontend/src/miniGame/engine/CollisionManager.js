@@ -205,6 +205,57 @@ export const CollisionManager = {
     gameRef.projectilePool.forEach((p) => {
       if (!p.active) return;
 
+      // --- homing + trilha de fumaça (micro-míssil) ---
+      if (p.active && p.kind === "microMissile") {
+        const speed = p.speed || Math.max(1, Math.hypot(p.vx, p.vy) || 6);
+        const home = p.homeStrength ?? 0.08; // força de curva
+        const maxTurn = p.maxTurnRad ?? Math.PI / 30; // ~6° por tick (limite)
+        const lookAhead = p.lookAheadPx ?? 18; // só mira alvos à frente
+
+        // fumaça (cinza) e faíscas discretas
+        p._smokeTick = (p._smokeTick || 0) + 1;
+        if (p._smokeTick % (p.smokeEvery || 2) === 0) {
+          (gameRef.particles ||= []).push({
+            kind: "spark",
+            x: p.x - Math.random() * 3,
+            y: p.y + (Math.random() * 2 - 1),
+            vx: -0.4 + Math.random() * 0.2,
+            vy: -0.25 + Math.random() * 0.15,
+            g: 0.02,
+            t: 0,
+            max: 16,
+            cor: "rgba(180,180,180,0.85)", // fumaça
+          });
+        }
+
+        // alvo mais próximo à frente
+        const tileH = gameRef.view?.tileHeight ?? 64;
+        const target = gameRef.inimigos
+          .filter((e) => !e.__death && e.x >= p.x - lookAhead)
+          .sort((a, b) => {
+            const ay = (a.row + 0.5) * tileH,
+              by = (b.row + 0.5) * tileH;
+            return (
+              Math.hypot(a.x - p.x, ay - p.y) - Math.hypot(b.x - p.x, by - p.y)
+            );
+          })[0];
+
+        // curva suave na direção do alvo (com limite de giro)
+        if (target) {
+          const ty = (target.row + 0.5) * tileH;
+          const desired = Math.atan2(ty - p.y, target.x - p.x);
+          const current = Math.atan2(p.vy, p.vx);
+          let delta =
+            ((desired - current + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          delta = Math.max(-maxTurn, Math.min(maxTurn, delta)) * home;
+          const ang = current + delta;
+          p.vx = Math.cos(ang) * speed;
+          p.vy = Math.sin(ang) * speed;
+        }
+
+        p.speed = speed; // mantém velocidade base
+      }
+
       p.update();
 
       // —— convergência vertical para projéteis com shotgun/steer —— //
@@ -422,6 +473,77 @@ export const CollisionManager = {
       spawnShotgunMuzzleFX(gameRef, muzzle.x, muzzle.y, cor, tileH);
     }
 
+    function fireMicroMissileSalvo(t) {
+      const tileW = gameRef.view?.tileWidth ?? 64;
+      const tileH = gameRef.view?.tileHeight ?? 64;
+      const muzzle = gameRef.getMuzzleWorldPos?.(t) ?? {
+        x: t.col * tileW + tileW / 2,
+        y: (t.row + 0.5) * tileH,
+      };
+
+      const n = t.config.count ?? ((Math.random() * 2) | 0) + 3; // 3–5
+      const spreadDeg = t.config.spreadDeg ?? 10; // leque inicial
+      const speed = t.config.velocidadeProjetil || 7;
+      const dano = t.config.dano | 0;
+      const cor = t.config.corProjetil || "#ffd080";
+
+      for (let i = 0; i < n; i++) {
+        const p = acquireProjectile();
+
+        // ângulo inicial com pequena variação (leque)
+        const a = ((Math.random() * spreadDeg - spreadDeg / 2) * Math.PI) / 180;
+
+        // nasce no cano (todos juntos) e vai curvando depois
+        p.x = muzzle.x;
+        p.y = muzzle.y;
+        p.vx = Math.cos(a) * speed;
+        p.vy = Math.sin(a) * (speed * 0.4); // leve inclinação vertical
+        p.speed = speed;
+
+        // meta / comportamento
+        p.kind = "microMissile";
+        p.homeStrength = t.config.homeStrength ?? 0.1;
+        p.maxTurnRad = ((t.config.maxTurnDeg ?? 7) * Math.PI) / 180;
+        p.lookAheadPx = t.config.lookAheadPx ?? 18;
+        p.smokeEvery = 2;
+
+        // deixa cruzar linhas (homing multi-row)
+        p.row = null;
+
+        // colisão/dano
+        p.tipo = t.tipo;
+        p.dano = dano;
+        p.bounds = {
+          minX: 0,
+          maxX: gameRef.view?.w ?? tileW * 12,
+          minY: 0,
+          maxY: gameRef.view?.h ?? tileH * 7,
+        };
+        p.tileH = tileH;
+        p.radius = 6;
+        p.ticks = 0;
+        p.hit = false;
+        p.justHit = false;
+        p.active = true;
+        p.maxTicks = 260;
+        p.cor = cor;
+
+        // pequeno flash de exaustão no cano
+        (gameRef.particles ||= []).push({
+          kind: "beam",
+          x0: muzzle.x,
+          y0: muzzle.y,
+          x1: muzzle.x + 12 + Math.random() * 6,
+          y1: muzzle.y + (Math.random() * 4 - 2),
+          w: 5,
+          t: 0,
+          max: 10,
+          cor,
+          seed: (Math.random() * 1e9) | 0,
+        });
+      }
+    }
+
     gameRef.tropas.forEach((t) => {
       // 🛑 não processa quem já morreu/está removendo
       if (t.remove || t.isDead) return;
@@ -489,6 +611,8 @@ export const CollisionManager = {
           fireBall(t);
         } else if (tipo === "shotgun") {
           fireShotgun3(t); // 👈 novo
+        } else if (tipo === "microMissile") {
+          fireMicroMissileSalvo(t);
         } else if (tipo === "melee") {
           const alvo = gameRef.inimigos
             .filter(
