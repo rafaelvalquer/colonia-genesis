@@ -544,6 +544,108 @@ export const CollisionManager = {
       }
     }
 
+    function fireFlameStream(t) {
+      const tileW = gameRef.view?.tileWidth ?? 64;
+      const tileH = gameRef.view?.tileHeight ?? 64;
+      const muzzle = gameRef.getMuzzleWorldPos?.(t) ?? {
+        x: t.col * tileW + tileW / 2,
+        y: (t.row + 0.5) * tileH,
+      };
+
+      // ===== ALCANCE (mais longo) =====
+      const alcanceCols = t.config.alcance | 0;
+      const range = Math.max(
+        tileW,
+        alcanceCols * tileW * (t.config.flameRangeScale ?? 1.8)
+      );
+      const x0 = muzzle.x,
+        x1 = muzzle.x + range;
+
+      // ===== EMISSÃO CONTÍNUA =====
+      const cone = t.config.flameCone ?? 0.28; // cone ligeiramente mais fechado
+      const base = t.config.flameSpeed ?? 5.0; // chamas “empurram” mais
+      const count = t.config.flamePpt ?? 12; // mais partículas por tick
+
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * cone - cone / 2;
+        const spd = base + Math.random() * 2.2;
+        const life = 18 + ((Math.random() * 12) | 0); // vida maior
+        (gameRef.particles ||= []).push({
+          kind: "flame",
+          x: muzzle.x,
+          y: muzzle.y,
+          vx: Math.cos(a) * (spd * (0.95 + Math.random() * 0.1)),
+          vy: Math.sin(a) * spd * 0.45 - 0.1, // menos queda vertical
+          r: 14 + Math.random() * 16, // “linguas” mais largas
+          shrink: 0.28 + Math.random() * 0.18, // encolhe mais devagar
+          a: 0.95,
+          t: 0,
+          max: life,
+          // Núcleo bem claro e borda laranja avermelhada (como a imagem)
+          rgb1: [255, 245, 140], // quase branco-amarelado
+          rgb2: [
+            255,
+            120 + ((Math.random() * 40) | 0),
+            30 + ((Math.random() * 30) | 0),
+          ],
+        });
+      }
+
+      // brilho de base (faixa amarela) – dá a sensação de chama forte na saída
+      if (Math.random() < 0.5) {
+        (gameRef.particles ||= []).push({
+          kind: "beam",
+          x0: muzzle.x,
+          y0: muzzle.y,
+          x1: muzzle.x + 18 + Math.random() * 16,
+          y1: muzzle.y + (Math.random() * 6 - 3),
+          w: 6,
+          t: 0,
+          max: 10,
+          cor: "rgba(255,235,150,0.9)",
+          seed: (Math.random() * 1e9) | 0,
+        });
+      }
+
+      // fumaça quente sutil subindo
+      if (Math.random() < 0.85) {
+        (gameRef.particles ||= []).push({
+          kind: "smoke",
+          x: muzzle.x + 6,
+          y: muzzle.y - 2,
+          vx: 0.25 + Math.random() * 0.35,
+          vy: -0.45 - Math.random() * 0.35,
+          r: 7 + Math.random() * 9,
+          a: 0.45,
+          t: 0,
+          max: 30 + ((Math.random() * 12) | 0),
+          rgb: [150, 140, 140],
+          drift: 0.3,
+          rise: -0.18,
+        });
+      }
+
+      // ===== DANO por tick (inalterado; já usa alcance) =====
+      const dpt = t.config.flameDpsPerTick ?? t.config.flameDps ?? 2;
+      const hits = gameRef.inimigos.filter(
+        (e) => !e.__death && e.row === t.row && e.x >= x0 && e.x <= x1
+      );
+      for (const e of hits) {
+        e.hp = Math.max(0, (e.hp ?? 0) - dpt);
+        (gameRef.particles ||= []).push({
+          kind: "spark",
+          x: e.x,
+          y: muzzle.y,
+          vx: 0.4 + Math.random() * 0.4,
+          vy: -0.15 + Math.random() * 0.2,
+          g: 0.02,
+          t: 0,
+          max: 10,
+          cor: "rgba(255,210,120,1)",
+        });
+      }
+    }
+
     gameRef.tropas.forEach((t) => {
       // 🛑 não processa quem já morreu/está removendo
       if (t.remove || t.isDead) return;
@@ -571,6 +673,22 @@ export const CollisionManager = {
         }
         return;
       }
+
+      // ===== FLAME CONTÍNUO: ignora cooldown/fireFrame =====
+      const tipoProj = t.config.projetil || "bola";
+      if (tipoProj === "flame" || tipoProj === "fireFlameStream") {
+        if (t.state !== "attack") {
+          t.state = "attack";
+          t.frameIndex = 0;
+          const atkInt = t.config.animacoes?.attack?.frameInterval ?? 1;
+          t.frameTick = 0 | (Math.random() * atkInt);
+          t._firedFramesCycle = undefined;
+          t._lastFI = undefined;
+        }
+        fireFlameStream(t); // emite TODO TICK enquanto há alvo
+        return; // não aplica cooldown, nem usa fireFrame
+      }
+      // ================================================
 
       // se ainda em cooldown, NÃO force 'attack' (deixe animar em idle)
       if (t.cooldown > 0) return;
@@ -613,6 +731,8 @@ export const CollisionManager = {
           fireShotgun3(t); // 👈 novo
         } else if (tipo === "microMissile") {
           fireMicroMissileSalvo(t);
+        } else if (tipo === "fireFlameStream") {
+          fireFlameStream(t);
         } else if (tipo === "melee") {
           const alvo = gameRef.inimigos
             .filter(

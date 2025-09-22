@@ -2135,6 +2135,46 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           }
 
           ctx.restore();
+        } else if (pt.kind === "flame") {
+          // update
+          pt.x += pt.vx || 0;
+          pt.y += pt.vy || 0;
+          pt.r = Math.max(1, (pt.r || 8) - (pt.shrink || 0.4));
+          const life = pt.t / (pt.max || 24);
+          const alpha = Math.max(0, (pt.a ?? 0.9) * (1 - life));
+
+          // gradiente “núcleo quente” → “borda fogo”
+          const [r1, g1, b1] = pt.rgb1 || [255, 230, 120];
+          const [r2, g2, b2] = pt.rgb2 || [255, 140, 40];
+
+          ctx.save();
+          const grd = ctx.createRadialGradient(
+            pt.x,
+            pt.y,
+            (pt.r || 8) * 0.2,
+            pt.x,
+            pt.y,
+            pt.r || 8
+          );
+          grd.addColorStop(0.0, `rgba(${r1},${g1},${b1},${alpha})`);
+          grd.addColorStop(0.4, `rgba(${r2},${g2},${b2},${alpha * 0.9})`);
+          grd.addColorStop(1.0, `rgba(${r2},${g2},${b2},0)`);
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, pt.r || 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          // leve cintilância
+          if (Math.random() < 0.15) {
+            ctx.globalCompositeOperation = "lighter";
+            ctx.fillStyle = `rgba(255,255,255,${alpha * 0.35})`;
+            ctx.fillRect(pt.x - 1.5, pt.y - 1.5, 3, 3);
+          }
+          ctx.restore();
+
+          pt.t++;
+          ctx.restore();
+          return pt.t < (pt.max || 24);
         }
 
         ctx.restore();

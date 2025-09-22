@@ -28,7 +28,7 @@ export const troopTypes = {
     deployCost: 3,
     deployCooldownMs: 4000,
   },
-  guarda: {
+  teste: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -128,13 +128,13 @@ export const troopTypes = {
     deployCost: 7,
     deployCooldownMs: 6000,
   },
-  // Adicione em troopTypes
-  bombardeiro: {
+
+  /*bombardeiro: {
     preco: 18,
     hp: 5,
     alcance: 6,
     cooldown: 18, // recarga base entre salvas
-    dano: 2, // dano por micro-míssil
+    dano: 1, // dano por micro-míssil
     retornaAoFinal: true,
     cor: "#F97316",
 
@@ -157,7 +157,7 @@ export const troopTypes = {
     },
 
     // dispara em dois frames do ciclo de ataque (salva em 2 rajadas)
-    fireFrame: [8, 12],
+    fireFrame: [7],
     cooldownPerShot: false, // só entra em cooldown ao fim do burst
 
     // implantação
@@ -165,11 +165,60 @@ export const troopTypes = {
     deployCooldownMs: 6000,
 
     // parâmetros do micro-míssil
-    count: 4, // 3–5 fica legal; aqui 4 por padrão
-    spreadDeg: 14, // abertura da salva
+    count: 3, // 3–5 fica legal; aqui 4 por padrão
+    spreadDeg: 40, // abertura da salva
     homeStrength: 0.12, // quão forte curva
     maxTurnDeg: 8, // limite de curva por tick
     lookAheadPx: 22, // “antecipa” alvos à frente
+  }, */
+
+  guarda: {
+    preco: 18,
+    hp: 5,
+    alcance: 2,
+    cooldown: 18, // irrelevante durante o “spray” contínuo
+    dano: 1, // usado só se você quiser mesclar com hits pontuais
+    retornaAoFinal: true,
+    cor: "#F97316",
+
+    // projétil contínuo (bate com seu tropasAtacam que trata flame como contínuo)
+    projetil: "fireFlameStream",
+    corProjetil: "#ffd080",
+    velocidadeProjetil: 0, // não usado no efeito
+
+    estados: ["idle", "attack"],
+    animacoes: {
+      idle: { frameCount: 24, frameInterval: 4 },
+      attack: { frameCount: 36, frameInterval: 3 },
+    },
+
+    muzzle: { units: "spritePx", attack: { x: 210, y: -340 } },
+
+    // opcional para sincronizar a animação; o spray sai TODO tick enquanto há alvo
+    fireFrame: [36],
+    cooldownPerShot: false,
+
+    // parâmetros visuais/dano do flame
+    flameRangeScale: 2.4, // 1.6–2.4 para mais alcance visual
+    flamePpt: 12, // densidade da chama
+    flameSpeed: 5.0, // “força” da chama
+    flameCone: 0.28, // abre/fecha o jato
+    flameRangePx: 100, // ~1.5 tiles
+    flameDpsPerTick: 0.05, // ↓ dano por tick
+
+    // fumaça do bocal (opcional)
+    smokeEvery: 1,
+    smokeBurst: 3,
+    smokeSizeMin: 4,
+    smokeSizeMax: 9,
+    smokeLifeMin: 18,
+    smokeLifeMax: 32,
+    smokeDrift: 0.25,
+    smokeRise: -0.15,
+    smokeShade: [160, 160, 160],
+
+    deployCost: 5,
+    deployCooldownMs: 6000,
   },
 
   muralhaReforcada: {
