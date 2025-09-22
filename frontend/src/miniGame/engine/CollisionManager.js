@@ -671,23 +671,42 @@ export const CollisionManager = {
           t._firedFramesCycle = undefined;
           t._lastFI = undefined;
         }
+        // << adicione
+        if (t.config?.projetil === "fireFlameStream") t.__flameChannel = false;
         return;
       }
 
-      // ===== FLAME CONTÍNUO: ignora cooldown/fireFrame =====
+      // depois de calcular temAlvo:
       const tipoProj = t.config.projetil || "bola";
-      if (tipoProj === "flame" || tipoProj === "fireFlameStream") {
-        if (t.state !== "attack") {
-          t.state = "attack";
-          t.frameIndex = 0;
-          const atkInt = t.config.animacoes?.attack?.frameInterval ?? 1;
-          t.frameTick = 0 | (Math.random() * atkInt);
-          t._firedFramesCycle = undefined;
-          t._lastFI = undefined;
+      const isFlame = tipoProj === "fireFlameStream";
+
+      // ===== Canalização FLAME já ativa =====
+      // ===== Canalização FLAME já ativa =====
+      if (isFlame && t.__flameChannel) {
+        if (temAlvo) {
+          if (t.state !== "attack") {
+            t.state = "attack";
+            t.frameIndex = 0;
+            const atkInt = t.config.animacoes?.attack?.frameInterval ?? 1;
+            t.frameTick = 0 | (Math.random() * atkInt);
+            t._firedFramesCycle = undefined;
+            t._lastFI = undefined;
+            // (NÃO resete __flameChannel aqui)
+          }
+          fireFlameStream(t);
+          return;
+        } else {
+          t.__flameChannel = false;
+          t.cooldown = t.config.cooldown | 0;
+          if (t.state !== "idle") {
+            t.state = "idle";
+            t._firedFramesCycle = undefined;
+            t._lastFI = undefined;
+          }
+          return;
         }
-        fireFlameStream(t); // emite TODO TICK enquanto há alvo
-        return; // não aplica cooldown, nem usa fireFrame
       }
+
       // ================================================
 
       // se ainda em cooldown, NÃO force 'attack' (deixe animar em idle)
@@ -732,7 +751,11 @@ export const CollisionManager = {
         } else if (tipo === "microMissile") {
           fireMicroMissileSalvo(t);
         } else if (tipo === "fireFlameStream") {
+          // inicia canalização no frame configurado
+          t.__flameChannel = true;
+          // dispara já neste tick (feedback imediato)
           fireFlameStream(t);
+          // NÃO aplica cooldown aqui; ele só vem ao encerrar a canalização
         } else if (tipo === "melee") {
           const alvo = gameRef.inimigos
             .filter(
@@ -746,7 +769,13 @@ export const CollisionManager = {
         }
         firedAny = true;
         if (isBurst && f === lastFrameTarget) firedLastFrame = true;
-        if (cooldownPerShot) t.cooldown = t.config.cooldown | 0; // espaça cada tiro
+        if (
+          cooldownPerShot &&
+          !(tipo === "flame" || tipo === "fireFlameStream")
+        ) {
+          // flame não usa cooldown por disparo
+          t.cooldown = t.config.cooldown | 0;
+        }
       }
 
       // cooldown só no fim do burst

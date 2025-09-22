@@ -171,7 +171,7 @@ export const troopTypes = {
     maxTurnDeg: 8, // limite de curva por tick
     lookAheadPx: 22, // “antecipa” alvos à frente
   }, */
-
+  //incinerador
   guarda: {
     preco: 18,
     hp: 5,
@@ -195,7 +195,7 @@ export const troopTypes = {
     muzzle: { units: "spritePx", attack: { x: 210, y: -340 } },
 
     // opcional para sincronizar a animação; o spray sai TODO tick enquanto há alvo
-    fireFrame: [36],
+    fireFrame: [35],
     cooldownPerShot: false,
 
     // parâmetros visuais/dano do flame
