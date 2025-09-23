@@ -28,7 +28,7 @@ export const troopTypes = {
     deployCost: 3,
     deployCooldownMs: 4000,
   },
-  teste: {
+  guarda: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -36,7 +36,7 @@ export const troopTypes = {
     dano: 2,
     retornaAoFinal: true,
     cor: "#8D6E63",
-    projetil: "shotgun",
+    projetil: "bola",
     corProjetil: "yellow",
     velocidadeProjetil: 8,
     estados: ["idle", "attack"],
@@ -128,8 +128,34 @@ export const troopTypes = {
     deployCost: 7,
     deployCooldownMs: 6000,
   },
+  /*
+    caçador: {
+    preco: 12,
+    hp: 6,
+    alcance: 5,
+    cooldown: 12,
+    dano: 2,
+    retornaAoFinal: true,
+    cor: "#8D6E63",
+    projetil: "shotgun",
+    corProjetil: "#ff0000ff",
+    velocidadeProjetil: 8,
+    estados: ["idle", "attack"],
+    animacoes: {
+      idle: { frameCount: 25, frameInterval: 4 },
+      attack: { frameCount: 37, frameInterval: 3 },
+    },
+    muzzle: {
+      units: "spritePx", // interpreta offsets no espaço do sprite
+      attack: { x: 200, y: -350 }, // ajuste fino por tropa
+    },
+    fireFrame: [7], // dispara projétil no frame 12 da animação de attack
+    cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
+    deployCost: 4,
+    deployCooldownMs: 5000,
+  },
 
-  /*bombardeiro: {
+ bombardeiro: {
     preco: 18,
     hp: 5,
     alcance: 6,
@@ -170,9 +196,9 @@ export const troopTypes = {
     homeStrength: 0.12, // quão forte curva
     maxTurnDeg: 8, // limite de curva por tick
     lookAheadPx: 22, // “antecipa” alvos à frente
-  }, */
-  //incinerador
-  guarda: {
+  }, 
+
+  incinerador: {
     preco: 18,
     hp: 5,
     alcance: 2,
@@ -220,6 +246,7 @@ export const troopTypes = {
     deployCost: 5,
     deployCooldownMs: 6000,
   },
+  */
 
   muralhaReforcada: {
     preco: 15,

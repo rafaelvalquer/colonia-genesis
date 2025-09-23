@@ -251,6 +251,45 @@ function ParameterPanel({
         agua: 2,
       },
     },
+    {
+      id: "cacadores",
+      nome: "Caçador",
+      descricao:
+        "Atirador de curto/médio alcance com shotgun. Dispara rajadas que se espalham e podem atingir até 3 fileiras inimigas.",
+      imagem: "/images/cacador.png",
+      custo: {
+        comida: 20,
+        minerais: 10,
+        energia: 20,
+        agua: 2,
+      },
+    },
+    {
+      id: "bombardeiros",
+      nome: "Bombardeiro",
+      descricao:
+        "Artilharia móvel com bazuca teleguiada. Os mísseis podem curvar e atingir alvos em outras linhas, causando alto dano.",
+      imagem: "/images/bombardeiro.png",
+      custo: {
+        comida: 10,
+        minerais: 20,
+        energia: 20,
+        agua: 2,
+      },
+    },
+    {
+      id: "incineradores",
+      nome: "Incinerador",
+      descricao:
+        "Especialista de curto alcance com lança-chamas. Emite um cone contínuo de fogo que causa dano por segundo a inimigos próximos.",
+      imagem: "/images/incinerador.png",
+      custo: {
+        comida: 15,
+        minerais: 30,
+        energia: 15,
+        agua: 2,
+      },
+    },
   ];
 
   useEffect(() => {
