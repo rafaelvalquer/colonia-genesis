@@ -1,11 +1,19 @@
 // GameCanvas.jsx
 import { useRef, useEffect, useState, useMemo } from "react";
 import { Troop, troopTypes, troopAnimations } from "./entities/Troop";
+// ################# AUDIOS #################
 import deployWav from "./assets/sfx/deploy.wav"; // ajuste o caminho
 import shootBall1 from "./assets/sfx/shoot_ball_1.wav";
 import shootBall2 from "./assets/sfx/shoot_ball_2.wav";
 import shootBall3 from "./assets/sfx/shoot_ball_3.wav";
 import shootBall4 from "./assets/sfx/shoot_ball_4.wav";
+import melee1 from "./assets/sfx/melee_1.wav";
+import melee2 from "./assets/sfx/melee_2.wav";
+import melee3 from "./assets/sfx/melee_3.wav";
+import melee4 from "./assets/sfx/melee_4.wav";
+import waveAlert from "./assets/sfx/wave_alert.wav";
+import waveTheme from "./assets/sfx/wave_theme.wav";
+// ################# AUDIOS #################
 import { Enemy } from "./entities/Enemy";
 import {
   getNextMissionId,
@@ -544,6 +552,60 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const lastDeployPlayRef = useRef(0);
   const shootSfxBaseRef = useRef(null);
   const shootSfxArrayRef = useRef([]);
+  const meleeSfxArrayRef = useRef([]);
+  const waveAlertRef = useRef(null); // base para clonar
+  const waveThemeRef = useRef(null); // player único em loop
+  const waveThemeFadeRef = useRef(null);
+
+  useEffect(() => {
+    // alerta (toca uma vez)
+    const alertA = new Audio(waveAlert);
+    alertA.preload = "auto";
+    alertA.volume = 0.9;
+    waveAlertRef.current = alertA;
+
+    // tema (em loop durante a onda)
+    const themeA = new Audio(waveTheme);
+    themeA.preload = "auto";
+    themeA.loop = true;
+    themeA.volume = 0.6;
+    waveThemeRef.current = themeA;
+
+    return () => {
+      // cleanup ao desmontar
+      try {
+        waveThemeRef.current?.pause();
+        waveThemeRef.current = null;
+      } catch {}
+    };
+  }, []);
+
+  useEffect(() => {
+    const files = [melee1, melee2, melee3, melee4];
+    meleeSfxArrayRef.current = files.map((src) => {
+      const a = new Audio(src);
+      a.preload = "auto";
+      a.volume = 0.75;
+      return a;
+    });
+  }, []);
+
+  function playMeleeSfx(volume = 0.75) {
+    const arr = meleeSfxArrayRef.current;
+    if (!arr.length) return;
+    const base = arr[(Math.random() * arr.length) | 0];
+    const inst = base.cloneNode();
+    inst.volume = volume;
+    inst.playbackRate = 0.97 + Math.random() * 0.08; // opcional
+    inst.currentTime = 0;
+    inst.play().catch(() => {});
+  }
+
+  // callback disparado no fireFrame do melee (tropas e/ou inimigos)
+  useEffect(() => {
+    gameRef.current.onTroopMeleeHit = (troop, alvo) => playMeleeSfx();
+    gameRef.current.onEnemyMeleeHit = (enemy, alvo) => playMeleeSfx();
+  }, []);
 
   useEffect(() => {
     const a = new Audio(deployWav);
@@ -784,6 +846,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   // ===== helpers do overlay =====
 
   const finalizarRodada = async (tipo = "derrota") => {
+    stopWaveTheme(); // 🔇 garante parar em qualquer desfecho
+
     // coleta tropas em campo
     const tropasEmCampo = gameRef.current.tropas || [];
     const tropasParaRetornar = {};
@@ -1076,6 +1140,63 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       return [...cur, tipo];
     });
   };
+
+  function playWaveAlertOnce(vol = 0.9) {
+    const base = waveAlertRef.current;
+    if (!base) return;
+    const inst = base.cloneNode(); // permite sobrepor com outros sons
+    inst.volume = vol;
+    inst.currentTime = 0;
+    inst.play().catch(() => {});
+  }
+
+  function startWaveTheme(vol = 0.6) {
+    const t = waveThemeRef.current;
+    if (!t) return;
+    t.volume = vol;
+    t.currentTime = 0;
+    t.loop = true;
+    t.play().catch(() => {});
+  }
+
+  function stopWaveTheme(durationMs = 800) {
+    const t = waveThemeRef.current;
+    if (!t) return;
+
+    // cancela fade anterior, se houver
+    if (waveThemeFadeRef.current) {
+      cancelAnimationFrame(waveThemeFadeRef.current);
+      waveThemeFadeRef.current = null;
+    }
+
+    const startVol = t.volume ?? 1;
+    const start = performance.now();
+
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / Math.max(1, durationMs));
+      const vol = startVol * (1 - p);
+      t.volume = Math.max(0, vol);
+
+      if (p < 1) {
+        waveThemeFadeRef.current = requestAnimationFrame(step);
+      } else {
+        // fim do fade
+        t.pause();
+        t.currentTime = 0;
+        t.volume = startVol; // restaura volume para o próximo start
+        waveThemeFadeRef.current = null;
+      }
+    };
+
+    // se já estiver pausado, só garanta reset
+    if (t.paused || t.ended) {
+      t.currentTime = 0;
+      t.volume = startVol;
+      return;
+    }
+
+    waveThemeFadeRef.current = requestAnimationFrame(step);
+  }
 
   //#region Desenho
   // ===== desenho
@@ -2768,6 +2889,10 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           inimigosCriadosRef.current = 0;
           lastSupplyGTRef.current = gameTimeRef.current;
 
+          // 🔊 sons da onda
+          playWaveAlertOnce();
+          startWaveTheme();
+
           spawnOneEnemyNow();
           setContadorSpawn(0);
         }
@@ -3120,6 +3245,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
           CollisionManager.inimigosAtacam(gameRef.current);
           if (gameRef.current.inimigos.some((e) => !e.__death && e.x <= 50)) {
+            stopWaveTheme(); // 🔇
+
             setJogoEncerrado(true);
             encerrouAgora = true;
             break;
@@ -3245,6 +3372,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           inimigosCriadosRef.current >= waveConfig.quantidadePorOnda(onda);
 
         if (!modoPreparacao && todosInimigosMortos && todosInimigosGerados) {
+          stopWaveTheme(); // 🔇 para o tema assim que a onda terminar
+
           const totalOndas =
             waveConfig?.totalOndas ??
             (Array.isArray(waveConfig?.waves) ? waveConfig.waves.length : 1);

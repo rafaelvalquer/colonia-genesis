@@ -771,6 +771,7 @@ export const CollisionManager = {
             )
             .sort((a, b) => a.x - b.x)[0];
           if (alvo) alvo.hp = Math.max(0, (alvo.hp ?? 0) - (t.config.dano | 0));
+          if (gameRef.onTroopMeleeHit) gameRef.onTroopMeleeHit(t, alvo); // 🔊 aqui
         }
         firedAny = true;
         if (isBurst && f === lastFrameTarget) firedLastFrame = true;
