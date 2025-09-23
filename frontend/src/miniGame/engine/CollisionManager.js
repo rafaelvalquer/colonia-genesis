@@ -343,7 +343,12 @@ export const CollisionManager = {
       p.justHit = false;
       p.active = true;
       p.maxTicks = 300;
+      p.kind = "bola";
       p.cor = t.config.corProjetil || "#fff";
+
+      // 🔊 som no frame de disparo (spawn do projétil)
+      if (gameRef.onProjectileSpawn) gameRef.onProjectileSpawn(p);
+      console.log("passou aqui");
     }
 
     // dispara "laser" instantâneo na linha inteira até o alcance

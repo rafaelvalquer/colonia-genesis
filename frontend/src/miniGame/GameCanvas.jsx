@@ -1,6 +1,11 @@
 // GameCanvas.jsx
 import { useRef, useEffect, useState, useMemo } from "react";
 import { Troop, troopTypes, troopAnimations } from "./entities/Troop";
+import deployWav from "./assets/sfx/deploy.wav"; // ajuste o caminho
+import shootBall1 from "./assets/sfx/shoot_ball_1.wav";
+import shootBall2 from "./assets/sfx/shoot_ball_2.wav";
+import shootBall3 from "./assets/sfx/shoot_ball_3.wav";
+import shootBall4 from "./assets/sfx/shoot_ball_4.wav";
 import { Enemy } from "./entities/Enemy";
 import {
   getNextMissionId,
@@ -535,6 +540,60 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
   const [showBriefing, setShowBriefing] = useState(false);
   const [showTroopPicker, setShowTroopPicker] = useState(true);
   const [selectedLoadout, setSelectedLoadout] = useState([]); // ['colono','guarda',... até 5]
+  const deploySfxBaseRef = useRef(null);
+  const lastDeployPlayRef = useRef(0);
+  const shootSfxBaseRef = useRef(null);
+  const shootSfxArrayRef = useRef([]);
+
+  useEffect(() => {
+    const a = new Audio(deployWav);
+    a.preload = "auto";
+    a.volume = 0.6; // volume padrão
+    deploySfxBaseRef.current = a;
+  }, []);
+
+  function playDeploySfx(volume = 0.6) {
+    const now = performance.now();
+    if (now - (lastDeployPlayRef.current || 0) < 80) return; // anti-spam leve
+    lastDeployPlayRef.current = now;
+
+    const base = deploySfxBaseRef.current;
+    if (!base) return;
+    const inst = base.cloneNode(); // permite sobrepor
+    inst.volume = volume;
+    // reset e play sob gesto do usuário (mouse up/click)
+    inst.currentTime = 0;
+    inst.play().catch(() => {});
+  }
+
+  useEffect(() => {
+    const files = [shootBall1, shootBall2, shootBall3, shootBall4];
+    shootSfxArrayRef.current = files.map((src) => {
+      const a = new Audio(src);
+      a.preload = "auto";
+      a.volume = 0.7;
+      return a;
+    });
+  }, []);
+
+  // toca 1 aleatório (com leve variação de pitch opcional)
+  function playShootSfx(volume = 0.7) {
+    const arr = shootSfxArrayRef.current;
+    if (!arr || arr.length === 0) return;
+    const base = arr[(Math.random() * arr.length) | 0];
+    const inst = base.cloneNode();
+    inst.volume = volume;
+    inst.playbackRate = 0.97 + Math.random() * 0.08; // opcional
+    inst.currentTime = 0;
+    inst.play().catch(() => {});
+  }
+
+  // ligar no spawn do projétil (dispara no fireFrame)
+  useEffect(() => {
+    gameRef.current.onProjectileSpawn = (proj) => {
+      if (proj?.kind === "bola") playShootSfx(); // ou sem if: playShootSfx();
+    };
+  }, []);
 
   const showWaveBanner = (text, opts = {}) => {
     waveBannerRef.current = {
@@ -2788,6 +2847,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       troop.__spawn = { t0: performance.now(), dur: 420 };
       gameRef.current.tropas.push(troop);
       emitTroopSpawnFX(row, col);
+      playDeploySfx(); // 🔊 aqui
     }
     tryPushEnemyBack(row, col);
 
@@ -2964,6 +3024,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       troop.__spawn = { t0: performance.now(), dur: 420 };
       gameRef.current.tropas.push(troop);
       emitTroopSpawnFX(row, col);
+      playDeploySfx(); // 🔊 aqui
     }
 
     const novaEnergia = energiaRef.current - troopTypes[tropaSelecionada].preco;
