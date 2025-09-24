@@ -1198,6 +1198,33 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     waveThemeFadeRef.current = requestAnimationFrame(step);
   }
 
+  // --- Tint helper: pinta só os pixels do sprite e devolve um canvas pronto ---
+  const tintCache = new Map(); // opcional: cache por chave (img+size+cor)
+
+  function getTintedSprite(img, w, h, color = "rgba(80,160,255,0.55)") {
+    const key = `${img.src || img}__${w}x${h}__${color}`;
+    const cached = tintCache.get(key);
+    if (cached) return cached;
+
+    const off = document.createElement("canvas");
+    off.width = Math.max(1, w | 0);
+    off.height = Math.max(1, h | 0);
+    const oc = off.getContext("2d");
+
+    // desenha o sprite bruto
+    oc.clearRect(0, 0, off.width, off.height);
+    oc.drawImage(img, 0, 0, off.width, off.height);
+
+    // aplica a tinta azul SOMENTE onde já tem pixels (source-atop)
+    oc.globalCompositeOperation = "source-atop";
+    oc.fillStyle = color; // ajuste a opacidade aqui
+    oc.fillRect(0, 0, off.width, off.height);
+    oc.globalCompositeOperation = "source-over";
+
+    tintCache.set(key, off);
+    return off;
+  }
+
   //#region Desenho
   // ===== desenho
   useEffect(() => {
@@ -2138,13 +2165,23 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           ctx.restore();
         }
 
-        // ====== SPRITE ======
+        // ===== SPRITE =====
         ctx.save();
         ctx.globalAlpha = e.opacity ?? 1;
         ctx.translate(baseX, baseY + (e.__sink || 0));
         ctx.rotate(tilt);
         ctx.scale(squashX, squashY);
-        ctx.drawImage(src, -w / 2, -h, w, h); // desenha a partir dos “pés” (baseY - h)
+
+        const slowed = e.__slow && performance.now() <= (e.__slow.until || 0);
+        if (slowed) {
+          // cor “gelo” suave (ajuste o alpha conforme preferir)
+          const tinted = getTintedSprite(src, w, h, "rgba(80,160,255,0.55)");
+          ctx.drawImage(tinted, -w / 2, -h, w, h);
+        } else {
+          ctx.drawImage(src, -w / 2, -h, w, h);
+        }
+
+        if (slowed) ctx.filter = "none";
         ctx.restore();
 
         // ====== BARRA DE VIDA ======
@@ -2202,6 +2239,24 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           pt.x += pt.vx || 0;
           pt.y += pt.vy || 0;
           pt.vy = (pt.vy || 0) + (pt.g || 0.05);
+        } else if (pt.kind === "snow") {
+          console.log("passou aqui");
+          // draw
+          const life = 1 - pt.t / pt.max;
+          ctx.save();
+          ctx.globalAlpha = (pt.a ?? 1) * Math.max(0, life);
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, pt.r ?? 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          // update
+          pt.vx +=
+            Math.sin((pt.phase || 0) + pt.t * 0.12) * (pt.sway || 0) * 0.002;
+          pt.vy += pt.g || 0;
+          pt.x += pt.vx;
+          pt.y += pt.vy;
         } else if (pt.kind === "beam") {
           // Envelope temporal: afina -> engorda -> afina
           const life = pt.t / pt.max; // 0..1

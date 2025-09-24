@@ -256,6 +256,56 @@ export const CollisionManager = {
         p.speed = speed; // mantém velocidade base
       }
 
+      // ❄️ trilha de neve para projéteis com slow
+      if (p.active && p.slowMs && p.slowFactor) {
+        // rate limit simples (1 emissão a cada 2 frames do updateProjectiles)
+        p._snowTimer = (p._snowTimer || 0) - 1;
+        if (p._snowTimer <= 0) {
+          p._snowTimer = 2; // ajuste a frequência
+
+          // emite 2–3 floquinhos
+          const n = 2 + ((Math.random() * 2) | 0);
+          for (let i = 0; i < n; i++) {
+            gameRef.particles.push({
+              kind: "snow",
+              x: p.x + (Math.random() * 6 - 3),
+              y: p.y + (Math.random() * 6 - 3),
+              vx: (Math.random() * 0.6 - 0.3) * 0.6,
+              vy: (Math.random() * 0.4 + 0.1) * 0.6,
+              g: 0.02, // gravidade leve
+              sway: 1 + Math.random() * 2, // balanço lateral
+              phase: Math.random() * Math.PI * 2,
+              r: 1 + Math.random() * 1.5, // raio
+              a: 0.9, // alpha base
+              t: 0,
+              max: 28 + ((Math.random() * 14) | 0), // vida em frames
+            });
+          }
+        }
+      }
+
+      // ❄️ neve caindo do projétil gelado
+      if (p.active && p.fxSnow) {
+        p._flakeTick = (p._flakeTick || 0) + 1;
+        if (p._flakeTick % 3 === 0) {
+          // densidade
+          (gameRef.particles ||= []).push({
+            kind: "snow",
+            x: p.x + (Math.random() * 6 - 3),
+            y: p.y + (Math.random() * 4 - 2),
+            vx: Math.random() * 0.6 - 0.3, // drift horizontal
+            vy: 0.4 + Math.random() * 0.6, // cai pra baixo
+            g: 0.005 + Math.random() * 0.01, // gravidade leve
+            t: 0,
+            max: 90 + ((Math.random() * 60) | 0), // vida longa
+            r: 1.5 + Math.random() * 1.5, // raio do floco
+            a: 0.9, // alpha base
+            phase: Math.random() * Math.PI * 2, // p/ balanço
+            sway: 0.25 + Math.random() * 0.55, // intensidade do balanço
+          });
+        }
+      }
+
       p.update();
 
       // —— convergência vertical para projéteis com shotgun/steer —— //
@@ -284,7 +334,55 @@ export const CollisionManager = {
 
       for (const enemy of candidates) {
         p.checkCollision(enemy);
-        if (!p.active) break;
+        if (p.hit) {
+          // aplica FX hit
+          if (!Array.isArray(gameRef.particles)) gameRef.particles = [];
+          gameRef.particles.push({
+            x: p.x,
+            y: p.y,
+            t: 0,
+            max: 12,
+            cor: p.cor || "#fff",
+          });
+          p.justHit = false;
+
+          // 🔵 aplica slow se este projétil tiver slow
+          if (p.slowMs && p.slowFactor && enemy && !enemy.__death) {
+            const now = performance.now();
+            // acumulação simples: mantém o mais forte (menor fator) e maior duração
+            const cur = enemy.__slow || { factor: 1, until: 0 };
+            const until = Math.max(cur.until || 0, now + p.slowMs);
+            const factor = Math.min(cur.factor || 1, p.slowFactor);
+            enemy.__slow = { factor, until };
+          }
+
+          if (p.fxSnow) {
+            for (let i = 0; i < 14; i++) {
+              const ang = Math.random() * Math.PI * 2;
+              const spd = 0.6 + Math.random() * 1.2;
+              (gameRef.particles ||= []).push({
+                kind: "spark",
+                x: p.x,
+                y: p.y,
+                vx: Math.cos(ang) * spd * 0.6,
+                vy: Math.sin(ang) * spd * 0.4 - 0.1,
+                g: 0.018,
+                t: 0,
+                max: 18 + ((Math.random() * 10) | 0),
+                cor: "rgba(255,255,255,0.95)",
+              });
+            }
+          }
+
+          if (gameRef.onEnemyDamaged)
+            gameRef.onEnemyDamaged({
+              kind: "projectile",
+              x: p.x,
+              y: p.y,
+              enemy,
+            });
+          break;
+        }
       }
 
       if (p.justHit) {
@@ -345,6 +443,33 @@ export const CollisionManager = {
       p.maxTicks = 300;
       p.kind = "bola";
       p.cor = t.config.corProjetil || "#fff";
+
+      p.slowFactor = t.config.slowFactor ?? null;
+      p.slowMs = t.config.slowMs ?? 0;
+
+      // se essa tropa aplica slow, marcamos o projétil e ligamos FX de neve
+      if ((t.config.slowFactor ?? 1) < 1 && (t.config.slowMs ?? 0) > 0) {
+        p.slowFactor = t.config.slowFactor;
+        p.slowMs = t.config.slowMs;
+        p.fxSnow = true;
+
+        // pequeno burst no muzzle
+        gameRef.particles ||= [];
+        for (let i = 0; i < 8; i++) {
+          gameRef.particles.push({
+            kind: "spark",
+            x: p.x,
+            y: p.y,
+            vx: Math.random() * 1.2 - 0.6,
+            vy: -0.3 + Math.random() * 0.6,
+            g: 0.015, // queda suave
+            t: 0,
+            max: 18 + ((Math.random() * 8) | 0),
+            cor: "rgba(255,255,255,0.95)", // branco (neve)
+            r: 2 + Math.random() * 2, // se seu renderer usa raio opcional
+          });
+        }
+      }
 
       // 🔊 som no frame de disparo (spawn do projétil)
       if (gameRef.onProjectileSpawn) gameRef.onProjectileSpawn(p);
@@ -800,6 +925,18 @@ export const CollisionManager = {
     const approachPadPx = 20; // ajuste fino aqui
     const hysteresisPx = 2; // banda anti-jitter
 
+    // 🔵 helper para aplicar/expirar slow
+    function slowMul(e) {
+      const s = e.__slow;
+      if (!s) return 1;
+      const now = performance.now();
+      if (now > (s.until || 0)) {
+        e.__slow = null;
+        return 1;
+      }
+      return Math.max(0.1, s.factor || 1); // evita parar completamente
+    }
+
     gameRef.inimigos.forEach((enemy) => {
       const enemyRow = enemy.row;
       const enemyColFloat = enemy.x / tileW; // posição em "colunas" com fração
@@ -814,7 +951,7 @@ export const CollisionManager = {
           enemy.speed = 0;
           return;
         }
-        enemy.speed = enemy.baseSpeed ?? enemy.speed;
+        enemy.speed = (enemy.baseSpeed ?? enemy.speed) * slowMul(enemy); // 👈 aplica slow
         if (enemy.state !== "walking") {
           enemy.state = "walking";
           enemy._lastFI = undefined;
@@ -829,7 +966,7 @@ export const CollisionManager = {
           enemy.speed = 0;
           return;
         }
-        enemy.speed = enemy.baseSpeed ?? enemy.speed;
+        enemy.speed = (enemy.baseSpeed ?? enemy.speed) * slowMul(enemy); // 👈 aplica slow
         if (enemy.state !== "walking") {
           enemy.state = "walking";
           enemy._lastFI = undefined;
@@ -854,7 +991,7 @@ export const CollisionManager = {
           enemy.speed = 0;
           return;
         }
-        enemy.speed = enemy.baseSpeed;
+        enemy.speed = enemy.baseSpeed * slowMul(enemy); // 👈 aplica slow
         if (enemy.state !== "walking") {
           enemy.state = "walking";
           enemy._lastFI = undefined;
@@ -870,7 +1007,7 @@ export const CollisionManager = {
 
       // anda enquanto estiver muito à direita do ponto de parada
       if (enemy.x > desiredStopX + hysteresisPx) {
-        enemy.speed = enemy.baseSpeed;
+        enemy.speed = enemy.baseSpeed * slowMul(enemy); // 👈 aplica slow
         if (enemy.state !== "walking") {
           enemy.state = "walking";
           enemy._lastFI = undefined;
