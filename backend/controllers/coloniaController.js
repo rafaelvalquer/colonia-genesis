@@ -183,7 +183,10 @@ exports.criarColonia = async (req, res) => {
     const novaColonia = await Colonia.create(defaults);
     return res
       .status(201)
-      .json({ ...novaColonia.toObject(), water: metaFrom(novaColonia) });
+      .json({
+        ...novaColonia.toJSON({ flattenMaps: true }),
+        water: metaFrom(novaColonia),
+      });
   } catch (error) {
     console.error("Erro ao criar colônia:", error);
     return res.status(500).json({ erro: "Erro ao criar colônia." });
@@ -211,7 +214,7 @@ exports.atualizarColonia = async (req, res) => {
       return res.status(404).json({ erro: "Colônia não encontrada." });
 
     return res.status(200).json({
-      ...coloniaAtualizada.toObject(),
+      ...coloniaAtualizada.toJSON({ flattenMaps: true }),
       water: metaFrom(coloniaAtualizada),
     });
   } catch (error) {
@@ -241,7 +244,10 @@ exports.buscarColoniaPorNome = async (req, res) => {
       doc = updated || (await Colonia.findById(doc._id));
     }
 
-    return res.json({ ...doc.toObject(), water: metaFrom(doc) });
+    return res.json({
+      ...doc.toJSON({ flattenMaps: true }),
+      water: metaFrom(doc),
+    });
   } catch (error) {
     console.error("Erro ao buscar colônia:", error);
     res.status(500).json({ mensagem: "Erro interno ao buscar colônia." });
@@ -299,7 +305,10 @@ exports.gastarAgua = async (req, res) => {
     );
     if (!updated) return res.status(409).json({ erro: "Água insuficiente" });
 
-    return res.json({ ...updated.toObject(), water: metaFrom(updated) });
+    return res.json({
+      ...updated.toJSON({ flattenMaps: true }),
+      water: metaFrom(updated),
+    });
   } catch (e) {
     console.error("Erro ao gastar água:", e);
     res.status(500).json({ erro: "Erro ao gastar água." });

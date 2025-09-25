@@ -196,6 +196,10 @@ const battleCampaignSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// 🔧 Garantir flatten para Maps (como battleCampaign.history)
+battleCampaignSchema.set("toJSON", { flattenMaps: true });
+battleCampaignSchema.set("toObject", { flattenMaps: true });
+
 /* ---------------------------------------------- */
 
 const coloniaSchema = new mongoose.Schema({
@@ -288,5 +292,9 @@ const coloniaSchema = new mongoose.Schema({
   filaMissoes: [filaMissoesSchema],
   pesquisa: [pesquisaSchema],
 });
+
+// ✅ Flatten Maps globalmente neste modelo
+coloniaSchema.set("toJSON", { flattenMaps: true });
+coloniaSchema.set("toObject", { flattenMaps: true });
 
 module.exports = mongoose.model("Colonia", coloniaSchema);
