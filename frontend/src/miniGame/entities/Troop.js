@@ -29,7 +29,7 @@ export const troopTypes = {
     deployCooldownMs: 4000,
   },
 
-  /*  guarda: {
+  guarda: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -53,7 +53,7 @@ export const troopTypes = {
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
     deployCost: 4,
     deployCooldownMs: 5000,
-  }, */
+  },
 
   marine: {
     preco: 15,
@@ -248,9 +248,8 @@ export const troopTypes = {
     deployCost: 5,
     deployCooldownMs: 6000,
   },
-  */
 
-  guarda: {
+  Krio: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -277,7 +276,7 @@ export const troopTypes = {
     slowFactor: 0.5, // 50% da velocidade
     slowMs: 1500, // dura 1.5s
     tintWhenSlowed: true, // (opcional) pra desenhar em azul
-  },
+  }, */
 
   muralhaReforcada: {
     preco: 15,

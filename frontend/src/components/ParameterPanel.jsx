@@ -297,6 +297,19 @@ function ParameterPanel({
         agua: 2,
       },
     },
+    {
+      id: "krios",
+      nome: "Krio",
+      descricao:
+        "Atirador criogênico de médio alcance. Dispara projéteis de gelo que reduzem a velocidade dos inimigos por um curto período.",
+      imagem: "/images/krio.png",
+      custo: {
+        comida: 10,
+        minerais: 20,
+        energia: 20,
+        agua: 2,
+      },
+    },
   ];
 
   useEffect(() => {
