@@ -60,8 +60,6 @@ function resolveHitFrames(enemy, state = "attack") {
     enemy.frames?.length ??
     0;
 
-  console.log(JSON.stringify(enemy));
-
   // 2) Pegar spec de forma robusta (prefira config > instance)
   let spec = enemy.config?.hitFrame ?? enemy.hitFrame ?? null; // << só cai em "last" se realmente não vier nada
 
@@ -75,7 +73,6 @@ function resolveHitFrames(enemy, state = "attack") {
     enemy.config?.hitFrameIndexBase ?? enemy.hitFrameIndexBase ?? 0;
   const toZeroBased = (n) => (n | 0) - (indexBase === 1 ? 1 : 0); // 1→0, 2→1 se base for 1
 
-  console.log(spec);
   // 5) Atalhos textuais
   if (spec === "last" || spec === -1) return count ? [count - 1] : null;
   if (spec === "middle" || spec === "mid")
@@ -473,7 +470,6 @@ export const CollisionManager = {
 
       // 🔊 som no frame de disparo (spawn do projétil)
       if (gameRef.onProjectileSpawn) gameRef.onProjectileSpawn(p);
-      console.log("passou aqui");
     }
 
     // dispara "laser" instantâneo na linha inteira até o alcance

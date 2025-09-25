@@ -69,8 +69,6 @@ const normalizeDistrib = (d = {}) => ({
 const dbToUi = (src = {}) => normalizeDistrib(src);
 const uiToDb = (ui = {}) => normalizeDistrib(ui);
 
-//const minhasConexoes = estadoAtual.pesquisa;
-
 const abas = [
   {
     grupo: "Visão Geral",
@@ -301,8 +299,6 @@ function ParameterPanel({
     setDistribuicao(hydrated);
   }, [estadoAtual]);
 
-  console.log("filaConstrucoes ====", filaConstrucoes); // debugger
-
   const tooltips = {
     agricultura: "Aumenta a produção de alimentos para sua população",
     mineracao: "Extrair mais recursos minerais para construção",
@@ -355,10 +351,9 @@ function ParameterPanel({
       ...(estadoAtual?.parametrosSnapshot || {}),
       ...deltaSnap,
     };
-    await coloniaService.atualizarColonia(estadoAtual._id, {
-      parametrosSnapshot: nextSnap,
-    });
-    onEstadoChange?.({ ...estadoAtual, parametrosSnapshot: nextSnap });
+    const merged = { ...estadoAtual, parametrosSnapshot: nextSnap }; // opcional: deep-merge se precisar
+    await coloniaService.atualizarColonia(estadoAtual._id, merged);
+    onEstadoChange?.(merged);
   };
 
   const handleSliderChange = (campo, novoValor) => {

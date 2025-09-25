@@ -194,7 +194,7 @@ exports.criarColonia = async (req, res) => {
 exports.atualizarColonia = async (req, res) => {
   try {
     const { id } = req.params;
-    const dadosAtualizados = req.body;
+    const dadosAtualizados = { ...req.body };
     if ("senha" in dadosAtualizados) delete dadosAtualizados.senha;
 
     // 👇 defesa: se mudar água e não vier lastTs, reinicia o ciclo
@@ -204,19 +204,19 @@ exports.atualizarColonia = async (req, res) => {
 
     const coloniaAtualizada = await Colonia.findByIdAndUpdate(
       id,
-      dadosAtualizados,
-      { new: true }
+      { $set: dadosAtualizados }, // 👈 merge, não replace
+      { new: true, runValidators: true }
     );
     if (!coloniaAtualizada)
       return res.status(404).json({ erro: "Colônia não encontrada." });
 
-    res.status(200).json({
+    return res.status(200).json({
       ...coloniaAtualizada.toObject(),
       water: metaFrom(coloniaAtualizada),
     });
   } catch (error) {
     console.error("Erro ao atualizar colônia:", error);
-    res.status(500).json({ erro: "Erro ao atualizar colônia." });
+    return res.status(500).json({ erro: "Erro ao atualizar colônia." });
   }
 };
 
@@ -268,7 +268,10 @@ exports.getEstadoPorId = async (req, res) => {
       doc = updated || (await Colonia.findById(id));
     }
 
-    return res.json({ ...doc.toObject(), water: metaFrom(doc) });
+    return res.json({
+      ...doc.toJSON({ flattenMaps: true }),
+      water: metaFrom(doc),
+    });
   } catch (e) {
     console.error("Erro ao obter estado:", e);
     res.status(500).json({ erro: "Erro ao obter estado." });

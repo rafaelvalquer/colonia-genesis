@@ -46,9 +46,6 @@ export function runSimulationTurn(
 
   const { distribuicao, agua: consumoAgua, alocacaoColonos } = parametros;
 
-  console.log("@@@@@@@@@@@@@@");
-  console.log(parametros);
-
   const quantidadePorSetor = Object.fromEntries(
     Object.entries(alocacaoColonos).map(([setor, porcentagem]) => [
       setor,
@@ -401,10 +398,10 @@ export function runSimulationTurn(
   if (pontos.saude === 1) ganhoSaude *= 2;
 
   // === ENERGIA  ===
-  // 1) Trabalhadores: 1 energia por colono alocado
-  let energiaTrabalhadores = quantidadePorSetor.energia || 0;
+  // 1) Trabalhadores: 5 energia por colono alocado
+  let energiaTrabalhadores = (quantidadePorSetor.energia || 0) * 5;
   if (pontos.energia === 1) {
-    energiaTrabalhadores = Math.floor(energiaTrabalhadores * 5); // x3 só nos workers
+    energiaTrabalhadores = Math.floor(energiaTrabalhadores * 2); // x2 só nos workers
   }
 
   // 2) Geradores Solares: +12 cada e +⌊solares/2⌋ de ganho de sustentabilidade (calculado depois)

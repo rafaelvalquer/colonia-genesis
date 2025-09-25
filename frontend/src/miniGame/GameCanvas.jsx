@@ -331,7 +331,6 @@ const SUPPLY_CFG = {
 
 //#region Game Canvas
 const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
-  console.log(estadoAtual);
   const boxRef = useRef(null);
   const canvasRef = useRef(null);
   const hudRectsRef = useRef(null);
@@ -2240,7 +2239,6 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           pt.y += pt.vy || 0;
           pt.vy = (pt.vy || 0) + (pt.g || 0.05);
         } else if (pt.kind === "snow") {
-          console.log("passou aqui");
           // draw
           const life = 1 - pt.t / pt.max;
           ctx.save();
