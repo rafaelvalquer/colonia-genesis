@@ -42,8 +42,10 @@ import IconParametros from "./icons/IconParametros";
 import IconDesenvolvimento from "./icons/IconDesenvolvimento";
 import IconPopulacao from "./icons/IconPopulacao";
 import IconMissoes from "./icons/IconMissoes";
+import IconBatalha from "./icons/IconBatalha";
 import MissoesExploracao from "../pages/MissoesExploracao.jsx"; // novo
 import MissoesExploradores from "../pages/MissoesExploradores.jsx"; // novo
+import EstatisticasBatalha from "../pages/EstatisticasBatalha.jsx"; // novo
 import coloniaService from "../services/coloniaService.js";
 
 const MAX_PONTOS = 3;
@@ -104,6 +106,13 @@ const abas = [
       { id: "exploracao", label: "Exploração" }, // preparar e enviar expedicionário
       { id: "expedicoes", label: "Em Andamento" }, // fila + status/tempo de retorno
       { id: "relatorios", label: "Relatórios" }, // histórico de missões concluídas
+    ],
+  },
+  {
+    grupo: "Batalhas",
+    icone: <IconBatalha />,
+    itens: [
+      { id: "estatisticas", label: "Estatísticas" }, // preparar e enviar expedicionário
     ],
   },
 ];
@@ -2218,6 +2227,10 @@ function ParameterPanel({
             estadoAtual={estadoAtual}
             onEstadoChange={onEstadoChange}
           />
+        )}
+
+        {abaSelecionada === "estatisticas" && (
+          <EstatisticasBatalha bc={estadoAtual?.battleCampaign} />
         )}
 
         {loading && (
