@@ -20,6 +20,7 @@ import IntroFlow from "./pages/IntroFlow"; // << ADICIONE
 import coloniaService from "./services/coloniaService";
 import useWaterTicker from "./hooks/useWaterTicker";
 import MiniGamePage from "./pages/TowerDefensePage.jsx";
+import ExplorerPage from "./pages/ExplorerPage.jsx";
 import useMainTour from "./hooks/useMainTour";
 import {
   IconButton,
@@ -476,6 +477,8 @@ function App() {
               }
             />
             <Route path="/minigame" element={<MiniGamePage />} />{" "}
+            <Route path="/explorador" element={<ExplorerPage />} />{" "}
+            {/* << NOVO */}
             {/* Adicionado */}
           </Routes>
         </main>

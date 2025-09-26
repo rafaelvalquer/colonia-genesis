@@ -249,7 +249,7 @@ export const troopTypes = {
     deployCooldownMs: 6000,
   },
 
-  Krio: {
+  krio: {
     preco: 12,
     hp: 6,
     alcance: 5,
