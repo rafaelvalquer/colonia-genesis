@@ -252,6 +252,93 @@ const defaultEnemies = [
 export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
   const canvasRef = useRef(null);
   const boxRef = useRef(null);
+
+  // ⬇️ minimapa/fog
+  const mini = useRef({ scale: 0.12, w: 0, h: 0 });
+  const fogCanvasRef = useRef(null);
+
+  //funções de revelação (apaga o fog localmente)
+  function revealCircle(x, y, r) {
+    const fog = fogCanvasRef.current;
+    if (!fog) return;
+    const fctx = fog.getContext("2d");
+    fctx.save();
+    fctx.globalCompositeOperation = "destination-out";
+    fctx.beginPath();
+    fctx.arc(x, y, r, 0, Math.PI * 2);
+    fctx.fill();
+    fctx.restore();
+  }
+
+  function revealPoly(points) {
+    const fog = fogCanvasRef.current;
+    if (!fog) return;
+    const fctx = fog.getContext("2d");
+    fctx.save();
+    fctx.globalCompositeOperation = "destination-out";
+    fctx.beginPath();
+    fctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++)
+      fctx.lineTo(points[i].x, points[i].y);
+    fctx.closePath();
+    fctx.fill();
+    fctx.restore();
+  }
+
+  function drawMinimap(ctx, c) {
+    const cssW = c.getBoundingClientRect().width;
+    const s = mini.current.scale;
+    const mw = mini.current.w,
+      mh = mini.current.h;
+    const pad = 12;
+    const x0 = cssW - mw - pad;
+    const y0 = pad;
+
+    // fundo/board
+    ctx.save();
+    ctx.fillStyle = "rgba(2,6,23,0.85)";
+    ctx.fillRect(x0 - 6, y0 - 6, mw + 12, mh + 12);
+
+    // mundo (paredes) simplificado
+    ctx.save();
+    ctx.beginPath();
+    for (const sgm of world.current.walls) {
+      ctx.moveTo(x0 + sgm.x1 * s, y0 + sgm.y1 * s);
+      ctx.lineTo(x0 + sgm.x2 * s, y0 + sgm.y2 * s);
+    }
+    ctx.strokeStyle = "rgba(148,163,184,0.9)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    // aplica o FOG do mapa (escalado)
+    const fog = fogCanvasRef.current;
+    if (fog) {
+      // desenha o fog como máscara por cima (onde não explorado fica escuro)
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.drawImage(fog, 0, 0, fog.width, fog.height, x0, y0, mw, mh);
+      ctx.restore();
+    }
+
+    // player no mini
+    const p = playerRef.current;
+    ctx.beginPath();
+    ctx.arc(x0 + p.x * s, y0 + p.y * s, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#38bdf8";
+    ctx.fill();
+
+    // (opcional) inimigos no mini como pontos vermelhos suaves
+    for (const e of world.current.enemies) {
+      ctx.beginPath();
+      ctx.arc(x0 + e.x * s, y0 + e.y * s, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(239,68,68,0.9)";
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
   const [hud, setHud] = useState({
     hp: estadoAtual?.hp?.current ?? 10,
     hpMax: estadoAtual?.hp?.max ?? 10,
@@ -333,6 +420,21 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line
+  }, []);
+
+  // 2) NOVO: cria o fog-canvas do tamanho do mapa e inicia tudo escuro
+  useEffect(() => {
+    const fog = document.createElement("canvas");
+    fog.width = CFG.mapW;
+    fog.height = CFG.mapH;
+    const fctx = fog.getContext("2d");
+    fctx.fillStyle = "rgba(0,0,0,0.92)"; // opacidade do “não explorado”
+    fctx.fillRect(0, 0, fog.width, fog.height);
+    fogCanvasRef.current = fog;
+
+    // dimensões do mini (ex.: 12% do mapa)
+    mini.current.w = Math.round(CFG.mapW * mini.current.scale);
+    mini.current.h = Math.round(CFG.mapH * mini.current.scale);
   }, []);
 
   /** Atualiza física, AI, HUD e câmera */
@@ -710,6 +812,8 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     mctx.save();
     mctx.translate(-vx, -vy);
     const poly = buildFOVPolygon(p.x, p.y, p.dir, world.current.walls);
+    revealCircle(p.x, p.y, CFG.visionBubbleRadius * 0.9); // área próxima do player
+    revealPoly([{ x: p.x, y: p.y }, ...poly]); // revela o que a lanterna “vê”
     mctx.beginPath();
     mctx.moveTo(p.x, p.y);
     for (const pt of poly) mctx.lineTo(pt.x, pt.y);
@@ -771,8 +875,8 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
 
     ctx.restore(); // fim mundo
 
-    // HUD
     drawHUD(ctx, c);
+    drawMinimap(ctx, c);
   }
 
   /** HUD: barras de HP/Energia e objetivos */
