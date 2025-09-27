@@ -1,5 +1,7 @@
 // src/minigames/explorador-fov/GameCanvas.jsx
 import { useEffect, useRef, useState } from "react";
+import { buildWorldFromLevel } from "./mapLoader";
+import levels from "./maps/levels.json";
 
 /**
  * Explorador 2D Top-Down em <canvas>
@@ -17,8 +19,6 @@ import { useEffect, useRef, useState } from "react";
  */
 
 const CFG = {
-  mapW: 1600,
-  mapH: 900,
   speed: 140,
   sprintMul: 1.7,
   sprintEnergyPerSec: 3,
@@ -47,13 +47,8 @@ function setCanvasSize(canvas, cssW, cssH) {
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-/** Limita v no intervalo [a,b] */
-function clamp(v, a, b) {
-  return Math.max(a, Math.min(b, v));
-}
-
-/** Interseção entre dois segmentos AB e CD (retorna {x,y,t,u} ou null) */
 function segIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
   const rpx = bx - ax,
     rpy = by - ay;
@@ -107,45 +102,25 @@ function circleWallPushOut(p, r, segs) {
     }
   }
 }
-
-/** Cria os 4 segmentos do retângulo */
-function rectSegments(x, y, w, h) {
-  return [
-    { x1: x, y1: y, x2: x + w, y2: y },
-    { x1: x + w, y1: y, x2: x + w, y2: y + h },
-    { x1: x + w, y1: y + h, x2: x, y2: y + h },
-    { x1: x, y1: y + h, x2: x, y2: y },
-  ];
-}
-
-/** Diferença angular normalizada para [-PI, PI] */
-function angleBetween(a, b) {
+const angleBetween = (a, b) => {
   let d = b - a;
   while (d > Math.PI) d -= 2 * Math.PI;
   while (d < -Math.PI) d += 2 * Math.PI;
   return d;
-}
-
-/** LOS verdadeiro: sem paredes entre (x1,y1) e (x2,y2) */
+};
 function hasLineOfSight(x1, y1, x2, y2, segs) {
   for (const s of segs) {
     if (segIntersect(x1, y1, x2, y2, s.x1, s.y1, s.x2, s.y2)) return false;
   }
   return true;
 }
-
-/** Deg -> rad */
-function toRad(deg) {
-  return (deg * Math.PI) / 180;
-}
-
-/** Constroi polígono do cone da lanterna (raycasting bloqueado por paredes) */
+const toRad = (deg) => (deg * Math.PI) / 180;
 function buildFOVPolygon(px, py, dir, segs) {
   const half = toRad(CFG.fovDeg) / 2;
-  const start = dir - half;
-  const end = dir + half;
-  const n = CFG.rays;
-  const pts = [];
+  const start = dir - half,
+    end = dir + half;
+  const n = CFG.rays,
+    pts = [];
   for (let i = 0; i <= n; i++) {
     const ang = start + ((end - start) * i) / n;
     const h = castRay(px, py, ang, segs, CFG.viewDist);
@@ -195,150 +170,23 @@ function nearestWaypointIndex(e) {
   return best;
 }
 
-/** Mapa básico */
-const defaultWalls = [
-  ...rectSegments(80, 80, 1440, 740),
-  ...rectSegments(420, 80, 12, 260),
-  ...rectSegments(420, 520, 12, 300),
-  ...rectSegments(820, 360, 360, 12),
-  ...rectSegments(980, 80, 12, 220),
-  ...rectSegments(1120, 600, 260, 12),
-];
-
-/** Pickups básicos */
-const defaultPickups = [
-  { id: "e1", kind: "energy", x: 240, y: 180, r: 10 },
-  { id: "h1", kind: "heal", x: 1200, y: 320, r: 10 },
-  { id: "keyA", kind: "key", x: 760, y: 680, r: 10 },
-];
-
-/** Cria inimigo com rota de patrulha */
-function mkEnemy(x, y, waypoints) {
-  return {
-    x,
-    y,
-    r: 12,
-    dir: 0,
-    state: "patrol", // patrol | chase | return
-    targetIdx: 0,
-    waypoints,
-    lastSeenPlayerAt: null,
-    hp: 20,
-    __lostT: 0,
-    __stuckT: 0,
-    __prevX: x,
-    __prevY: y,
-    __wpBlockedT: 0,
-    __detourT: 0,
-    __detourDir: null,
-  };
-}
-
-const defaultEnemies = [
-  mkEnemy(260, 700, [
-    { x: 260, y: 700 },
-    { x: 260, y: 220 },
-    { x: 380, y: 220 },
-    { x: 380, y: 700 },
-  ]),
-  mkEnemy(1000, 160, [
-    { x: 1000, y: 160 },
-    { x: 1200, y: 160 },
-    { x: 1200, y: 520 },
-    { x: 1000, y: 520 },
-  ]),
-];
-
 export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
+  console.log(estadoAtual);
   const canvasRef = useRef(null);
   const boxRef = useRef(null);
 
-  // ⬇️ minimapa/fog
+  // mapa atual (vem do JSON)
+  const mapSizeRef = useRef({ w: 1600, h: 900 }); // atualizado pelo level
+  const world = useRef({ walls: [], enemies: [], pickups: [], exits: [] });
+  const playerRef = useRef({ x: 140, y: 140, r: 12, dir: 0, vx: 0, vy: 0 });
+  const pressed = useRef({});
+  const cam = useRef({ x: 0, y: 0, w: 0, h: 0 });
+
+  // minimapa/fog
   const mini = useRef({ scale: 0.12, w: 0, h: 0 });
   const fogCanvasRef = useRef(null);
 
-  //funções de revelação (apaga o fog localmente)
-  function revealCircle(x, y, r) {
-    const fog = fogCanvasRef.current;
-    if (!fog) return;
-    const fctx = fog.getContext("2d");
-    fctx.save();
-    fctx.globalCompositeOperation = "destination-out";
-    fctx.beginPath();
-    fctx.arc(x, y, r, 0, Math.PI * 2);
-    fctx.fill();
-    fctx.restore();
-  }
-
-  function revealPoly(points) {
-    const fog = fogCanvasRef.current;
-    if (!fog) return;
-    const fctx = fog.getContext("2d");
-    fctx.save();
-    fctx.globalCompositeOperation = "destination-out";
-    fctx.beginPath();
-    fctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++)
-      fctx.lineTo(points[i].x, points[i].y);
-    fctx.closePath();
-    fctx.fill();
-    fctx.restore();
-  }
-
-  function drawMinimap(ctx, c) {
-    const cssW = c.getBoundingClientRect().width;
-    const s = mini.current.scale;
-    const mw = mini.current.w,
-      mh = mini.current.h;
-    const pad = 12;
-    const x0 = cssW - mw - pad;
-    const y0 = pad;
-
-    // fundo/board
-    ctx.save();
-    ctx.fillStyle = "rgba(2,6,23,0.85)";
-    ctx.fillRect(x0 - 6, y0 - 6, mw + 12, mh + 12);
-
-    // mundo (paredes) simplificado
-    ctx.save();
-    ctx.beginPath();
-    for (const sgm of world.current.walls) {
-      ctx.moveTo(x0 + sgm.x1 * s, y0 + sgm.y1 * s);
-      ctx.lineTo(x0 + sgm.x2 * s, y0 + sgm.y2 * s);
-    }
-    ctx.strokeStyle = "rgba(148,163,184,0.9)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
-
-    // aplica o FOG do mapa (escalado)
-    const fog = fogCanvasRef.current;
-    if (fog) {
-      // desenha o fog como máscara por cima (onde não explorado fica escuro)
-      ctx.save();
-      ctx.globalAlpha = 1;
-      ctx.drawImage(fog, 0, 0, fog.width, fog.height, x0, y0, mw, mh);
-      ctx.restore();
-    }
-
-    // player no mini
-    const p = playerRef.current;
-    ctx.beginPath();
-    ctx.arc(x0 + p.x * s, y0 + p.y * s, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#38bdf8";
-    ctx.fill();
-
-    // (opcional) inimigos no mini como pontos vermelhos suaves
-    for (const e of world.current.enemies) {
-      ctx.beginPath();
-      ctx.arc(x0 + e.x * s, y0 + e.y * s, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(239,68,68,0.9)";
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-
+  const [levelReady, setLevelReady] = useState(false);
   const [hud, setHud] = useState({
     hp: estadoAtual?.hp?.current ?? 10,
     hpMax: estadoAtual?.hp?.max ?? 10,
@@ -349,17 +197,50 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     goalsOpen: 0,
   });
 
-  const playerRef = useRef({ x: 140, y: 140, r: 12, dir: 0, vx: 0, vy: 0 });
-  const pressed = useRef({});
-  const world = useRef({
-    walls: defaultWalls,
-    enemies: defaultEnemies,
-    pickups: [...defaultPickups],
-    exits: [{ x: 1480, y: 780, w: 40, h: 40, needKey: "keyA" }],
-  });
+  // carrega o primeiro level do /public/maps/levels.json
+  useEffect(() => {
+    (async () => {
+      try {
+        const level = levels.levels[0];
+        if (!level) return;
 
-  /** Câmera/viewport atual */
-  const cam = useRef({ x: 0, y: 0, w: 0, h: 0 });
+        const built = buildWorldFromLevel(level);
+        // aplica mundo
+        world.current.walls = built.walls;
+        world.current.pickups = [...built.pickups];
+        world.current.exits = built.exits;
+        world.current.enemies = built.enemies;
+
+        // tamanho do mapa
+        mapSizeRef.current = {
+          w: built.meta.mapW || 1600,
+          h: built.meta.mapH || 900,
+        };
+
+        // player start
+        playerRef.current.x = built.playerStart.x;
+        playerRef.current.y = built.playerStart.y;
+        playerRef.current.r = built.playerStart.r ?? 12;
+
+        // fog baseado no tamanho do mapa
+        const fog = document.createElement("canvas");
+        fog.width = mapSizeRef.current.w;
+        fog.height = mapSizeRef.current.h;
+        const fctx = fog.getContext("2d");
+        fctx.fillStyle = "rgba(0,0,0,0.92)";
+        fctx.fillRect(0, 0, fog.width, fog.height);
+        fogCanvasRef.current = fog;
+
+        // minimapa
+        mini.current.w = Math.round(mapSizeRef.current.w * mini.current.scale);
+        mini.current.h = Math.round(mapSizeRef.current.h * mini.current.scale);
+
+        setLevelReady(true);
+      } catch (e) {
+        console.error("Erro carregando levels.json", e);
+      }
+    })();
+  }, []);
 
   // Resize canvas
   useEffect(() => {
@@ -413,31 +294,44 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
       const now = performance.now();
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
-      update(dt);
-      draw();
+      if (levelReady) {
+        update(dt);
+        draw();
+      }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line
-  }, []);
+  }, [levelReady]);
 
-  // 2) NOVO: cria o fog-canvas do tamanho do mapa e inicia tudo escuro
-  useEffect(() => {
-    const fog = document.createElement("canvas");
-    fog.width = CFG.mapW;
-    fog.height = CFG.mapH;
+  // revelação (fog)
+  function revealCircle(x, y, r) {
+    const fog = fogCanvasRef.current;
+    if (!fog) return;
     const fctx = fog.getContext("2d");
-    fctx.fillStyle = "rgba(0,0,0,0.92)"; // opacidade do “não explorado”
-    fctx.fillRect(0, 0, fog.width, fog.height);
-    fogCanvasRef.current = fog;
+    fctx.save();
+    fctx.globalCompositeOperation = "destination-out";
+    fctx.beginPath();
+    fctx.arc(x, y, r, 0, Math.PI * 2);
+    fctx.fill();
+    fctx.restore();
+  }
+  function revealPoly(points) {
+    const fog = fogCanvasRef.current;
+    if (!fog) return;
+    const fctx = fog.getContext("2d");
+    fctx.save();
+    fctx.globalCompositeOperation = "destination-out";
+    fctx.beginPath();
+    fctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++)
+      fctx.lineTo(points[i].x, points[i].y);
+    fctx.closePath();
+    fctx.fill();
+    fctx.restore();
+  }
 
-    // dimensões do mini (ex.: 12% do mapa)
-    mini.current.w = Math.round(CFG.mapW * mini.current.scale);
-    mini.current.h = Math.round(CFG.mapH * mini.current.scale);
-  }, []);
-
-  /** Atualiza física, AI, HUD e câmera */
   function update(dt) {
     const p = playerRef.current;
     const spBase = CFG.speed;
@@ -466,7 +360,7 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
       setHud((h) => ({ ...h, en: Math.min(h.enMax, h.en + 1.5 * dt) }));
     }
 
-    // ================= AI INIMIGOS =================
+    // inimigos
     for (const e of world.current.enemies) {
       const toPlayer = Math.atan2(p.y - e.y, p.x - e.x);
       const dist = Math.hypot(p.x - e.x, p.y - e.y);
@@ -504,7 +398,6 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
             wp.y,
             world.current.walls
           );
-
           if (haveLOS) {
             e.__detourT = 0;
             e.__detourDir = null;
@@ -580,7 +473,6 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
             wp.y,
             world.current.walls
           );
-
           if (haveLOS) {
             e.__detourT = 0;
             e.__detourDir = null;
@@ -617,46 +509,42 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
         }
       }
 
-      // Colisão parede + steering básico anti-trava
+      // anti-trava básico
       circleWallPushOut(e, e.r, world.current.walls);
 
       // Steering curto se parede à frente
       if (forwardBlocked(e, world.current.walls, e.r + 10)) {
         e.dir += (22 * Math.PI) / 180;
-        if (forwardBlocked(e, world.current.walls, e.r + 10)) {
+        if (forwardBlocked(e, world.current.walls, e.r + 10))
           e.dir -= (44 * Math.PI) / 180;
-        }
       }
-
-      // Unstuck por deslocamento baixo
+      e.__prevX ??= e.x;
+      e.__prevY ??= e.y;
+      e.__stuckT ??= 0;
       const moved = Math.hypot(e.x - e.__prevX, e.y - e.__prevY);
       if (moved < 0.4) e.__stuckT += dt;
       else e.__stuckT = 0;
       e.__prevX = e.x;
       e.__prevY = e.y;
-
       if (e.__stuckT > 0.5) {
         const tx = -Math.sin(e.dir),
-          ty = Math.cos(e.dir);
-        const nudge = 14;
-        const oldX = e.x,
-          oldY = e.y;
-        e.x += tx * nudge * dt;
-        e.y += ty * nudge * dt;
+          ty = Math.cos(e.dir),
+          n = 14;
+        const ox = e.x,
+          oy = e.y;
+        e.x += tx * n * dt;
+        e.y += ty * n * dt;
         circleWallPushOut(e, e.r, world.current.walls);
-        if (Math.hypot(e.x - oldX, e.y - oldY) < 0.5) {
-          e.x = oldX;
-          e.y = oldY;
-          e.x -= tx * nudge * dt;
-          e.y -= ty * nudge * dt;
+        if (Math.hypot(e.x - ox, e.y - oy) < 0.5) {
+          e.x = ox;
+          e.y = oy;
+          e.x -= tx * n * dt;
+          e.y -= ty * n * dt;
           circleWallPushOut(e, e.r, world.current.walls);
         }
-        if (Math.hypot(e.x - oldX, e.y - oldY) < 0.5) {
-          e.dir += (65 * Math.PI) / 180;
-        }
+        if (Math.hypot(e.x - ox, e.y - oy) < 0.5) e.dir += (65 * Math.PI) / 180;
       }
 
-      // Dano se muito perto com LOS curto
       if (
         dist < 26 &&
         hasLineOfSight(e.x, e.y, p.x, p.y, world.current.walls)
@@ -697,8 +585,16 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     const r = c.getBoundingClientRect();
     cam.current.w = r.width;
     cam.current.h = r.height;
-    const cx = clamp(p.x - cam.current.w / 2, 0, CFG.mapW - cam.current.w);
-    const cy = clamp(p.y - cam.current.h / 2, 0, CFG.mapH - cam.current.h);
+    const cx = clamp(
+      p.x - cam.current.w / 2,
+      0,
+      mapSizeRef.current.w - cam.current.w
+    );
+    const cy = clamp(
+      p.y - cam.current.h / 2,
+      0,
+      mapSizeRef.current.h - cam.current.h
+    );
     cam.current.x = cx;
     cam.current.y = cy;
   }
@@ -854,7 +750,7 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     ctx.save();
     ctx.globalCompositeOperation = "destination-over";
     ctx.fillStyle = "rgba(0,0,0,0.75)";
-    ctx.fillRect(0, 0, CFG.mapW, CFG.mapH);
+    ctx.fillRect(0, 0, mapSizeRef.current.w, mapSizeRef.current.h);
     ctx.restore();
 
     // Player por cima (sempre visível)
@@ -873,18 +769,16 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.restore(); // fim mundo
+    ctx.restore(); // fim do mundo
 
     drawHUD(ctx, c);
     drawMinimap(ctx, c);
   }
 
-  /** HUD: barras de HP/Energia e objetivos */
-  function drawHUD(ctx, c) {
+  function drawHUD(ctx) {
     const pad = 12,
       barW = 240,
       barH = 12;
-
     ctx.save();
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = "rgba(2,6,23,0.85)";
@@ -923,6 +817,53 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
       pad,
       pad + 56
     );
+  }
+
+  function drawMinimap(ctx, c) {
+    const cssW = c.getBoundingClientRect().width;
+    const s = mini.current.scale;
+    const mw = mini.current.w,
+      mh = mini.current.h;
+    const pad = 12;
+    const x0 = cssW - mw - pad;
+    const y0 = pad;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(2,6,23,0.85)";
+    ctx.fillRect(x0 - 6, y0 - 6, mw + 12, mh + 12);
+
+    ctx.save();
+    ctx.beginPath();
+    for (const sgm of world.current.walls) {
+      ctx.moveTo(x0 + sgm.x1 * s, y0 + sgm.y1 * s);
+      ctx.lineTo(x0 + sgm.x2 * s, y0 + sgm.y2 * s);
+    }
+    ctx.strokeStyle = "rgba(148,163,184,0.9)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    const fog = fogCanvasRef.current;
+    if (fog) {
+      ctx.save();
+      ctx.drawImage(fog, 0, 0, fog.width, fog.height, x0, y0, mw, mh);
+      ctx.restore();
+    }
+
+    const p = playerRef.current;
+    ctx.beginPath();
+    ctx.arc(x0 + p.x * s, y0 + p.y * s, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#38bdf8";
+    ctx.fill();
+
+    for (const e of world.current.enemies) {
+      ctx.beginPath();
+      ctx.arc(x0 + e.x * s, y0 + e.y * s, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(239,68,68,0.9)";
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   return (
