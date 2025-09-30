@@ -518,8 +518,8 @@ function ParameterPanel({
   const startMinigame = () => {
     setModalAberto(false);
     setStepAtual(0);
-    //navigate("/minigame", { state: { estadoAtual } });
-    navigate("/explorador", { state: { estadoAtual } });
+    navigate("/minigame", { state: { estadoAtual } });
+    //navigate("/explorador", { state: { estadoAtual } });
   };
 
   // monta os steps dinamicamente

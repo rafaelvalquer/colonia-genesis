@@ -29,7 +29,7 @@ export const troopTypes = {
     deployCooldownMs: 4000,
   },
 
-  guarda: {
+  /*  guarda: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -54,6 +54,7 @@ export const troopTypes = {
     deployCost: 4,
     deployCooldownMs: 5000,
   },
+  */
 
   marine: {
     preco: 15,
@@ -200,6 +201,7 @@ export const troopTypes = {
     lookAheadPx: 22, // “antecipa” alvos à frente
   }, 
 
+  
   incinerador: {
     preco: 18,
     hp: 5,
@@ -249,7 +251,8 @@ export const troopTypes = {
     deployCooldownMs: 6000,
   },
 
-  krio: {
+  */
+  guarda: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -276,7 +279,7 @@ export const troopTypes = {
     slowFactor: 0.5, // 50% da velocidade
     slowMs: 1500, // dura 1.5s
     tintWhenSlowed: true, // (opcional) pra desenhar em azul
-  }, */
+  },
 
   muralhaReforcada: {
     preco: 15,

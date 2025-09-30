@@ -39,9 +39,12 @@ const filaMissoesSchema = new mongoose.Schema(
     // estado da tarefa de missão
     status: {
       type: String,
-      enum: ["emAndamento", "concluida"],
+      enum: ["emAndamento", "aguardandoInicio", "pronta", "concluida"],
       default: "emAndamento",
     },
+
+    // opcional: facilita no front
+    readyToStart: { type: Boolean, default: false },
     // 👇 recompensas vindas do JSON da missão
     recompensasRaw: {
       type: [

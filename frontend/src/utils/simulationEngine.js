@@ -700,54 +700,49 @@ export function runSimulationTurn(
       energia: to01(d.energia),
     };
   }
+  // 4b. Fila de missões (por turnos) — sem recompensas, sem liberar explorador
+  function toInt(v, fallback = 0) {
+    const n = Number(v);
+    return Number.isFinite(n)
+      ? Math.trunc(n)
+      : Math.trunc(Number(fallback) || 0);
+  }
 
   const filaMissoesAtual = Array.isArray(currentState.filaMissoes)
     ? currentState.filaMissoes.map((f) => ({ ...f }))
     : [];
 
-  const missoesConcluidas = [];
   const filaMissoesNova = [];
 
-  // helper para garantir número inteiro seguro
-  const toInt = (v, fallback = 0) => {
-    const n = Number(v);
-    return Number.isFinite(n)
-      ? Math.trunc(n)
-      : Math.trunc(Number(fallback) || 0);
-  };
-
   for (const item of filaMissoesAtual) {
-    // total de turnos da missão: prioriza o campo salvo; se não houver, usa o próprio tempoRestante; por último 1
     const total = toInt(item.turnosTotais, item.tempoRestante || 1);
-
-    // turnos restantes atuais (coerção numérica)
     const atual = toInt(item.tempoRestante, total);
-
-    // decrementa 1 turno inteiro por rodada
     const rest = atual - 1;
 
     if (rest <= 0) {
-      // missão termina neste turno
-      missoesConcluidas.push({
+      // Missão terminou o TIMER, mas NÃO libera o explorador.
+      // Fica aguardando o jogador iniciar no /explorador.
+      filaMissoesNova.push({
         ...item,
-        missionId: item.id, // id da missão base (templo/vulcao/floresta)
+        missionId: item.id,
         tempoRestante: 0,
         turnosTotais: total,
-        status: "concluida",
+        status: "pronta",
+        readyToStart: true, // <<< flag opcional para facilitar
       });
     } else {
-      // permanece na fila com rest atualizado
       filaMissoesNova.push({
         ...item,
         missionId: item.id,
         tempoRestante: rest,
         turnosTotais: total,
         status: "emAndamento",
+        readyToStart: false,
       });
     }
   }
 
-  // 5. Novo estado base
+  // 5. Novo estado base (sem mexer em exploradores/população por causa de missão)
   const novoEstado = {
     _id,
     nome,
@@ -766,20 +761,16 @@ export function runSimulationTurn(
     pesquisa,
     filaConstrucoes: novaFila,
     filaMissoes: filaMissoesNova,
-    exploradores: [...(currentState.exploradores || [])],
+    exploradores: [...(currentState.exploradores || [])], // permanece travado
     relatoriosMissoes: [...(currentState.relatoriosMissoes || [])],
     hospital: { ...hospital },
-    skillsDistribuicao: pontos, // 👈 persistente, sem acentos
-    parametrosSnapshot: {
-      // (opcional) útil pra auditoria/UX
-      ...parametros,
-      distribuicao: pontos, // já normalizado
-    },
+    skillsDistribuicao: pontos,
+    parametrosSnapshot: { ...parametros, distribuicao: pontos },
     battleCampaign,
     landingModifiers,
   };
 
-  // Aplicar construções finalizadas
+  // Aplicar construções finalizadas (mantém como estava)
   construcoesFinalizadas.forEach((c) => {
     const tipo = c.id;
     const dadosConstrucao = buildings[tipo];
@@ -818,65 +809,8 @@ export function runSimulationTurn(
       typeof ganhoSustentabilidade === "number" ? ganhoSustentabilidade : 0,
   };
 
-  // Finalização de missões
-  const rewardsSummary = [];
-  if (missoesConcluidas.length > 0) {
-    const concluidasPorExplorador = new Map();
-    for (const m of missoesConcluidas) {
-      if (m.explorerId) concluidasPorExplorador.set(m.explorerId, m);
-    }
-
-    novoEstado.exploradores = (novoEstado.exploradores || []).map((ex) => {
-      const terminouPorId = concluidasPorExplorador.get(ex.id);
-      const terminouPorMissao =
-        !terminouPorId &&
-        ex.missionId &&
-        missoesConcluidas.some(
-          (m) => m.id === ex.missionId || m.missionId === ex.missionId
-        );
-      if (!terminouPorId && !terminouPorMissao) return ex;
-      return {
-        ...ex,
-        status: "disponivel",
-        missionId: null,
-        updatedAt: Date.now(),
-      };
-    });
-    const livres = (novoEstado.exploradores || []).filter(
-      (e) => e.status === "disponivel"
-    ).length;
-    novoEstado.populacao = { ...novoEstado.populacao, exploradores: livres };
-
-    for (const fin of missoesConcluidas) {
-      applyMissionRewardsFromJson(novoEstado, fin.recompensasRaw);
-      const rewardsMap = extractRewardsMap(fin.recompensasRaw);
-
-      rewardsSummary.push({
-        missionId: fin.missionId || fin.id,
-        titulo: fin.titulo || fin.nome || fin.id,
-        explorerNome: fin.explorerNome || null,
-        recompensas: rewardsMap,
-        recompensasRaw: fin.recompensasRaw,
-      });
-
-      novoEstado.relatoriosMissoes.push({
-        id: `rel_${fin.id}_${Date.now()}`,
-        explorerId: fin.explorerId ?? null,
-        missionId: fin.missionId || fin.id,
-        titulo: fin.titulo || fin.nome || fin.id,
-        concluidaEm: Date.now(),
-        resultado: "sucesso",
-      });
-
-      log.push(
-        `🧭 Missão concluída: ${fin.titulo || fin.id}${
-          fin.explorerNome ? ` (Explorador ${fin.explorerNome})` : ""
-        } — recompensas aplicadas.`
-      );
-    }
-  }
-
   console.log(log);
+
   // ---- deltas finais (comparando com baseline) ----
   const deltas = {
     comida: (novoEstado.comida ?? comida) - baseline.comida,
@@ -893,12 +827,11 @@ export function runSimulationTurn(
       baseline.integridadeEstrutural,
   };
 
-  // 👇 objeto que o front usará no Stepper
+  // 👇 turnReport sem "missoesConcluidas"
   const turnReport = {
     producao: producaoResumo,
     deltas,
     eventos: eventosOcorridos,
-    missoesConcluidas: rewardsSummary,
     logs: log,
     hospital: hospitalReport,
     construcoesFinalizadas: construcoesFinalizadasResumo,
@@ -908,8 +841,8 @@ export function runSimulationTurn(
     novoEstado,
     eventosOcorridos,
     log,
-    novaFila: /* sua novaFila */ [],
-    turnReport, // 👈 NOVO
+    novaFila: [], // se não usar, mantém vazio
+    turnReport,
     hospital: hospitalReport,
   };
 }

@@ -12,6 +12,7 @@ import ListIcon from "@mui/icons-material/List";
 import CloseIcon from "@mui/icons-material/Close";
 import coloniaService from "../services/coloniaService";
 import missions from "../data/missions.json";
+import { useNavigate } from "react-router-dom";
 
 /**
  * Props:
@@ -21,6 +22,7 @@ import missions from "../data/missions.json";
 const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
   // total de exploradores cadastrados no sistema (independe do status)
   const totalExploradores = estadoAtual?.exploradores?.length ?? 0;
+  const navigate = useNavigate();
 
   // Fila de missões do estado global
   const filaMissoes = estadoAtual?.filaMissoes ?? [];
@@ -511,7 +513,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                     ((tempoTotal - item.tempoRestante) / tempoTotal) * 100
                   )
                 );
-
                 return (
                   <li
                     key={`${item.id}-${index}`}
@@ -526,7 +527,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                           ⏱️ {item.tempoRestante} turno(s)
                         </p>
                       </div>
-
                       {/* 👇 Nome do explorador em missão */}
                       <p className="text-xs text-slate-500">
                         👨‍🚀 Explorador:{" "}
@@ -534,7 +534,6 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                           {item.explorerNome}
                         </span>
                       </p>
-
                       <Box
                         sx={{ display: "flex", alignItems: "center", gap: 1 }}
                       >
@@ -551,6 +550,32 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                           {`${Math.round(progresso)}%`}
                         </Typography>
                       </Box>
+                      + {/* ...dentro do <li> da fila... */}
+                      <p className="text-xs text-slate-500">
+                        Status:{" "}
+                        <strong>
+                          {item.status ??
+                            (item.tempoRestante > 0 ? "emAndamento" : "pronta")}
+                        </strong>
+                      </p>
+                      {(item.status === "aguardandoInicio" ||
+                        item.readyToStart) && (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 text-sm"
+                            onClick={() =>
+                              navigate("/explorador", {
+                                state: {
+                                  missionId: item.id,
+                                  estadoAtual,
+                                },
+                              })
+                            }
+                          >
+                            Iniciar missão
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </li>
                 );

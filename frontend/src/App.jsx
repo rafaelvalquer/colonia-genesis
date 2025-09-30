@@ -478,7 +478,6 @@ function App() {
             />
             <Route path="/minigame" element={<MiniGamePage />} />{" "}
             <Route path="/explorador" element={<ExplorerPage />} />{" "}
-            {/* << NOVO */}
             {/* Adicionado */}
           </Routes>
         </main>
