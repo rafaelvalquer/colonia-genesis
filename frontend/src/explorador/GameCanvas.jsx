@@ -1,5 +1,5 @@
 // src/minigames/explorador-fov/GameCanvas.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { buildWorldFromLevel } from "./mapLoader";
 import levels from "./maps/levels.json";
 
@@ -170,11 +170,20 @@ function nearestWaypointIndex(e) {
   return best;
 }
 
-export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
-  console.log(estadoAtual);
+/** ✅ Agora recebe explorer/mission e usa stats do explorador no HUD */
+export default function ExplorerGameCanvas({
+  estadoAtual,
+  onEstadoChange,
+  explorer,
+  explorerId,
+  mission,
+  missionId,
+  filaItem,
+}) {
   const canvasRef = useRef(null);
   const boxRef = useRef(null);
 
+  console.log(mission.recompensas);
   // mapa atual (vem do JSON)
   const mapSizeRef = useRef({ w: 1600, h: 900 }); // atualizado pelo level
   const world = useRef({ walls: [], enemies: [], pickups: [], exits: [] });
@@ -187,62 +196,111 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
   const fogCanvasRef = useRef(null);
 
   const [levelReady, setLevelReady] = useState(false);
+
+  // 🔎 Deriva valores do explorador (fallback para estadoAtual ou defaults)
+  const hpCurrent0 = explorer?.hp?.current ?? estadoAtual?.hp?.current ?? 10;
+  const hpMax0 = explorer?.hp?.max ?? estadoAtual?.hp?.max ?? 10;
+  const enCurrent0 = explorer?.stamina?.current ?? estadoAtual?.energia ?? 10;
+  const enMax0 = explorer?.stamina?.max ?? estadoAtual?.energiaMax ?? 10;
+
   const [hud, setHud] = useState({
-    hp: estadoAtual?.hp?.current ?? 10,
-    hpMax: estadoAtual?.hp?.max ?? 10,
-    en: estadoAtual?.energia ?? 10,
-    enMax: estadoAtual?.energiaMax ?? 10,
+    hp: hpCurrent0,
+    hpMax: hpMax0,
+    en: enCurrent0,
+    enMax: enMax0,
     keys: [],
     goals: 1,
     goalsOpen: 0,
   });
 
-  // carrega o primeiro level do /public/maps/levels.json
+  // objetivos básicos do minigame
+  const [objectives, setObjectives] = useState([]);
+
+  // Pequena adaptação de atributos conforme skills (opcional, seguro)
+  const speedMul = useMemo(() => {
+    const agi = explorer?.skills?.sobrevivencia ?? 0;
+    return 1 + Math.min(0.25, agi * 0.02); // até +25%
+  }, [explorer]);
+
   useEffect(() => {
-    (async () => {
-      try {
-        const level = levels.levels[0];
-        if (!level) return;
+    const level = levels.levels[0]; // pode mapear por missionId se quiser
+    if (!level) return;
 
-        const built = buildWorldFromLevel(level);
-        // aplica mundo
-        world.current.walls = built.walls;
-        world.current.pickups = [...built.pickups];
-        world.current.exits = built.exits;
-        world.current.enemies = built.enemies;
+    const built = buildWorldFromLevel(level);
+    // aplica mundo
+    world.current.walls = built.walls;
+    world.current.pickups = [...built.pickups];
+    world.current.exits = built.exits;
+    world.current.enemies = built.enemies;
 
-        // tamanho do mapa
-        mapSizeRef.current = {
-          w: built.meta.mapW || 1600,
-          h: built.meta.mapH || 900,
-        };
+    // tamanho do mapa
+    mapSizeRef.current = {
+      w: built.meta.mapW || 1600,
+      h: built.meta.mapH || 900,
+    };
 
-        // player start
-        playerRef.current.x = built.playerStart.x;
-        playerRef.current.y = built.playerStart.y;
-        playerRef.current.r = built.playerStart.r ?? 12;
+    // player start
+    playerRef.current.x = built.playerStart.x;
+    playerRef.current.y = built.playerStart.y;
+    playerRef.current.r = built.playerStart.r ?? 12;
 
-        // fog baseado no tamanho do mapa
-        const fog = document.createElement("canvas");
-        fog.width = mapSizeRef.current.w;
-        fog.height = mapSizeRef.current.h;
-        const fctx = fog.getContext("2d");
-        fctx.fillStyle = "rgba(0,0,0,0.92)";
-        fctx.fillRect(0, 0, fog.width, fog.height);
-        fogCanvasRef.current = fog;
+    // fog baseado no tamanho do mapa
+    const fog = document.createElement("canvas");
+    fog.width = mapSizeRef.current.w;
+    fog.height = mapSizeRef.current.h;
+    const fctx = fog.getContext("2d");
+    fctx.fillStyle = "rgba(0,0,0,0.92)";
+    fctx.fillRect(0, 0, fog.width, fog.height);
+    fogCanvasRef.current = fog;
 
-        // minimapa
-        mini.current.w = Math.round(mapSizeRef.current.w * mini.current.scale);
-        mini.current.h = Math.round(mapSizeRef.current.h * mini.current.scale);
+    // minimapa
+    mini.current.w = Math.round(mapSizeRef.current.w * mini.current.scale);
+    mini.current.h = Math.round(mapSizeRef.current.h * mini.current.scale);
 
-        setLevelReady(true);
-      } catch (e) {
-        console.error("Erro carregando levels.json", e);
-      }
-    })();
-  }, []);
+    // 1) cria objetivos a partir das recompensas
+    const rewards = Array.isArray(mission?.recompensas)
+      ? mission.recompensas
+      : [];
+    setObjectives(
+      rewards.map((r, i) => ({
+        id: `reward_${i}`,
+        label: r.label || `Objetivo ${i + 1}`,
+        done: false,
+        payload: r, // mantenha o objeto para aplicar depois
+      }))
+    );
 
-  // Resize canvas
+    // 2) gera pickups “reward_*” usando as posições já definidas do level
+    //    - mapeia 1 pickup por recompensa. Se tiver menos posições que recompensas,
+    //      recicla as posições iniciais.
+    const basePickups =
+      built.pickups && built.pickups.length ? built.pickups : [];
+    const rewardPickups = rewards.map((r, i) => {
+      const bp = basePickups[i % Math.max(1, basePickups.length)] || {
+        x: playerRef.current.x + 60 + i * 20,
+        y: playerRef.current.y,
+      };
+      return {
+        x: bp.x,
+        y: bp.y,
+        r: 10,
+        kind: "reward",
+        rewardId: i, // liga pickup -> objetivo
+        label: r.label || `Objetivo ${i + 1}`,
+        reward: r,
+      };
+    });
+
+    // mantém quaisquer pickups “ambientais” úteis (energy/heal)
+    // e adiciona os de recompensa
+    world.current.pickups = [
+      ...(built.pickups || []).filter((p) => p.kind !== "key"), // se não quiser chave, opcional
+      ...rewardPickups,
+    ];
+
+    setLevelReady(true);
+  }, [missionId]); // reconstroi se mudar missão
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const box = boxRef.current;
@@ -302,35 +360,7 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line
-  }, [levelReady]);
-
-  // revelação (fog)
-  function revealCircle(x, y, r) {
-    const fog = fogCanvasRef.current;
-    if (!fog) return;
-    const fctx = fog.getContext("2d");
-    fctx.save();
-    fctx.globalCompositeOperation = "destination-out";
-    fctx.beginPath();
-    fctx.arc(x, y, r, 0, Math.PI * 2);
-    fctx.fill();
-    fctx.restore();
-  }
-  function revealPoly(points) {
-    const fog = fogCanvasRef.current;
-    if (!fog) return;
-    const fctx = fog.getContext("2d");
-    fctx.save();
-    fctx.globalCompositeOperation = "destination-out";
-    fctx.beginPath();
-    fctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++)
-      fctx.lineTo(points[i].x, points[i].y);
-    fctx.closePath();
-    fctx.fill();
-    fctx.restore();
-  }
+  }, [levelReady, speedMul]);
 
   function update(dt) {
     const p = playerRef.current;
@@ -572,6 +602,9 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
       if (inside) {
         const has = !ex.needKey || hud.keys.includes(ex.needKey);
         if (has) {
+          setObjectives((list) =>
+            list.map((o) => (o.id === "exit" ? { ...o, done: true } : o))
+          );
           onEstadoChange?.({
             ...estadoAtual,
             energia: Math.round((estadoAtual?.energia ?? 0) + 5),
@@ -601,6 +634,16 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
 
   /** Aplica pickups ao HUD */
   function applyPickup(pk) {
+    if (pk.kind === "reward") {
+      // marca checkbox do objetivo
+      setObjectives((list) =>
+        list.map((o, idx) => (idx === pk.rewardId ? { ...o, done: true } : o))
+      );
+      // (opcional) já aplicar imediatamente no estadoAtual aqui,
+      // ou salvar numa lista para aplicar ao terminar o nível.
+      return;
+    }
+
     if (pk.kind === "energy") {
       setHud((h) => ({ ...h, en: Math.min(h.enMax, h.en + CFG.energyPickup) }));
     } else if (pk.kind === "heal") {
@@ -653,12 +696,12 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     for (const pk of world.current.pickups) {
       ctx.beginPath();
       ctx.arc(pk.x, pk.y, pk.r, 0, Math.PI * 2);
-      ctx.fillStyle =
-        pk.kind === "energy"
-          ? "#fde047"
-          : pk.kind === "heal"
-          ? "#22c55e"
-          : "#60a5fa";
+      // cor por tipo
+      let fill = "#60a5fa"; // default
+      if (pk.kind === "energy") fill = "#fde047";
+      else if (pk.kind === "heal") fill = "#22c55e";
+      else if (pk.kind === "reward") fill = "#a78bfa"; // roxo p/ recompensas
+      ctx.fillStyle = fill;
       ctx.fill();
       ctx.strokeStyle = "#0b0b0b";
       ctx.lineWidth = 1.5;
@@ -775,6 +818,32 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     drawMinimap(ctx, c);
   }
 
+  function revealCircle(x, y, r) {
+    const fog = fogCanvasRef.current;
+    if (!fog) return;
+    const fctx = fog.getContext("2d");
+    fctx.save();
+    fctx.globalCompositeOperation = "destination-out";
+    fctx.beginPath();
+    fctx.arc(x, y, r, 0, Math.PI * 2);
+    fctx.fill();
+    fctx.restore();
+  }
+  function revealPoly(points) {
+    const fog = fogCanvasRef.current;
+    if (!fog) return;
+    const fctx = fog.getContext("2d");
+    fctx.save();
+    fctx.globalCompositeOperation = "destination-out";
+    fctx.beginPath();
+    fctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++)
+      fctx.lineTo(points[i].x, points[i].y);
+    fctx.closePath();
+    fctx.fill();
+    fctx.restore();
+  }
+
   function drawHUD(ctx) {
     const pad = 12,
       barW = 240,
@@ -799,7 +868,7 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
       pad + barH + 14
     );
 
-    // EN
+    // Stamina (usa explorer.stamina)
     const enPct = hud.enMax > 0 ? hud.en / hud.enMax : 0;
     ctx.fillStyle = "#f59e0b";
     ctx.fillRect(pad, pad + 30, barW * enPct, barH);
@@ -807,13 +876,15 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
     ctx.strokeRect(pad, pad + 30, barW, barH);
     ctx.fillStyle = "#fff";
     ctx.fillText(
-      `Energia: ${Math.ceil(hud.en)}/${hud.enMax}`,
+      `Stamina: ${Math.ceil(hud.en)}/${hud.enMax}`,
       pad + 4,
       pad + 30 + barH + 14
     );
 
+    const done = objectives.filter((o) => o.done).length;
+    const total = objectives.length;
     ctx.fillText(
-      `Objetivos: ${hud.goalsOpen}/${hud.goals}  Chaves: ${hud.keys.length}`,
+      `Objetivos: ${done}/${total}  Chaves: ${hud.keys.length}`,
       pad,
       pad + 56
     );
@@ -869,7 +940,12 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
   return (
     <div
       ref={boxRef}
-      style={{ width: "100%", height: "100%", display: "flex" }}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        display: "flex",
+      }}
     >
       <canvas
         ref={canvasRef}
@@ -881,6 +957,37 @@ export default function ExplorerGameCanvas({ estadoAtual, onEstadoChange }) {
           maxWidth: "100%",
         }}
       />
+      {/* Checklist de objetivos */}
+      <div
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 270, // fica ao lado das barras desenhadas no canvas
+          background: "rgba(2,6,23,0.85)",
+          color: "#fff",
+          padding: "8px 10px",
+          borderRadius: 8,
+          fontSize: 12,
+          lineHeight: 1.4,
+          backdropFilter: "blur(2px)",
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Objetivos</div>
+        {objectives.map((o) => (
+          <label
+            key={o.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 4,
+            }}
+          >
+            <input type="checkbox" checked={o.done} readOnly />
+            <span>{o.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

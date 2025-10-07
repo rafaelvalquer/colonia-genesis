@@ -563,14 +563,22 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
                         <div className="mt-2 flex justify-end">
                           <button
                             className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 text-sm"
-                            onClick={() =>
+                            onClick={() => {
+                              const explorer =
+                                explorerById[item.explorerId] || null;
+                              const missionDef = missionById[item.id] || null;
+
                               navigate("/explorador", {
                                 state: {
                                   missionId: item.id,
-                                  estadoAtual,
+                                  explorerId: item.explorerId,
+                                  explorer, // 👈 objeto completo do explorador
+                                  mission: missionDef, // opcional: definição da missão (JSON)
+                                  filaItem: item, // opcional: o item da fila
+                                  estadoAtual, // estado global
                                 },
-                              })
-                            }
+                              });
+                            }}
                           >
                             Iniciar missão
                           </button>
