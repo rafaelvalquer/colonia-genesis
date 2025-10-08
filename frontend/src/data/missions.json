@@ -11,9 +11,9 @@
     "tags": ["Exploração", "Tecnologia", "Arqueologia"],
     "turnos": 1,
     "recompensas": [
-      { "label": "+1 Colono", "cor": "text-yellow-400", "colono": 200 },
-      { "label": "+200 Comida", "cor": "text-blue-400", "comida": 5000 },
-      { "label": "+100 Minerais", "cor": "text-purple-400", "minerais": 5000 }
+      { "label": "+1 Colono", "cor": "text-yellow-400", "colono": 1 },
+      { "label": "+200 Comida", "cor": "text-blue-400", "comida": 200 },
+      { "label": "+100 Minerais", "cor": "text-purple-400", "minerais": 100 }
     ]
   },
   {

@@ -80,12 +80,11 @@ const staminaSchema = new mongoose.Schema(
 
 const skillsSchema = new mongoose.Schema(
   {
-    combate: { type: Number, min: 0, default: 0 },
-    ciencia: { type: Number, min: 0, default: 0 },
-    furtividade: { type: Number, min: 0, default: 0 },
-    forca: { type: Number, min: 0, default: 0 },
-    arqueologia: { type: Number, min: 0, default: 0 },
-    sobrevivencia: { type: Number, min: 0, default: 0 },
+    visao: { type: Number, min: 0, max: 10, default: 0 },
+    agilidade: { type: Number, min: 0, max: 10, default: 0 },
+    folego: { type: Number, min: 0, max: 10, default: 0 },
+    furtividade: { type: Number, min: 0, max: 10, default: 0 },
+    resiliencia: { type: Number, min: 0, max: 10, default: 0 },
   },
   { _id: false }
 );
