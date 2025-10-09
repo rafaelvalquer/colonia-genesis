@@ -27,6 +27,8 @@ const coloniaService = {
 
   buscarColonia: async (nome) => (await api.get(`/buscar/${nome}`)).data,
   atualizarColonia: async (id, dados) => (await api.put(`/${id}`, dados)).data,
+  atualizarExplorador: async (coloniaId, explorerId, dados) =>
+    (await api.patch(`/${coloniaId}/exploradores/${explorerId}`, dados)).data,
   getEstado: async (id) => (await api.get(`/${id}/estado`)).data,
   gastarAgua: async (id, cost) =>
     (await api.post(`/${id}/gastar-agua`, { cost })).data,

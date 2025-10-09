@@ -38,12 +38,11 @@ const STATUS_META = {
 };
 
 const SKILL_ORDER = [
-  ["combate", "text-red-400", "bg-red-900"],
-  ["ciencia", "text-blue-400", "bg-blue-900"],
-  ["furtividade", "text-purple-400", "bg-purple-900"],
-  ["forca", "text-amber-400", "bg-amber-900"],
-  ["arqueologia", "text-emerald-400", "bg-emerald-900"],
-  ["sobrevivencia", "text-lime-400", "bg-lime-900"],
+  ["visao", "text-red-400", "bg-red-900"],
+  ["agilidade", "text-blue-400", "bg-blue-900"],
+  ["folego", "text-purple-400", "bg-purple-900"],
+  ["furtividade", "text-amber-400", "bg-amber-900"],
+  ["resiliencia", "text-emerald-400", "bg-emerald-900"],
 ];
 
 /** Subcomponentes sem hooks */

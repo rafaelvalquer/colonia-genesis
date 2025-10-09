@@ -9,6 +9,12 @@ router.post("/", coloniaController.criarColonia);
 // PUT: Atualizar colônia existente
 router.put("/:id", coloniaController.atualizarColonia);
 
+// PATCH: Atualizar um explorador específico
+router.patch(
+  "/:id/exploradores/:explorerId",
+  coloniaController.atualizarExplorador
+);
+
 // GET: Buscar colônia por nome
 router.get("/buscar/:nome", coloniaController.buscarColoniaPorNome);
 

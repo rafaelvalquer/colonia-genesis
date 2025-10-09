@@ -1,7 +1,10 @@
 // src/minigames/explorador-fov/GameCanvas.jsx
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { buildWorldFromLevel } from "./mapLoader";
 import levels from "./maps/levels.json";
+import { stepProjectiles } from "./engine/CollisionManager";
+import coloniaService from "../services/coloniaService";
 
 /**
  * Explorador 2D Top-Down em <canvas>
@@ -40,6 +43,13 @@ const CFG = {
   sentinelTurnDegPerSec: 35,
   sentinelSweepDeg: 110,
   debugDrawSound: true,
+  gridSize: 40, // <-- novo
+  bulletSpeed: 560,
+  bulletRadius: 4,
+  bulletLife: 1.2, // segundos
+  bulletCooldownMs: 140, // cadência
+  bulletMaxDist: 650,
+  bulletDamage: 4,
 };
 
 /** Ajusta o canvas ao CSS e DPR */
@@ -56,6 +66,18 @@ function setCanvasSize(canvas, cssW, cssH) {
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
 }
+
+/*
+visao: aumenta raio da bolha, FOV e alcance do cone.
+
+agilidade: aumenta velocidade e boost do sprint.
+
+folego: aumenta stamina máx., regen e reduz gasto do sprint.
+
+furtividade: reduz “barulho” ao andar (audição dos inimigos) e dá um grace maior ao perder LOS.
+
+resiliencia: aumenta HP máx. e reduz dano recebido.
+*/
 
 function calcSkillMods(sk) {
   const v = sk?.visao | 0,
@@ -212,6 +234,155 @@ function nearestWaypointIndex(e) {
   return best;
 }
 
+// ====== GRID + A* ======
+function segIntersectsAABB(x1, y1, x2, y2, rx, ry, rw, rh) {
+  const INS = 0,
+    L = 1,
+    R = 2,
+    B = 4,
+    T = 8;
+  const out = (x, y) =>
+    (x < rx ? L : x > rx + rw ? R : 0) | (y < ry ? B : y > ry + rh ? T : 0);
+  let c1 = out(x1, y1),
+    c2 = out(x2, y2);
+  while (true) {
+    if (!(c1 | c2)) return true;
+    if (c1 & c2) return false;
+    const c = c1 ? c1 : c2;
+    let x = 0,
+      y = 0;
+    if (c & T) {
+      x = x1 + (x2 - x1) * ((ry + rh - y1) / (y2 - y1));
+      y = ry + rh;
+    } else if (c & B) {
+      x = x1 + (x2 - x1) * ((ry - y1) / (y2 - y1));
+      y = ry;
+    } else if (c & R) {
+      y = y1 + (y2 - y1) * ((rx + rw - x1) / (x2 - x1));
+      x = rx + rw;
+    } else {
+      y = y1 + (y2 - y1) * ((rx - x1) / (x2 - x1));
+      x = rx;
+    }
+    if (c === c1) {
+      x1 = x;
+      y1 = y;
+      c1 = out(x1, y1);
+    } else {
+      x2 = x;
+      y2 = y;
+      c2 = out(x2, y2);
+    }
+  }
+}
+function cellBlocked(ci, cj, gs, walls, pad) {
+  const rx = ci * gs - pad,
+    ry = cj * gs - pad,
+    rw = gs + 2 * pad,
+    rh = gs + 2 * pad;
+  for (const s of walls)
+    if (segIntersectsAABB(s.x1, s.y1, s.x2, s.y2, rx, ry, rw, rh)) return true;
+  return false;
+}
+function buildNavGrid(mapW, mapH, walls, agentRadius, gs) {
+  const cols = Math.ceil(mapW / gs),
+    rows = Math.ceil(mapH / gs),
+    pad = Math.max(2, agentRadius + 3);
+  const data = Array.from({ length: rows }, (_, j) =>
+    Array.from({ length: cols }, (_, i) =>
+      cellBlocked(i, j, gs, walls, pad) ? 1 : 0
+    )
+  );
+  return { cols, rows, gs, data };
+}
+const clampi = (v, a, b) => Math.max(a, Math.min(b, v));
+const ptToCell = (x, y, gs) => ({
+  i: Math.floor(x / gs),
+  j: Math.floor(y / gs),
+});
+const cellCenter = (i, j, gs) => ({
+  x: i * gs + gs * 0.5,
+  y: j * gs + gs * 0.5,
+});
+
+function aStar(grid, start, goal) {
+  const { data, cols, rows } = grid,
+    key = (i, j) => i + "_" + j;
+  const inB = (i, j) =>
+    i >= 0 && j >= 0 && i < cols && j < rows && data[j][i] === 0;
+  const h = (i, j) => Math.abs(i - goal.i) + Math.abs(j - goal.j);
+  const open = [],
+    came = new Map(),
+    g = new Map(),
+    f = new Map(),
+    sk = key(start.i, start.j);
+  g.set(sk, 0);
+  f.set(sk, h(start.i, start.j));
+  open.push([f.get(sk), start.i, start.j]);
+  const push = (fi, i, j) => {
+    open.push([fi, i, j]);
+    open.sort((a, b) => a[0] - b[0]);
+  };
+  while (open.length) {
+    const [_, i, j] = open.shift();
+    if (i === goal.i && j === goal.j) {
+      const path = [];
+      let ci = i,
+        cj = j,
+        cur = key(ci, cj);
+      while (came.has(cur)) {
+        const [pi, pj] = came.get(cur);
+        path.push([ci, cj]);
+        ci = pi;
+        cj = pj;
+        cur = key(ci, cj);
+      }
+      path.push([start.i, start.j]);
+      path.reverse();
+      return path;
+    }
+    for (const [di, dj] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      const ni = i + di,
+        nj = j + dj;
+      if (!inB(ni, nj)) continue;
+      const ck = key(i, j),
+        nk = key(ni, nj),
+        tentative = (g.get(ck) ?? Infinity) + 1;
+      if (tentative < (g.get(nk) ?? Infinity)) {
+        came.set(nk, [i, j]);
+        g.set(nk, tentative);
+        const nf = tentative + h(ni, nj);
+        f.set(nk, nf);
+        if (!open.some((e) => e[1] === ni && e[2] === nj)) push(nf, ni, nj);
+      }
+    }
+  }
+  return null;
+}
+const los = (x1, y1, x2, y2, segs) => hasLineOfSight(x1, y1, x2, y2, segs);
+function smoothPathToPoints(grid, raw, walls) {
+  if (!raw || !raw.length) return [];
+  const pts = raw.map(([i, j]) => cellCenter(i, j, grid.gs));
+  const out = [pts[0]];
+  let anchor = pts[0];
+  for (let k = 2; k < pts.length; k++) {
+    const cand = pts[k];
+    if (!los(anchor.x, anchor.y, cand.x, cand.y, walls)) {
+      out.push(pts[k - 1]);
+      anchor = pts[k - 1];
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+// #region Inicio do Jogo
+
 /** ✅ Agora recebe explorer/mission e usa stats do explorador no HUD */
 export default function ExplorerGameCanvas({
   estadoAtual,
@@ -225,14 +396,101 @@ export default function ExplorerGameCanvas({
   const canvasRef = useRef(null);
   const boxRef = useRef(null);
   const sprintLockedRef = useRef(false);
+  const navGridRef = useRef(null);
+  const lastReplanAtRef = useRef(0); // limita replanejamentos/s
+  const projectilesRef = useRef([]); // {x,y,vx,vy,r,life,travel,maxDist,dead}
+  const lastShotAtRef = useRef(0);
+  const navigate = useNavigate();
+  const finishedRef = useRef(false);
+  const baseXpRef = useRef(explorer?.xp ?? 0);
+  const [sessionXp, setSessionXp] = useState(0);
+  const sessionXpRef = useRef(0);
+  const [showResult, setShowResult] = useState(false);
+  const [resultData, setResultData] = useState({
+    xpGained: 0,
+    done: [],
+    total: 0,
+  });
 
-  console.log(mission.recompensas);
+  console.log(explorerId);
+
+  // atualiza o explorador certo dentro de estadoAtual.exploradores
+  const updateExplorerInEstado = useCallback(
+    (patch) => {
+      if (!estadoAtual || !Array.isArray(estadoAtual.exploradores)) return;
+      const novos = estadoAtual.exploradores.map((ex) =>
+        ex.id === explorerId ? { ...ex, ...patch, updatedAt: Date.now() } : ex
+      );
+      onEstadoChange?.({ ...estadoAtual, exploradores: novos });
+    },
+    [estadoAtual, explorerId, onEstadoChange]
+  );
+
   // mapa atual (vem do JSON)
   const mapSizeRef = useRef({ w: 1600, h: 900 }); // atualizado pelo level
   const world = useRef({ walls: [], enemies: [], pickups: [], exits: [] });
   const playerRef = useRef({ x: 140, y: 140, r: 12, dir: 0, vx: 0, vy: 0 });
   const pressed = useRef({});
   const cam = useRef({ x: 0, y: 0, w: 0, h: 0 });
+
+  function planPathForEnemy(e, tx, ty) {
+    const grid = navGridRef.current;
+    if (!grid) return [];
+    const gs = grid.gs;
+
+    // snap para célula livre mais próxima
+    const snapFree = (ci, cj) => {
+      const seen = new Set([ci + "_" + cj]);
+      const q = [[ci, cj]];
+      while (q.length) {
+        const [i, j] = q.shift();
+        if (
+          i >= 0 &&
+          j >= 0 &&
+          i < grid.cols &&
+          j < grid.rows &&
+          grid.data[j][i] === 0
+        )
+          return { i, j };
+        for (const [di, dj] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const ni = i + di,
+            nj = j + dj,
+            k = ni + "_" + nj;
+          if (!seen.has(k)) {
+            seen.add(k);
+            q.push([ni, nj]);
+          }
+        }
+      }
+      return null;
+    };
+
+    let s = ptToCell(e.x, e.y, gs),
+      g = ptToCell(tx, ty, gs);
+    s.i = clampi(s.i, 0, grid.cols - 1);
+    s.j = clampi(s.j, 0, grid.rows - 1);
+    g.i = clampi(g.i, 0, grid.cols - 1);
+    g.j = clampi(g.j, 0, grid.rows - 1);
+    if (grid.data[s.j][s.i] === 1) {
+      const ss = snapFree(s.i, s.j);
+      if (!ss) return [];
+      s = ss;
+    }
+    if (grid.data[g.j][g.i] === 1) {
+      const gg = snapFree(g.i, g.j);
+      if (!gg) return [];
+      g = gg;
+    }
+
+    const raw = aStar(grid, s, g);
+    if (!raw) return [];
+    return smoothPathToPoints(grid, raw, world.current.walls);
+  }
 
   // minimapa/fog
   const mini = useRef({ scale: 0.12, w: 0, h: 0 });
@@ -253,6 +511,9 @@ export default function ExplorerGameCanvas({
     enMax: enMax0,
     keys: [],
   });
+
+  const [playerXp, setPlayerXp] = useState(explorer?.xp ?? 0);
+
   const hudRef = useRef(hud);
   useEffect(() => {
     hudRef.current = hud;
@@ -262,20 +523,6 @@ export default function ExplorerGameCanvas({
     () => calcSkillMods(explorer?.skills),
     [explorer?.skills]
   );
-
-  useEffect(() => {
-    const kd = (e) => (pressed.current[e.key.toLowerCase()] = true);
-    const ku = (e) => {
-      pressed.current[e.key.toLowerCase()] = false;
-      if (e.key === "Shift") sprintLockedRef.current = false; // libera ao soltar
-    };
-    window.addEventListener("keydown", kd);
-    window.addEventListener("keyup", ku);
-    return () => {
-      window.removeEventListener("keydown", kd);
-      window.removeEventListener("keyup", ku);
-    };
-  }, []);
 
   // Aplicar nos CFGs efetivos:
   const fovDegEff = CFG.fovDeg + mods.fovAddDeg;
@@ -340,16 +587,27 @@ export default function ExplorerGameCanvas({
       // estado inicial por tipo
       const initState = kind === "sentinela" ? "guard" : "patrol";
 
+      const hpBase =
+        typeof e.hp === "number" ? e.hp : kind === "sentinela" ? 20 : 12;
+      const xpBase =
+        typeof e.xp === "number" ? e.xp : kind === "sentinela" ? 12 : 6;
+
+      console.log("xpBase");
+      console.log(xpBase);
+
       return {
         ...e,
         type: kind,
         waypoints: wps,
         home,
         state: e.state ?? initState,
-        __guardBaseDir: typeof e.dir === "number" ? e.dir : dir, // centro do sweep
-        __spinDir: 1, // 1 ou -1
+        __guardBaseDir: typeof e.dir === "number" ? e.dir : dir,
+        __spinDir: 1,
         targetIdx,
         dir,
+        hp: hpBase,
+        hpMax: hpBase,
+        xp: xpBase,
         __detourT: 0,
         __detourDir: null,
         __wpBlockedT: 0,
@@ -418,10 +676,20 @@ export default function ExplorerGameCanvas({
       };
     });
 
+    navGridRef.current = buildNavGrid(
+      mapSizeRef.current.w,
+      mapSizeRef.current.h,
+      world.current.walls,
+      12, // raio do inimigo
+      CFG.gridSize
+    );
+
     // aplica no mundo
     world.current.pickups = rewardPickups;
 
     setLevelReady(true);
+    sessionXpRef.current = 0;
+    setSessionXp(0);
   }, [missionId]); // reconstroi se mudar missão
 
   useEffect(() => {
@@ -442,13 +710,27 @@ export default function ExplorerGameCanvas({
 
   // Teclado
   useEffect(() => {
-    const kd = (e) => (pressed.current[e.key.toLowerCase()] = true);
-    const ku = (e) => (pressed.current[e.key.toLowerCase()] = false);
+    const kd = (e) => {
+      const k = e.key.toLowerCase();
+      pressed.current[k] = true;
+    };
+    const ku = (e) => {
+      const k = e.key.toLowerCase();
+      pressed.current[k] = false;
+      if (e.key === "Shift") sprintLockedRef.current = false; // destrava sprint
+    };
+    const onBlur = () => {
+      pressed.current = {}; // evita tecla "presa" ao trocar de aba/janela
+      sprintLockedRef.current = false;
+    };
+
     window.addEventListener("keydown", kd);
     window.addEventListener("keyup", ku);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
+      window.removeEventListener("blur", onBlur);
     };
   }, []);
 
@@ -465,6 +747,41 @@ export default function ExplorerGameCanvas({
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+
+  // Mouse: atirar com botão esquerdo
+  useEffect(() => {
+    const onDown = (e) => {
+      if (e.button !== 0) return; // só botão esquerdo
+      const now = performance.now();
+      if (now - (lastShotAtRef.current || 0) < CFG.bulletCooldownMs) return;
+      lastShotAtRef.current = now;
+
+      const c = canvasRef.current;
+      const r = c.getBoundingClientRect();
+      const mx = e.clientX - r.left + cam.current.x;
+      const my = e.clientY - r.top + cam.current.y;
+
+      const p = playerRef.current;
+      const ang = Math.atan2(my - p.y, mx - p.x);
+
+      const vx = Math.cos(ang) * CFG.bulletSpeed;
+      const vy = Math.sin(ang) * CFG.bulletSpeed;
+
+      projectilesRef.current.push({
+        x: p.x + Math.cos(ang) * (p.r + 6),
+        y: p.y + Math.sin(ang) * (p.r + 6),
+        vx,
+        vy,
+        r: CFG.bulletRadius,
+        life: CFG.bulletLife,
+        travel: 0,
+        maxDist: CFG.bulletMaxDist,
+        dead: false,
+      });
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, []);
 
   // Loop
@@ -557,29 +874,31 @@ export default function ExplorerGameCanvas({
         dist < noiseRadius * noiseFactor;
 
       if (sees) {
+        // entra/permanece em chase
         e.state = "chase";
         e.lastSeenPlayerAt = { x: p.x, y: p.y, t: performance.now() };
         e.__lostT = 0;
         e.__investigate = null;
       } else {
+        // Sentinela em guard pode sair para investigar um som
         if (canHear) {
-          e.__lastHeardAt = performance.now();
-          e.__investigate = { x: p.x, y: p.y };
-
-          // ⬇️ Agora, se for sentinela em guard, ele passa a "return"
-          // para caminhar até o ponto investigado e, depois, voltar ao home.
-          if (e.type === "sentinela" && e.state === "guard") {
-            e.state = "return";
-          }
+          const now = performance.now();
+          e.__lastHeardAt = now;
+          e.__investigate = { x: p.x, y: p.y, until: now + 3500 }; // 3.5s de interesse
+          if (e.type === "sentinela" && e.state === "guard") e.state = "return";
         }
 
+        // Se estava em chase e perdeu o player por um tempinho => return
         if (e.state === "chase") {
           e.__lostT = (e.__lostT ?? 0) + dt;
           if (e.__lostT > 0.3 + mods.lostGraceAdd) {
             e.state = "return";
-            // patrulheiro: volta aos WPs; sentinela: volta ao home
             if (e.type === "patrulheiro") {
-              e.targetIdx = nearestWaypointIndex(e);
+              e.anchorIdx = nearestWaypointIndex(e);
+              const wp = e.waypoints[e.anchorIdx];
+              e.__path = planPathForEnemy(e, wp.x, wp.y);
+            } else {
+              e.__path = planPathForEnemy(e, e.home.x, e.home.y);
             }
             e.__detourT = 0;
             e.__detourDir = null;
@@ -699,178 +1018,86 @@ export default function ExplorerGameCanvas({
         }
 
         case "return": {
-          // Se houver ponto de investigação, caminhe até ele primeiro (igual você já tinha)
-          if (e.__investigate) {
-            const tx = e.__investigate.x,
-              ty = e.__investigate.y;
+          // alvo: waypoint âncora (patrulheiro) OU home (sentinela)
+          const now = performance.now();
+          const hasInvestigate = e.__investigate && now < e.__investigate.until;
+          const target = hasInvestigate
+            ? e.__investigate
+            : e.type === "patrulheiro"
+            ? e.waypoints[e.anchorIdx ?? nearestWaypointIndex(e)]
+            : e.home;
+          const tx = target.x,
+            ty = target.y;
+
+          // se LOS direta ao alvo, abandona path e vai direto
+          if (hasLineOfSight(e.x, e.y, tx, ty, world.current.walls)) {
+            e.__path = [];
             const desiredDir = Math.atan2(ty - e.y, tx - e.x);
-            const haveLOS = hasLineOfSight(
-              e.x,
-              e.y,
-              tx,
-              ty,
-              world.current.walls
-            );
-            if (haveLOS) {
-              e.__detourT = 0;
-              e.__detourDir = null;
-              e.__wpBlockedT = 0;
-              moveTowards(e, tx, ty, CFG.enemySpeed, dt);
-              e.dir = desiredDir;
+            e.dir = desiredDir;
+            moveTowards(e, tx, ty, CFG.enemySpeed, dt);
+          } else {
+            // seguir caminho
+            e.__path =
+              e.__path && e.__path.length
+                ? e.__path
+                : planPathForEnemy(e, tx, ty);
+
+            // limite de replanejamentos (ex.: 4/s)
+            const now = performance.now();
+            if (
+              (!e.__path ||
+                !e.__path.length ||
+                forwardBlocked(e, world.current.walls, e.r + 10)) &&
+              now - (lastReplanAtRef.current || 0) > 250
+            ) {
+              e.__path = planPathForEnemy(e, tx, ty);
+              lastReplanAtRef.current = now;
+            }
+
+            if (e.__path && e.__path.length) {
+              const node = e.__path[0];
+              const ndir = Math.atan2(node.y - e.y, node.x - e.x);
+              e.dir = ndir;
+              moveTowards(e, node.x, node.y, CFG.enemySpeed, dt);
+              if (Math.hypot(node.x - e.x, node.y - e.y) < 8) e.__path.shift();
             } else {
-              e.__wpBlockedT = (e.__wpBlockedT ?? 0) + dt;
-              e.__detourDir ??= pickDetourDir(
-                desiredDir,
-                e,
-                world.current.walls
-              );
-              e.__detourT = (e.__detourT ?? 0) + dt;
-              e.dir = e.__detourDir;
+              // fallback mínimo: pequeno desvio
+              const desiredDir = Math.atan2(ty - e.y, tx - e.x);
+              e.dir = pickDetourDir(desiredDir, e, world.current.walls);
               e.x += Math.cos(e.dir) * CFG.enemySpeed * dt;
               e.y += Math.sin(e.dir) * CFG.enemySpeed * dt;
-
-              if (hasLineOfSight(e.x, e.y, tx, ty, world.current.walls)) {
-                e.__detourT = 0;
-                e.__detourDir = null;
-                e.__wpBlockedT = 0;
-              }
-              if (e.__detourT > 0.9) {
-                e.__detourT = 0;
-                e.__detourDir = pickDetourDir(
-                  desiredDir,
-                  e,
-                  world.current.walls
-                );
-              }
-              if (e.__wpBlockedT > 2.0) {
-                e.__investigate = null;
-                e.__wpBlockedT = 0;
-                e.__detourT = 0;
-                e.__detourDir = null;
-                if (e.type === "patrulheiro")
-                  e.targetIdx = nearestWaypointIndex(e);
-              }
             }
-            if (Math.hypot(tx - e.x, ty - e.y) < 12) {
-              e.__investigate = null;
-              if (e.type === "patrulheiro")
-                e.targetIdx = nearestWaypointIndex(e);
-            }
-            break;
           }
 
-          if (e.type === "patrulheiro") {
-            // volta ao ciclo de WPs
-            const wp = e.waypoints[e.targetIdx];
-            if (wp) {
-              const desiredDir = Math.atan2(wp.y - e.y, wp.x - e.x);
-              const haveLOS = hasLineOfSight(
-                e.x,
-                e.y,
-                wp.x,
-                wp.y,
-                world.current.walls
-              );
-              if (haveLOS) {
-                e.__detourT = 0;
-                e.__detourDir = null;
-                e.__wpBlockedT = 0;
-                moveTowards(e, wp.x, wp.y, CFG.enemySpeed, dt);
-                e.dir = desiredDir;
+          // converge
+          if (Math.hypot(tx - e.x, ty - e.y) < 10) {
+            if (hasInvestigate) {
+              e.__investigate = null; // limpa o ponto investigado
+              if (e.type === "sentinela") {
+                e.state = "guard"; // volta a guardar depois de checar o som
+                e.__guardBaseDir = e.dir;
               } else {
-                e.__wpBlockedT = (e.__wpBlockedT ?? 0) + dt;
-                e.__detourDir ??= pickDetourDir(
-                  desiredDir,
-                  e,
-                  world.current.walls
-                );
-                e.__detourT = (e.__detourT ?? 0) + dt;
-                e.dir = e.__detourDir;
-                e.x += Math.cos(e.dir) * CFG.enemySpeed * dt;
-                e.y += Math.sin(e.dir) * CFG.enemySpeed * dt;
-
-                if (hasLineOfSight(e.x, e.y, wp.x, wp.y, world.current.walls)) {
-                  e.__detourT = 0;
-                  e.__detourDir = null;
-                  e.__wpBlockedT = 0;
-                }
-                if (e.__detourT > 0.9) {
-                  e.__detourT = 0;
-                  e.__detourDir = pickDetourDir(
-                    desiredDir,
-                    e,
-                    world.current.walls
-                  );
-                }
-                if (e.__wpBlockedT > 2.0) {
-                  e.targetIdx = nearestWaypointIndex(e);
-                  e.__wpBlockedT = 0;
-                  e.__detourT = 0;
-                  e.__detourDir = null;
-                }
+                e.state = "return"; // patrulheiro segue para o anchor/home
               }
-              if (Math.hypot(wp.x - e.x, wp.y - e.y) < 8) {
-                e.state = "patrol";
-              }
+              e.__path = [];
+              break;
             }
-          } else {
-            // sentinela: voltar ao ponto inicial (home) e então ficar em "guard"
-            const tx = e.home.x,
-              ty = e.home.y;
-            const desiredDir = Math.atan2(ty - e.y, tx - e.x);
-            const haveLOS = hasLineOfSight(
-              e.x,
-              e.y,
-              tx,
-              ty,
-              world.current.walls
-            );
-            if (haveLOS) {
-              e.__detourT = 0;
-              e.__detourDir = null;
-              e.__wpBlockedT = 0;
-              moveTowards(e, tx, ty, CFG.enemySpeed, dt);
-              e.dir = desiredDir;
+            if (e.type === "patrulheiro") {
+              e.state = "patrol";
+              e.targetIdx = e.anchorIdx ?? nearestWaypointIndex(e);
             } else {
-              e.__wpBlockedT = (e.__wpBlockedT ?? 0) + dt;
-              e.__detourDir ??= pickDetourDir(
-                desiredDir,
-                e,
-                world.current.walls
-              );
-              e.__detourT = (e.__detourT ?? 0) + dt;
-              e.dir = e.__detourDir;
-              e.x += Math.cos(e.dir) * CFG.enemySpeed * dt;
-              e.y += Math.sin(e.dir) * CFG.enemySpeed * dt;
-
-              if (hasLineOfSight(e.x, e.y, tx, ty, world.current.walls)) {
-                e.__detourT = 0;
-                e.__detourDir = null;
-                e.__wpBlockedT = 0;
-              }
-              if (e.__detourT > 0.9) {
-                e.__detourT = 0;
-                e.__detourDir = pickDetourDir(
-                  desiredDir,
-                  e,
-                  world.current.walls
-                );
-              }
-            }
-            if (Math.hypot(tx - e.x, ty - e.y) < 10) {
               e.state = "guard";
-              // mantém dir original se existir
-              if (typeof e.dir === "number") {
-                /* ok */
-              }
+              e.__guardBaseDir = e.dir; // <-- adicione isto para centralizar o sweep atual
             }
+            e.__path = [];
           }
           break;
         }
       }
 
-      // anti-trava básico
-      circleWallPushOut(e, e.r, world.current.walls);
+      // push-out iterativo (3x) para garantir desencaixe
+      for (let k = 0; k < 3; k++)
+        circleWallPushOut(e, e.r, world.current.walls);
 
       // anti-trava/steering só para quem PODE mover
       if (!(e.type === "sentinela" && e.state === "guard")) {
@@ -919,6 +1146,40 @@ export default function ExplorerGameCanvas({
       }
     }
 
+    // === projéteis ===
+    if (projectilesRef.current.length) {
+      const res = stepProjectiles({
+        projectiles: projectilesRef.current,
+        walls: world.current.walls,
+        enemies: world.current.enemies,
+        dt,
+        bulletDamage: CFG.bulletDamage,
+      });
+
+      if (res.killed.length) {
+        const gained = res.killed.reduce((acc, k) => acc + (k.xp || 0), 0);
+        if (gained > 0) {
+          setSessionXp((v) => {
+            const nv = v + gained;
+            sessionXpRef.current = nv;
+            return nv;
+          });
+          setPlayerXp((xp0) => {
+            const nxp = xp0 + gained;
+            updateExplorerInEstado({ xp: nxp });
+            return nxp;
+          });
+        }
+        // remove os mortos
+        const deadIdx = new Set(res.killed.map((k) => k.idx));
+        world.current.enemies = world.current.enemies.filter(
+          (_, idx) => !deadIdx.has(idx)
+        );
+      }
+
+      projectilesRef.current = projectilesRef.current.filter((b) => !b.dead);
+    }
+
     // Pickups
     world.current.pickups = world.current.pickups.filter((pk) => {
       if (Math.hypot(pk.x - p.x, pk.y - p.y) <= p.r + pk.r + 2) {
@@ -935,13 +1196,45 @@ export default function ExplorerGameCanvas({
       if (inside) {
         const has = !ex.needKey || hud.keys.includes(ex.needKey);
         if (has) {
-          setObjectives((list) =>
-            list.map((o) => (o.id === "exit" ? { ...o, done: true } : o))
-          );
-          onEstadoChange?.({
-            ...estadoAtual,
-            energia: Math.round((estadoAtual?.energia ?? 0) + 5),
-          });
+          if (!finishedRef.current) {
+            finishedRef.current = true;
+            // marca objetivo de saída, se houver
+            setObjectives((list) =>
+              list.map((o) => (o.id === "exit" ? { ...o, done: true } : o))
+            );
+            // bônus de energia (opcional)
+            onEstadoChange?.({
+              ...estadoAtual,
+              energia: Math.round((estadoAtual?.energia ?? 0) + 5),
+            });
+
+            // calcula resultados
+            const xpGained = sessionXpRef.current;
+            const finalXp = (baseXpRef.current ?? 0) + xpGained;
+            const curObjectives = objectives; // snapshot atual
+            const done = curObjectives.filter((o) => o.done || o.id === "exit");
+            const total = curObjectives.length; // ajuste se desejar contar "exit" separadamente
+
+            // mostra diálogo
+            setResultData({ xpGained, done, total });
+            setShowResult(true);
+
+            // sincroniza o EXPLORADOR correto no backend
+            if (estadoAtual?._id && explorerId) {
+              coloniaService
+                .atualizarExplorador(estadoAtual._id, explorerId, {
+                  xp: finalXp,
+                  status: "disponivel",
+                  missionId: null,
+                  updatedAt: Date.now(),
+                })
+                .catch((err) =>
+                  console.error("Erro ao sincronizar explorador:", err)
+                );
+              // reflete localmente o novo XP no estado atual
+              updateExplorerInEstado({ xp: finalXp });
+            }
+          }
         }
       }
     }
@@ -973,6 +1266,7 @@ export default function ExplorerGameCanvas({
     );
   }
 
+  // #region DRAW
   // ========================= DRAW (render) =========================
   // Aqui começa todo o desenho da cena (mundo + máscara de visão + HUD).
   function draw() {
@@ -1086,6 +1380,7 @@ export default function ExplorerGameCanvas({
       ctx.fill();
       ctx.restore();
 
+      // ...
       // CORPO
       ctx.beginPath();
       ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
@@ -1101,6 +1396,31 @@ export default function ExplorerGameCanvas({
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 2;
       ctx.stroke();
+
+      // HP bar Inimigos
+      if (typeof e.hp === "number" && typeof e.hpMax === "number") {
+        const bw = 24,
+          bh = 4,
+          ox = -12,
+          oy = -e.r - 10;
+        const pct = Math.max(0, Math.min(1, e.hp / e.hpMax));
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(e.x + ox - 1, e.y + oy - 1, bw + 2, bh + 2);
+        ctx.fillStyle = "#22c55e";
+        ctx.fillRect(e.x + ox, e.y + oy, bw * pct, bh);
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.strokeRect(e.x + ox, e.y + oy, bw, bh);
+      }
+
+      // DEBUG: desenhar caminho
+      if (e.__path && e.__path.length) {
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        for (const n of e.__path) ctx.lineTo(n.x, n.y);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(59,130,246,0.6)";
+        ctx.stroke();
+      }
     }
 
     // --------- MÁSCARA DE VISÃO (cone + bolinha 360°) ---------
@@ -1186,6 +1506,18 @@ export default function ExplorerGameCanvas({
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // Projéteis
+    for (const b of projectilesRef.current) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = "#e5e7eb"; // cinza claro
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#0b0b0b";
+      ctx.stroke();
+    }
+
+    //#region Fim do Mundo
     ctx.restore(); // fim do mundo
 
     drawHUD(ctx, c);
@@ -1218,6 +1550,7 @@ export default function ExplorerGameCanvas({
     fctx.restore();
   }
 
+  //#region drawHUD
   function drawHUD(ctx) {
     const h = hudRef.current; // ✅ pega valores atualizados
     const pad = 12,
@@ -1251,6 +1584,9 @@ export default function ExplorerGameCanvas({
       pad + 4,
       pad + 30 + barH + 14
     );
+
+    //Mostrar XP
+    ctx.fillText(`XP: ${playerXp}`, pad + 4, pad + 30 + barH + 30);
   }
 
   function drawMinimap(ctx, c) {
@@ -1307,6 +1643,11 @@ export default function ExplorerGameCanvas({
     ctx.restore();
   }
 
+  function closeAndGo() {
+    setShowResult(false);
+    navigate("/jogo");
+  }
+
   return (
     <div
       ref={boxRef}
@@ -1327,6 +1668,64 @@ export default function ExplorerGameCanvas({
           maxWidth: "100%",
         }}
       />
+      +{" "}
+      {showResult && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              width: 420,
+              background: "#0b1220",
+              color: "#fff",
+              border: "1px solid #1f2937",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+              Missão concluída!
+            </div>
+            <div style={{ fontSize: 14, opacity: 0.9 }}>
+              <div style={{ marginBottom: 8 }}>
+                XP adquirido: <b>{resultData.xpGained}</b>
+              </div>
+              <div style={{ marginBottom: 8 }}>Objetivos cumpridos:</div>
+              <ul style={{ marginLeft: 16, marginBottom: 12 }}>
+                {resultData.done.map((o) => (
+                  <li key={o.id}>✅ {o.label}</li>
+                ))}
+                {resultData.done.length === 0 && <li>—</li>}
+              </ul>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={closeAndGo}
+                style={{
+                  background: "#22c55e",
+                  color: "#0b0b0b",
+                  fontWeight: 700,
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Checklist de objetivos */}
       <div
         style={{

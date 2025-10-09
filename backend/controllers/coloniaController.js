@@ -181,12 +181,10 @@ exports.criarColonia = async (req, res) => {
       },
     };
     const novaColonia = await Colonia.create(defaults);
-    return res
-      .status(201)
-      .json({
-        ...novaColonia.toJSON({ flattenMaps: true }),
-        water: metaFrom(novaColonia),
-      });
+    return res.status(201).json({
+      ...novaColonia.toJSON({ flattenMaps: true }),
+      water: metaFrom(novaColonia),
+    });
   } catch (error) {
     console.error("Erro ao criar colônia:", error);
     return res.status(500).json({ erro: "Erro ao criar colônia." });
@@ -251,6 +249,67 @@ exports.buscarColoniaPorNome = async (req, res) => {
   } catch (error) {
     console.error("Erro ao buscar colônia:", error);
     res.status(500).json({ mensagem: "Erro interno ao buscar colônia." });
+  }
+};
+
+// PATCH: atualizar um explorador específico dentro da colônia
+exports.atualizarExplorador = async (req, res) => {
+  try {
+    const { id: coloniaId, explorerId } = req.params;
+    const body = req.body || {};
+
+    // Campos permitidos para atualizar (top-level do explorador)
+    const allowed = new Set([
+      "name",
+      "nickname",
+      "level",
+      "xp",
+      "xpNext",
+      "hp",
+      "stamina",
+      "skills",
+      "traits",
+      "equipment",
+      "status",
+      "missionId",
+      "portrait",
+    ]);
+
+    // Monta o $set com prefixo do array filtrado
+    const $set = { "exploradores.$[ex].updatedAt": Date.now() };
+    for (const [k, v] of Object.entries(body)) {
+      if (allowed.has(k)) {
+        $set[`exploradores.$[ex].${k}`] = v;
+      }
+    }
+    if (Object.keys($set).length === 1) {
+      return res.status(400).json({ erro: "Nada para atualizar." });
+    }
+
+    const updated = await Colonia.findOneAndUpdate(
+      { _id: coloniaId, "exploradores.id": explorerId },
+      { $set },
+      {
+        new: true,
+        runValidators: true,
+        arrayFilters: [{ "ex.id": explorerId }],
+      }
+    );
+
+    if (!updated) {
+      return res
+        .status(404)
+        .json({ erro: "Colônia ou explorador não encontrado." });
+    }
+
+    // Retorna somente o explorador atualizado
+    const explorer = (updated.exploradores || []).find(
+      (e) => e.id === explorerId
+    );
+    return res.status(200).json(explorer || null);
+  } catch (e) {
+    console.error("Erro ao atualizar explorador:", e);
+    return res.status(500).json({ erro: "Erro ao atualizar explorador." });
   }
 };
 
