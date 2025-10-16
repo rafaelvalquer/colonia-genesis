@@ -381,6 +381,19 @@ function smoothPathToPoints(grid, raw, walls) {
   return out;
 }
 
+function sumRewardsFromCollected(rewards = [], collectedSet) {
+  return rewards.reduce(
+    (acc, r, idx) => {
+      if (!collectedSet.has(idx)) return acc;
+      if (Number.isFinite(r.colono)) acc.colonos += r.colono;
+      if (Number.isFinite(r.comida)) acc.comida += r.comida;
+      if (Number.isFinite(r.minerais)) acc.minerais += r.minerais;
+      return acc;
+    },
+    { colonos: 0, comida: 0, minerais: 0 }
+  );
+}
+
 // #region Inicio do Jogo
 
 /** ✅ Agora recebe explorer/mission e usa stats do explorador no HUD */
@@ -411,6 +424,7 @@ export default function ExplorerGameCanvas({
     done: [],
     total: 0,
   });
+  const collectedRewardsRef = useRef(new Set());
 
   console.log(explorerId);
 
@@ -550,6 +564,7 @@ export default function ExplorerGameCanvas({
   const [objectives, setObjectives] = useState([]);
 
   useEffect(() => {
+    collectedRewardsRef.current.clear();
     const level =
       levels.levels.find((l) => l.id === missionId) || levels.levels[0];
     if (!level) return;
@@ -1211,9 +1226,46 @@ export default function ExplorerGameCanvas({
             // calcula resultados
             const xpGained = sessionXpRef.current;
             const finalXp = (baseXpRef.current ?? 0) + xpGained;
-            const curObjectives = objectives; // snapshot atual
-            const done = curObjectives.filter((o) => o.done || o.id === "exit");
-            const total = curObjectives.length; // ajuste se desejar contar "exit" separadamente
+            const collected = collectedRewardsRef.current;
+            const done = objectives.filter(
+              (o, i) => collected.has(i) || o.id === "exit"
+            );
+            const rewardTotals = sumRewardsFromCollected(
+              mission?.recompensas ?? [],
+              collected
+            );
+            const total = objectives.length; // ou: (mission?.recompensas?.length ?? objectives.length)
+
+            // 🔽 remove a missão concluída da fila (usa filaItem.id; fallback missionId)
+            const removerDaFila = (m) => {
+              const sameId = filaItem?.id
+                ? m.id === filaItem.id
+                : m.id === missionId;
+              // se houver mais de uma com mesmo id, garante pelo explorerId também
+              const sameExplorer = explorerId
+                ? m.explorerId === explorerId
+                : true;
+              return !(sameId && sameExplorer);
+            };
+            const novaFila = (estadoAtual?.filaMissoes || []).filter(
+              removerDaFila
+            );
+
+            // ✅ Aplica localmente no estadoAtual
+            const novoEstado = {
+              ...estadoAtual,
+              populacao: {
+                ...estadoAtual?.populacao,
+                colonos:
+                  (estadoAtual?.populacao?.colonos || 0) + rewardTotals.colonos,
+              },
+              comida: (estadoAtual?.comida || 0) + rewardTotals.comida,
+              minerais: (estadoAtual?.minerais || 0) + rewardTotals.minerais,
+              filaMissoes: novaFila,
+              updatedAt: Date.now(),
+            };
+
+            onEstadoChange?.(novoEstado);
 
             // mostra diálogo
             setResultData({ xpGained, done, total });
@@ -1233,6 +1285,24 @@ export default function ExplorerGameCanvas({
                 );
               // reflete localmente o novo XP no estado atual
               updateExplorerInEstado({ xp: finalXp });
+            }
+
+            // ✅ Persiste as recompensas no backend
+            if (estadoAtual?._id) {
+              coloniaService
+                .atualizarColonia(estadoAtual._id, {
+                  populacao: novoEstado.populacao,
+                  comida: novoEstado.comida,
+                  minerais: novoEstado.minerais,
+                  filaMissoes: novoEstado.filaMissoes,
+                  updatedAt: novoEstado.updatedAt,
+                })
+                .catch((err) =>
+                  console.error(
+                    "Erro ao sincronizar recompensas da missão:",
+                    err
+                  )
+                );
             }
           }
         }
@@ -1264,6 +1334,7 @@ export default function ExplorerGameCanvas({
     setObjectives((list) =>
       list.map((o, idx) => (idx === pk.rewardId ? { ...o, done: true } : o))
     );
+    collectedRewardsRef.current.add(pk.rewardId);
   }
 
   // #region DRAW

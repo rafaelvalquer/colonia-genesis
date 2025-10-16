@@ -109,7 +109,6 @@ const exploradorSchema = new mongoose.Schema(
     hp: { type: hpSchema, required: true },
     stamina: { type: staminaSchema, required: true },
     skills: { type: skillsSchema, default: () => ({}) },
-    traits: { type: [String], default: [] },
     equipment: { type: equipmentSchema, default: () => ({}) },
     status: {
       type: String,

@@ -187,7 +187,6 @@ function GamePage({
         furtividade: 0,
         resiliencia: 0,
       },
-      traits: [],
       equipment: { arma: null, armadura: null, gadget: null },
       status: "disponivel",
       missionId: null,
