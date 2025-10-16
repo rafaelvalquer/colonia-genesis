@@ -121,6 +121,31 @@ function StatusBadge({ status }) {
   );
 }
 
+// Fórmula do próximo XP: cresce ~25% por nível (ajuste se quiser)
+function calcXpNext(level = 1) {
+  const base = 100;
+  return Math.max(
+    50,
+    Math.round(base * Math.pow(1.25, Math.max(0, level - 1)))
+  );
+}
+
+// Converte excesso de XP em "níveis ganhos" e pontos
+function resolveLevelUps(xp, xpNext, level) {
+  let lv = level ?? 1;
+  let curXp = xp ?? 0;
+  let curNext = xpNext ?? calcXpNext(lv);
+  let gained = 0;
+
+  while (curXp >= curNext) {
+    curXp -= curNext;
+    lv += 1;
+    gained += 1;
+    curNext = calcXpNext(lv);
+  }
+  return { level: lv, xp: curXp, xpNext: curNext, points: gained };
+}
+
 /** Componente principal — TODOS OS HOOKS FICAM AQUI DENTRO */
 export default function MissoesExploradores({ estadoAtual, onSalvar }) {
   const initialExplorers = useMemo(
@@ -132,6 +157,11 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
   const [tab, setTab] = useState("all"); // all | available | mission
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [lvlModalOpen, setLvlModalOpen] = useState(false);
+  const [lvlTargetId, setLvlTargetId] = useState(null);
+  const [lvlPointsLeft, setLvlPointsLeft] = useState(0);
+  const [lvlDraftSkills, setLvlDraftSkills] = useState(null); // snapshot mutável das skills no modal
+  const [lvlSnapshot, setLvlSnapshot] = useState(null); // {level, xp, xpNext} pós-resolveLevelUps
 
   // Mapa dos originais para detectar alterações (evita mudar updatedAt à toa)
   const originalById = useMemo(() => {
@@ -228,6 +258,86 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
     );
     showToast("Stats resetadas!");
   };
+
+  function openLevelUpModal(ex) {
+    const { level, xp, xpNext, points } = resolveLevelUps(
+      ex.xp,
+      ex.xpNext,
+      ex.level ?? 1
+    );
+    if (points <= 0) return;
+
+    setLvlTargetId(ex.id);
+    setLvlPointsLeft(points);
+    setLvlDraftSkills({ ...(ex.skills || {}) });
+    setLvlSnapshot({ level, xp, xpNext });
+    setLvlModalOpen(true);
+  }
+
+  function bumpSkill(key, delta) {
+    if (!lvlDraftSkills) return;
+    if (delta > 0 && lvlPointsLeft <= 0) return;
+    // não permitir valores negativos
+    const next = {
+      ...lvlDraftSkills,
+      [key]: Math.max(0, (lvlDraftSkills[key] ?? 0) + delta),
+    };
+    setLvlDraftSkills(next);
+    setLvlPointsLeft((p) => p - delta);
+  }
+
+  async function confirmLevelUp() {
+    if (!lvlTargetId || !lvlSnapshot || !lvlDraftSkills) return;
+    try {
+      // aplica no array em memória
+      setExplorers((prev) => {
+        const list = prev.map((ex) => {
+          if (ex.id !== lvlTargetId) return ex;
+          return {
+            ...ex,
+            level: lvlSnapshot.level,
+            xp: lvlSnapshot.xp,
+            xpNext: lvlSnapshot.xpNext,
+            skills: { ...(ex.skills || {}), ...lvlDraftSkills },
+            updatedAt: Date.now(),
+          };
+        });
+        return list;
+      });
+
+      // payload completo para backend
+      const payloadExplorers = explorers.map((ex) => {
+        if (ex.id !== lvlTargetId) return ex;
+        return {
+          ...ex,
+          level: lvlSnapshot.level,
+          xp: lvlSnapshot.xp,
+          xpNext: lvlSnapshot.xpNext,
+          skills: { ...(ex.skills || {}), ...lvlDraftSkills },
+          updatedAt: Date.now(),
+        };
+      });
+
+      if (typeof onSalvar === "function") {
+        await onSalvar({ exploradores: payloadExplorers });
+      } else {
+        await coloniaService.atualizarColonia(estadoAtual._id, {
+          exploradores: payloadExplorers,
+        });
+      }
+
+      showToast("Atributos atualizados!");
+    } catch (e) {
+      console.error("Erro ao salvar level up:", e);
+      showToast("Falha ao salvar.");
+    } finally {
+      setLvlModalOpen(false);
+      setLvlTargetId(null);
+      setLvlDraftSkills(null);
+      setLvlSnapshot(null);
+      setLvlPointsLeft(0);
+    }
+  }
 
   return (
     <div className="text-white">
@@ -414,7 +524,7 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
                 })()}
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <StatBar
                   label="HP"
                   color="text-red-400"
@@ -427,29 +537,28 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
                   current={stCur}
                   max={stMax}
                 />
-                <XPBar xp={xp} xpNext={xpNext} />
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm text-blue-400">Resiliência</span>
-                    <span className="text-sm">
-                      {e.traits?.length || 0} traits
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full bg-blue-500"
-                      style={{
-                        width: `${clamp(
-                          (e.traits?.length || 0) * 10,
-                          0,
-                          100
-                        )}%`,
-                        transition: "width .4s ease",
-                      }}
-                    />
-                  </div>
+                {/* XP em largura total */}
+                <div className="sm:col-span-2">
+                  <XPBar xp={xp} xpNext={xpNext} />
                 </div>
               </div>
+
+              {/* Botão Level Up quando xp >= xpNext */}
+              {xp >= xpNext && (
+                <button
+                  className="mt-3 w-full py-2 bg-green-600 hover:bg-green-500 rounded-lg font-semibold"
+                  onClick={() => openLevelUpModal(e)}
+                >
+                  Melhorar atributos (+
+                  {resolveLevelUps(xp, xpNext, e.level ?? 1).points} ponto
+                  {(s) =>
+                    resolveLevelUps(xp, xpNext, e.level ?? 1).points > 1
+                      ? "s"
+                      : ""
+                  }
+                  )
+                </button>
+              )}
 
               {/* Atributos */}
               <div className="mb-6">
@@ -506,6 +615,79 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
           </div>
         )}
       </div>
+
+      {lvlModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-xl font-bold mb-2">Distribuir Pontos</h3>
+            <p className="text-sm text-gray-300 mb-4">
+              Pontos disponíveis: <b>{lvlPointsLeft}</b>
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {SKILL_ORDER.map(([key, txt, bg]) => (
+                <div
+                  key={key}
+                  className="bg-gray-900/60 border border-gray-700 rounded-lg p-3"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs capitalize ${txt}`}>{key}</span>
+                    <span className="text-sm text-gray-200">
+                      {lvlDraftSkills?.[key] ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+                      onClick={() => bumpSkill(key, -1)}
+                      disabled={(lvlDraftSkills?.[key] ?? 0) <= 0}
+                    >
+                      −
+                    </button>
+                    <button
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded disabled:opacity-50"
+                      onClick={() => bumpSkill(key, +1)}
+                      disabled={lvlPointsLeft <= 0}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-sm text-gray-400 mb-4">
+              Novo nível: <b>{lvlSnapshot?.level}</b> • Próximo XP:{" "}
+              <b>
+                {lvlSnapshot?.xp}/{lvlSnapshot?.xpNext}
+              </b>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+                onClick={() => {
+                  setLvlModalOpen(false);
+                  setLvlTargetId(null);
+                  setLvlDraftSkills(null);
+                  setLvlSnapshot(null);
+                  setLvlPointsLeft(0);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-semibold disabled:opacity-50"
+                onClick={confirmLevelUp}
+                disabled={lvlPointsLeft !== 0}
+                title={lvlPointsLeft !== 0 ? "Distribua todos os pontos" : ""}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       <div

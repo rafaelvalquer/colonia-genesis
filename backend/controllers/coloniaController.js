@@ -268,7 +268,6 @@ exports.atualizarExplorador = async (req, res) => {
       "hp",
       "stamina",
       "skills",
-      "traits",
       "equipment",
       "status",
       "missionId",
