@@ -512,11 +512,16 @@ export default function ExplorerGameCanvas({
 
   const [levelReady, setLevelReady] = useState(false);
 
-  // 🔎 Deriva valores do explorador (fallback para estadoAtual ou defaults)
-  const hpCurrent0 = explorer?.hp?.current ?? estadoAtual?.hp?.current ?? 10;
-  const hpMax0 = explorer?.hp?.max ?? estadoAtual?.hp?.max ?? 10;
-  const enCurrent0 = explorer?.stamina?.current ?? estadoAtual?.energia ?? 10;
-  const enMax0 = explorer?.stamina?.max ?? estadoAtual?.energiaMax ?? 10;
+  // 🔎 Deriva valores do explorador (usa os valores persistidos no objeto)
+  const toNum = (v, d) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+
+  const hpCurrent0 = toNum(explorer?.hp?.current, 10);
+  const hpMax0 = toNum(explorer?.hp?.max, 10);
+  const enCurrent0 = toNum(explorer?.stamina?.current, 10);
+  const enMax0 = toNum(explorer?.stamina?.max, 10);
 
   const [hud, setHud] = useState({
     hp: hpCurrent0,
@@ -549,16 +554,21 @@ export default function ExplorerGameCanvas({
   const regenIdleEff = CFG.regenWhileIdle * mods.regenMul;
   const enemyDpsEff = CFG.enemyDamagePerSec * mods.dmgTakenMul;
 
-  // HP/Stamina máximos do HUD
+  // Mantém o HUD em linha com os valores persistidos no explorer (sem bônus)
   useEffect(() => {
-    setHud((h) => ({
-      ...h,
-      hpMax: (explorer?.hp?.max ?? h.hpMax) + mods.hpMaxBonus,
-      enMax: (explorer?.stamina?.max ?? h.enMax) + mods.enMaxBonus,
-      hp: Math.min(h.hp, (explorer?.hp?.max ?? h.hpMax) + mods.hpMaxBonus),
-      en: Math.min(h.en, (explorer?.stamina?.max ?? h.enMax) + mods.enMaxBonus),
-    }));
-  }, [mods]);
+    setHud((h) => {
+      const hpMax = toNum(explorer?.hp?.max, h.hpMax);
+      const enMax = toNum(explorer?.stamina?.max, h.enMax);
+      const hpCur = Math.min(toNum(explorer?.hp?.current, h.hp), hpMax);
+      const enCur = Math.min(toNum(explorer?.stamina?.current, h.en), enMax);
+      return { ...h, hpMax, enMax, hp: hpCur, en: enCur };
+    });
+  }, [
+    explorer?.hp?.max,
+    explorer?.hp?.current,
+    explorer?.stamina?.max,
+    explorer?.stamina?.current,
+  ]);
 
   // objetivos básicos do minigame
   const [objectives, setObjectives] = useState([]);

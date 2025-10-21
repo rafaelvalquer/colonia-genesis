@@ -416,13 +416,8 @@ export const CollisionManager = {
         y: (t.row + 0.5) * tileH,
       };
       const p = acquireProjectile();
-      const bounds = {
-        minX: 0,
-        maxX,
-        minY: 0,
-        maxY: gameRef.view?.h ?? tileH * 7,
-      };
-      // re-inicializa TUDO que afeta colisão/vida do projétil
+
+      // reset total
       p.x = muzzle.x;
       p.y = muzzle.y;
       p.vx = t.config.velocidadeProjetil || 6;
@@ -430,8 +425,8 @@ export const CollisionManager = {
       p.row = t.row;
       p.tipo = t.tipo;
       p.dano = t.config.dano | 0;
-      p.bounds = bounds;
-      p.tileH = tileH; // 🔑 altura real do tile p/ colisão
+      p.bounds = { minX: 0, maxX, minY: 0, maxY: gameRef.view?.h ?? tileH * 7 };
+      p.tileH = tileH;
       p.radius = 5;
       p.ticks = 0; // 🔑 reseta TTL
       p.hit = false; // 🔑 limpa estado de impacto antigo
@@ -441,11 +436,18 @@ export const CollisionManager = {
       p.kind = "bola";
       p.cor = t.config.corProjetil || "#fff";
 
-      p.slowFactor = t.config.slowFactor ?? null;
-      p.slowMs = t.config.slowMs ?? 0;
+      // 🔄 sempre zerar efeitos de status/FX do pool
+      p.slowFactor = null;
+      p.slowMs = 0;
+      p.fxSnow = false; // <- o que faltava
+      p.trailKind = null; // se existir
+      p.stopEmitter?.(); // se houver emissor antigo
+      p.stopEmitter = null;
 
-      // se essa tropa aplica slow, marcamos o projétil e ligamos FX de neve
-      if ((t.config.slowFactor ?? 1) < 1 && (t.config.slowMs ?? 0) > 0) {
+      // aplica slow somente quando essa tropa tiver o efeito
+      const hasSlow =
+        (t.config?.slowFactor ?? 1) < 1 && (t.config?.slowMs ?? 0) > 0;
+      if (hasSlow) {
         p.slowFactor = t.config.slowFactor;
         p.slowMs = t.config.slowMs;
         p.fxSnow = true;

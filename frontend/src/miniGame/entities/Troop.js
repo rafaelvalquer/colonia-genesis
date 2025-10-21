@@ -29,7 +29,7 @@ export const troopTypes = {
     deployCooldownMs: 4000,
   },
 
-  /*  guarda: {
+  /* guarda: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -251,7 +251,8 @@ export const troopTypes = {
     deployCooldownMs: 6000,
   },
 
-  */
+*/
+  //krio: {
   guarda: {
     preco: 12,
     hp: 6,
@@ -295,31 +296,6 @@ export const troopTypes = {
     deployCost: 6,
     deployCooldownMs: 2500,
   },
-  /*
-  grenadier: {
-    preco: 18,
-    alcance: 3,
-    cooldown: 90,
-    dano: 3,
-    cor: "#9CCC65",
-    corProjetil: "#C5E1A5",
-    velocidadeProjetil: 4,
-    frameCount: 6, // ← quantidade de frames
-    frameInterval: 8, // ← intervalo entre frames
-    estados: ["idle", "attack"],
-  },
-  psi: {
-    preco: 25,
-    alcance: 4,
-    cooldown: 100,
-    dano: 3,
-    cor: "#AB47BC",
-    corProjetil: "#E1BEE7",
-    velocidadeProjetil: 3,
-    frameCount: 6, // ← quantidade de frames
-    frameInterval: 8, // ← intervalo entre frames
-    estados: ["idle", "attack"],
-  },*/
 };
 
 // Pré-carrega os frames das tropas

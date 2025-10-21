@@ -12,6 +12,14 @@ const COLOR_HEX = {
   "text-lime-400": "#a3e635",
 };
 
+const SKILL_TIPS = {
+  visao: "FOV maior, lanterna e bolha mais longas.",
+  agilidade: "Move mais rápido. Sprint melhor.",
+  folego: "Stamina máx ↑, regen ↑, custo do sprint ↓.",
+  furtividade: "Menos ruído. Perde agro mais rápido.",
+  resiliencia: "HP máx ↑. Dano recebido ↓.",
+};
+
 /** Utils (sem hooks aqui) */
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const pct = (cur, max) =>
@@ -95,6 +103,34 @@ function XPBar({ xp, xpNext }) {
   );
 }
 
+// === ADICIONE este helper acima do componente (depois de resolveLevelUps, por exemplo)
+function applySkillDerivedToStats(ex, prevSkills, nextSkills) {
+  const prevRe = prevSkills?.resiliencia ?? 0;
+  const nextRe = nextSkills?.resiliencia ?? 0;
+  const prevFo = prevSkills?.folego ?? 0;
+  const nextFo = nextSkills?.folego ?? 0;
+
+  const deltaRe = nextRe - prevRe; // +2 HP máx por ponto
+  const deltaFo = nextFo - prevFo; // +2 EN máx por ponto
+
+  const prevHpMax = ex.hp?.max ?? 0;
+  const prevHpCur = ex.hp?.current ?? prevHpMax;
+  const prevEnMax = ex.stamina?.max ?? 0;
+  const prevEnCur = ex.stamina?.current ?? prevEnMax;
+
+  const newHpMax = Math.max(1, prevHpMax + 2 * deltaRe);
+  const newEnMax = Math.max(0, prevEnMax + 2 * deltaFo);
+
+  // opcional: “cura”/“recarga” o bônus junto (padrão aqui: sim)
+  const newHpCur = Math.min(newHpMax, prevHpCur + 2 * deltaRe);
+  const newEnCur = Math.min(newEnMax, prevEnCur + 2 * deltaFo);
+
+  return {
+    hp: { ...(ex.hp || {}), max: newHpMax, current: newHpCur },
+    stamina: { ...(ex.stamina || {}), max: newEnMax, current: newEnCur },
+  };
+}
+
 function EquipmentSlot({ label, value }) {
   return (
     <div className="equipment-slot bg-gray-700 border-2 border-dashed border-gray-600 rounded-md w-20 h-20 flex items-center justify-center relative hover:border-blue-500 hover:bg-blue-500/10 transition">
@@ -121,20 +157,17 @@ function StatusBadge({ status }) {
   );
 }
 
-// Fórmula do próximo XP: cresce ~25% por nível (ajuste se quiser)
+// Fórmula do próximo XP: cresce 100% por nível (ajuste se quiser)
 function calcXpNext(level = 1) {
-  const base = 100;
-  return Math.max(
-    50,
-    Math.round(base * Math.pow(1.25, Math.max(0, level - 1)))
-  );
+  const base = 10;
+  return Math.max(10, Math.round(base * Math.pow(2, Math.max(0, level - 1))));
 }
 
 // Converte excesso de XP em "níveis ganhos" e pontos
-function resolveLevelUps(xp, xpNext, level) {
+function resolveLevelUps(xp, level = 1) {
   let lv = level ?? 1;
   let curXp = xp ?? 0;
-  let curNext = xpNext ?? calcXpNext(lv);
+  let curNext = calcXpNext(lv);
   let gained = 0;
 
   while (curXp >= curNext) {
@@ -149,9 +182,19 @@ function resolveLevelUps(xp, xpNext, level) {
 /** Componente principal — TODOS OS HOOKS FICAM AQUI DENTRO */
 export default function MissoesExploradores({ estadoAtual, onSalvar }) {
   const initialExplorers = useMemo(
-    () => (estadoAtual?.exploradores || []).map((e) => ({ ...e })),
+    () =>
+      (estadoAtual?.exploradores || []).map((e) => {
+        const level = e.level ?? 1;
+        return {
+          ...e,
+          level,
+          xp: e.xp ?? 0,
+          xpNext: calcXpNext(level), // força consistência
+        };
+      }),
     [estadoAtual?.exploradores]
   );
+
   console.log("!!!!!!!!!!!!!!" + JSON.stringify(estadoAtual.filaMissoes));
   const [explorers, setExplorers] = useState(initialExplorers);
   const [tab, setTab] = useState("all"); // all | available | mission
@@ -259,18 +302,14 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
     showToast("Stats resetadas!");
   };
 
+  // Modal abrir
   function openLevelUpModal(ex) {
-    const { level, xp, xpNext, points } = resolveLevelUps(
-      ex.xp,
-      ex.xpNext,
-      ex.level ?? 1
-    );
+    const { level, xp, xpNext, points } = resolveLevelUps(ex.xp, ex.level ?? 1);
     if (points <= 0) return;
-
     setLvlTargetId(ex.id);
     setLvlPointsLeft(points);
     setLvlDraftSkills({ ...(ex.skills || {}) });
-    setLvlSnapshot({ level, xp, xpNext });
+    setLvlSnapshot({ level, xp, xpNext }); // xpNext já recalculado
     setLvlModalOpen(true);
   }
 
@@ -289,31 +328,51 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
   async function confirmLevelUp() {
     if (!lvlTargetId || !lvlSnapshot || !lvlDraftSkills) return;
     try {
-      // aplica no array em memória
+      // aplica no array em memória (com HP/Stamina ajustados)
       setExplorers((prev) => {
         const list = prev.map((ex) => {
           if (ex.id !== lvlTargetId) return ex;
+
+          const nextSkills = { ...(ex.skills || {}), ...lvlDraftSkills };
+          const { hp, stamina } = applySkillDerivedToStats(
+            ex,
+            ex.skills || {},
+            nextSkills
+          );
+
           return {
             ...ex,
             level: lvlSnapshot.level,
             xp: lvlSnapshot.xp,
             xpNext: lvlSnapshot.xpNext,
-            skills: { ...(ex.skills || {}), ...lvlDraftSkills },
+            skills: nextSkills,
+            hp,
+            stamina,
             updatedAt: Date.now(),
           };
         });
         return list;
       });
 
-      // payload completo para backend
+      // payload completo para backend (com HP/Stamina ajustados)
       const payloadExplorers = explorers.map((ex) => {
         if (ex.id !== lvlTargetId) return ex;
+
+        const nextSkills = { ...(ex.skills || {}), ...lvlDraftSkills };
+        const { hp, stamina } = applySkillDerivedToStats(
+          ex,
+          ex.skills || {},
+          nextSkills
+        );
+
         return {
           ...ex,
           level: lvlSnapshot.level,
           xp: lvlSnapshot.xp,
           xpNext: lvlSnapshot.xpNext,
-          skills: { ...(ex.skills || {}), ...lvlDraftSkills },
+          skills: nextSkills,
+          hp,
+          stamina,
           updatedAt: Date.now(),
         };
       });
@@ -326,7 +385,7 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
         });
       }
 
-      showToast("Atributos atualizados!");
+      showToast("Atributos e stats salvos!");
     } catch (e) {
       console.error("Erro ao salvar level up:", e);
       showToast("Falha ao salvar.");
@@ -544,19 +603,14 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
               </div>
 
               {/* Botão Level Up quando xp >= xpNext */}
-              {xp >= xpNext && (
+              {xp >= calcXpNext(e.level ?? 1) && (
                 <button
                   className="mt-3 w-full py-2 bg-green-600 hover:bg-green-500 rounded-lg font-semibold"
                   onClick={() => openLevelUpModal(e)}
                 >
                   Melhorar atributos (+
-                  {resolveLevelUps(xp, xpNext, e.level ?? 1).points} ponto
-                  {(s) =>
-                    resolveLevelUps(xp, xpNext, e.level ?? 1).points > 1
-                      ? "s"
-                      : ""
-                  }
-                  )
+                  {resolveLevelUps(xp, e.level ?? 1).points} ponto
+                  {resolveLevelUps(xp, e.level ?? 1).points > 1 ? "s" : ""})
                 </button>
               )}
 
@@ -631,11 +685,28 @@ export default function MissoesExploradores({ estadoAtual, onSalvar }) {
                   className="bg-gray-900/60 border border-gray-700 rounded-lg p-3"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`text-xs capitalize ${txt}`}>{key}</span>
+                    <span className={`text-xs capitalize ${txt}`}>
+                      {key}
+                      <span
+                        className="relative ml-1 text-gray-400 cursor-help group"
+                        title={SKILL_TIPS[key]}
+                        aria-label={SKILL_TIPS[key]}
+                      >
+                        ⓘ
+                        <span
+                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1
+                         whitespace-nowrap rounded bg-black/80 px-2 py-1 text-[11px] text-white
+                         opacity-0 group-hover:opacity-100 transition"
+                        >
+                          {SKILL_TIPS[key]}
+                        </span>
+                      </span>
+                    </span>
                     <span className="text-sm text-gray-200">
                       {lvlDraftSkills?.[key] ?? 0}
                     </span>
                   </div>
+
                   <div className="flex gap-2">
                     <button
                       className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
