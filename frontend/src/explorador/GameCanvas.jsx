@@ -50,6 +50,7 @@ const CFG = {
   bulletCooldownMs: 140, // cadência
   bulletMaxDist: 650,
   bulletDamage: 4,
+  enemyHitChaseMs: 4500, // quanto tempo o inimigo persegue/investiga após levar tiro sem ver
 };
 
 /** Ajusta o canvas ao CSS e DPR */
@@ -109,6 +110,12 @@ function calcSkillMods(sk) {
     hpMaxBonus: 2 * re,
     dmgTakenMul: clamp(1 - 0.03 * re, 0.7, 1),
   };
+}
+
+// === XP helpers (mesma lógica do menu) ===
+function calcXpNext(level = 1) {
+  const base = 10;
+  return Math.max(10, Math.round(base * Math.pow(2, Math.max(0, level - 1))));
 }
 
 function segIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
@@ -426,6 +433,29 @@ export default function ExplorerGameCanvas({
   });
   const collectedRewardsRef = useRef(new Set());
 
+  // Progresso de nível local (visual)
+  const levelRef = useRef(Number(explorer?.level) || 1); // nível atual (visual)
+  const xpInLevelRef = useRef(Number(explorer?.xp) || 0); // xp acumulado dentro do nível (visual)
+
+  // Partículas de "LEVEL UP!"
+  const levelUpParticlesRef = useRef([]); // {x,y,vx,vy,life,age,sz}
+  function spawnLevelUpBurst(x, y) {
+    const N = 36;
+    for (let i = 0; i < N; i++) {
+      const ang = (Math.PI * 2 * i) / N + (Math.random() * 0.8 - 0.4);
+      const spd = 70 + Math.random() * 110; // velocidade inicial
+      levelUpParticlesRef.current.push({
+        x,
+        y,
+        vx: Math.cos(ang) * spd * 0.35,
+        vy: -Math.abs(Math.sin(ang) * spd) * 0.5 - (60 + Math.random() * 40),
+        life: 0.9 + Math.random() * 0.5, // duração
+        age: 0,
+        sz: 0.8 + Math.random() * 0.8, // tamanho bem menor (0.8–1.6)
+      });
+    }
+  }
+
   console.log(explorerId);
 
   // atualiza o explorador certo dentro de estadoAtual.exploradores
@@ -532,6 +562,10 @@ export default function ExplorerGameCanvas({
   });
 
   const [playerXp, setPlayerXp] = useState(explorer?.xp ?? 0);
+  const playerXpRef = useRef(playerXp);
+  useEffect(() => {
+    playerXpRef.current = playerXp;
+  }, [playerXp]);
 
   const hudRef = useRef(hud);
   useEffect(() => {
@@ -1172,7 +1206,14 @@ export default function ExplorerGameCanvas({
     }
 
     // === projéteis ===
+    // === projéteis ===
     if (projectilesRef.current.length) {
+      // snapshot de HP para detectar quem levou tiro neste frame
+      const prevHp = world.current.enemies.map((e) =>
+        Number.isFinite(e.hp) ? e.hp : Infinity
+      );
+
+      // AVANÇA projéteis + aplica dano/colisão
       const res = stepProjectiles({
         projectiles: projectilesRef.current,
         walls: world.current.walls,
@@ -1181,7 +1222,43 @@ export default function ExplorerGameCanvas({
         bulletDamage: CFG.bulletDamage,
       });
 
-      if (res.killed.length) {
+      // Se alguém levou tiro sem ver o player, entra em "return" com __investigate; se vê, "chase"
+      const nowMs = performance.now();
+      const chaseWindow = CFG.enemyHitChaseMs ?? 4000;
+      const px = p.x,
+        py = p.y;
+
+      world.current.enemies.forEach((e, i) => {
+        const before = prevHp[i];
+        const after = Number.isFinite(e.hp) ? e.hp : before;
+        if (after < before) {
+          const toPlayer = Math.atan2(py - e.y, px - e.x);
+          const dist = Math.hypot(px - e.x, py - e.y);
+          const sees =
+            dist <= CFG.enemyViewDist &&
+            Math.abs(angleBetween(e.dir, toPlayer)) <=
+              toRad(CFG.enemyFovDeg) / 2 &&
+            hasLineOfSight(e.x, e.y, px, py, world.current.walls);
+
+          if (sees) {
+            e.state = "chase";
+            e.__lostT = 0;
+            e.__investigate = null;
+            e.lastSeenPlayerAt = { x: px, y: py, t: nowMs };
+          } else {
+            e.__lastHeardAt = nowMs;
+            e.__investigate = { x: px, y: py, until: nowMs + chaseWindow };
+            e.state = "return"; // 'return' já caminha até __investigate
+            e.__path = planPathForEnemy(e, px, py);
+            e.__detourT = 0;
+            e.__detourDir = null;
+            e.__wpBlockedT = 0;
+          }
+        }
+      });
+
+      // XP + remover inimigos mortos
+      if (res.killed && res.killed.length) {
         const gained = res.killed.reduce((acc, k) => acc + (k.xp || 0), 0);
         if (gained > 0) {
           setSessionXp((v) => {
@@ -1191,17 +1268,27 @@ export default function ExplorerGameCanvas({
           });
           setPlayerXp((xp0) => {
             const nxp = xp0 + gained;
+            playerXpRef.current = nxp;
             updateExplorerInEstado({ xp: nxp });
             return nxp;
           });
+
+          xpInLevelRef.current += gained;
+          while (xpInLevelRef.current >= calcXpNext(levelRef.current)) {
+            xpInLevelRef.current -= calcXpNext(levelRef.current);
+            levelRef.current += 1;
+            const ppos = playerRef.current;
+            spawnLevelUpBurst(ppos.x, ppos.y - ppos.r);
+          }
         }
-        // remove os mortos
+
         const deadIdx = new Set(res.killed.map((k) => k.idx));
         world.current.enemies = world.current.enemies.filter(
           (_, idx) => !deadIdx.has(idx)
         );
       }
 
+      // limpa projéteis mortos
       projectilesRef.current = projectilesRef.current.filter((b) => !b.dead);
     }
 
@@ -1317,6 +1404,19 @@ export default function ExplorerGameCanvas({
           }
         }
       }
+    }
+
+    // === Partículas de level-up ===
+    if (levelUpParticlesRef.current.length) {
+      const g = 220; // gravidade p/ cair devagar
+      levelUpParticlesRef.current = levelUpParticlesRef.current.filter((p) => {
+        p.age += dt;
+        if (p.age >= p.life) return false;
+        p.vy += g * dt * 0.25; // leve gravidade (ainda "sobem" no início)
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        return true;
+      });
     }
 
     // Câmera
@@ -1587,6 +1687,29 @@ export default function ExplorerGameCanvas({
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // === Partículas de "LEVEL UP!" ===
+    if (levelUpParticlesRef.current.length) {
+      for (const pz of levelUpParticlesRef.current) {
+        const t = Math.max(0, Math.min(1, 1 - pz.age / pz.life)); // 1..0
+        const alpha = 0.25 + 0.75 * t;
+        ctx.beginPath();
+        ctx.arc(pz.x, pz.y, pz.sz, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(250, 204, 21, ${alpha})`; // amarelo dourado
+        ctx.fill();
+      }
+
+      // pequeno texto "LEVEL UP!" (opcional)
+      const last =
+        levelUpParticlesRef.current[levelUpParticlesRef.current.length - 1];
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "bold 14px Arial";
+      ctx.fillText(
+        "LEVEL UP!",
+        playerRef.current.x - 34,
+        playerRef.current.y - 28
+      );
+    }
+
     // Projéteis
     for (const b of projectilesRef.current) {
       ctx.beginPath();
@@ -1667,7 +1790,7 @@ export default function ExplorerGameCanvas({
     );
 
     //Mostrar XP
-    ctx.fillText(`XP: ${playerXp}`, pad + 4, pad + 30 + barH + 30);
+    ctx.fillText(`XP: ${playerXpRef.current}`, pad + 4, pad + 30 + barH + 30);
   }
 
   function drawMinimap(ctx, c) {
