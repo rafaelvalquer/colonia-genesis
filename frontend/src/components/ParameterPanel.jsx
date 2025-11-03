@@ -1221,7 +1221,128 @@ function ParameterPanel({
                         </div>
                       </li>
 
-                      <li>🧪 Ciência: {estadoAtual.ciencia}</li>
+                      <li className="group relative block w-full">
+                        <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
+                          <span className="mr-1">🧪</span>
+                          Ciência: {estadoAtual.ciencia}
+                        </div>
+
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-72 p-3 bg-gray-800 rounded-lg shadow-xl
+    opacity-0 invisible group-hover:opacity-100 group-hover:visible
+    transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+    border border-gray-700 text-white"
+                        >
+                          {(() => {
+                            // === parâmetros (iguais ao motor) ===
+                            const CENTRO_SCI = 4;
+                            const LAB_AVANCADO_SCI = 10;
+                            const LAB_AVANCADO_ENERGY_COST = 25;
+
+                            // === prédios no estado ===
+                            const centros = Number(
+                              estadoAtual?.construcoes?.centroDePesquisa || 0
+                            );
+                            const labsAv = Number(
+                              estadoAtual?.construcoes?.laboratorioAvancado || 0
+                            );
+
+                            // produção fixa por prédio (flat)
+                            const prodCentro = centros * CENTRO_SCI;
+                            const prodLabAv = labsAv * LAB_AVANCADO_SCI;
+
+                            // bônus percentual (apenas sobre a parte dos colonos; mostrado aqui para referência)
+                            const bonusPct = Math.min(
+                              0.03 * centros + 0.1 * labsAv,
+                              0.5
+                            );
+
+                            // custos/efeitos colaterais
+                            const energiaCustoLabsAv =
+                              labsAv * LAB_AVANCADO_ENERGY_COST;
+                            const integridadeBonus = labsAv * 1;
+
+                            return (
+                              <div className="text-sm space-y-2">
+                                <div className="font-semibold text-slate-200">
+                                  Produção (prédios)
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🏛️</span>
+                                    <span>
+                                      Centro de Pesquisa (x{centros}):
+                                    </span>
+                                  </div>
+                                  <span>
+                                    +{prodCentro}
+                                    <span className="text-slate-400 ml-1 text-xs">
+                                      ({centros}×{CENTRO_SCI})
+                                    </span>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🧪</span>
+                                    <span>Lab. Avançado (x{labsAv}):</span>
+                                  </div>
+                                  <span>
+                                    +{prodLabAv}
+                                    <span className="text-slate-400 ml-1 text-xs">
+                                      ({labsAv}×{LAB_AVANCADO_SCI})
+                                    </span>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">％</span>
+                                    <span>Bônus percentual*:</span>
+                                  </div>
+                                  <span>+{Math.round(bonusPct * 100)}%</span>
+                                </div>
+
+                                <div className="border-t border-gray-600 pt-2 mt-1" />
+                                <div className="font-semibold text-slate-200">
+                                  Efeitos colaterais
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">⚡</span>
+                                    <span>Energia (Lab. Avançado):</span>
+                                  </div>
+                                  <span className="text-red-400">
+                                    -{energiaCustoLabsAv}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🛡️</span>
+                                    <span>Integridade (Lab. Avançado):</span>
+                                  </div>
+                                  <span className="text-green-400">
+                                    +{integridadeBonus}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs text-slate-400">
+                                  * Bônus% = 3% por Centro + 10% por Lab.
+                                  Avançado (máx. +50%).
+                                  <br />
+                                  Aplica apenas sobre a ciência gerada por
+                                  colonos no laboratório (não sobre os valores
+                                  flat dos prédios).
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </li>
+
                       <li className="group relative inline-block">
                         <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
                           <span className="mr-1">🏥</span>

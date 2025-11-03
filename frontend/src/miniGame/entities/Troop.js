@@ -29,7 +29,7 @@ export const troopTypes = {
     deployCooldownMs: 4000,
   },
 
-  /* guarda: {
+  /*guarda: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -53,8 +53,7 @@ export const troopTypes = {
     cooldownPerShot: true, // (opcional) faz o cooldown só depois do último frame
     deployCost: 4,
     deployCooldownMs: 5000,
-  },
-  */
+  }, */
 
   marine: {
     preco: 15,
@@ -131,8 +130,8 @@ export const troopTypes = {
     deployCost: 7,
     deployCooldownMs: 6000,
   },
-  /*
-    caçador: {
+
+  caçador: {
     preco: 12,
     hp: 6,
     alcance: 5,
@@ -158,7 +157,7 @@ export const troopTypes = {
     deployCooldownMs: 5000,
   },
 
- bombardeiro: {
+  bombardeiro: {
     preco: 18,
     hp: 5,
     alcance: 6,
@@ -199,10 +198,10 @@ export const troopTypes = {
     homeStrength: 0.12, // quão forte curva
     maxTurnDeg: 8, // limite de curva por tick
     lookAheadPx: 22, // “antecipa” alvos à frente
-  }, 
+  },
 
-  
-  incinerador: {
+  //incinerador: {
+  guarda: {
     preco: 18,
     hp: 5,
     alcance: 2,
@@ -251,9 +250,7 @@ export const troopTypes = {
     deployCooldownMs: 6000,
   },
 
-*/
-  //krio: {
-  guarda: {
+  krio: {
     preco: 12,
     hp: 6,
     alcance: 5,

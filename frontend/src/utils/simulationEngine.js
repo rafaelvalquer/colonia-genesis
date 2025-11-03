@@ -384,8 +384,46 @@ export function runSimulationTurn(
   }
 
   // CIÊNCIA
-  let cienciaProduzida = Math.floor(quantidadePorSetor.laboratorio / 2);
-  if (pontos.laboratorio === 1) cienciaProduzida *= 2;
+  // ---- parâmetros fáceis de tunar ----
+  const LAB_SCI_PER_COLONIST = 0.5; // 0.5 por colono
+  const CENTRO_SCI = 4; // +4 por Centro de Pesquisa
+  const LAB_AVANCADO_SCI = 10; // +10 por Laboratório Avançado
+  const LAB_AVANCADO_ENERGY_COST = 25; // 🔧 custo de energia por laboratório avançado/turno
+
+  // ---- base: colonos no setor laboratório ----
+  let cienciaColonos = Math.floor(
+    quantidadePorSetor.laboratorio * LAB_SCI_PER_COLONIST
+  );
+  if (pontos.laboratorio === 1) cienciaColonos *= 2;
+
+  // ---- prédios ----
+  const centroDePesquisa = construcoes.centroDePesquisa || 0;
+  const laboratorioAvancado = construcoes.laboratorioAvancado || 0;
+
+  const cienciaPredios =
+    centroDePesquisa * CENTRO_SCI + laboratorioAvancado * LAB_AVANCADO_SCI;
+
+  // bônus percentual (cap 50%)
+  const bonusPct = Math.min(
+    0.03 * centroDePesquisa + 0.1 * laboratorioAvancado,
+    0.5
+  );
+  let cienciaProduzida =
+    Math.floor(cienciaColonos * (1 + bonusPct)) + cienciaPredios;
+
+  // 🔻 Debuff: custo de energia por laboratório avançado
+  const custoEnergiaLabAv = laboratorioAvancado * LAB_AVANCADO_ENERGY_COST;
+  if (custoEnergiaLabAv > 0) {
+    energia -= custoEnergiaLabAv;
+    log.push(
+      `🧪 Laboratórios avançados consumiram ${custoEnergiaLabAv} de energia (${laboratorioAvancado}×${LAB_AVANCADO_ENERGY_COST}).`
+    );
+  }
+
+  // 🛡️ Bônus: +1 de integridade por laboratório avançado, com cap em 100
+  const ganhoFlat = laboratorioAvancado * 1;
+  integridadeEstrutural = Math.min(100, integridadeEstrutural + ganhoFlat);
+  log.push(`🛡️ Laboratórios avançados: integridade +${ganhoFlat}.`);
 
   // CONSTRUÇÃO
   let reparo = Math.floor(quantidadePorSetor.construcao / 10);

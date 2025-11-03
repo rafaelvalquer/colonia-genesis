@@ -1,3 +1,4 @@
+//StatusPanel.jsx
 import React, { useEffect, useState } from "react";
 import {
   FaRegHeart,
@@ -603,7 +604,133 @@ border border-gray-700 text-white"
       ),
     },
 
-    { label: "Ciência", value: estado.ciencia, icon: <FaFlask /> },
+    {
+      label: "Ciência",
+      value: estado.ciencia,
+      icon: <FaFlask />,
+      tooltip: (
+        <div
+          className="absolute z-20 left-0 mt-2 w-72 p-3 bg-gray-800 rounded-lg shadow-xl
+opacity-0 invisible group-hover:opacity-100 group-hover:visible
+transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+border border-gray-700 text-white"
+        >
+          {(() => {
+            // ===== parâmetros (mesmos do motor) =====
+            const LAB_SCI_PER_COLONIST = 0.5;
+            const CENTRO_SCI = 4;
+            const LAB_AVANCADO_SCI = 10;
+            const LAB_AVANCADO_ENERGY_COST = 25;
+
+            // ===== dados do estado =====
+            const colonosTot = Number(estado?.populacao?.colonos || 0);
+            const pctLab = Number(
+              estado?.parametrosSnapshot?.alocacaoColonos?.laboratorio || 0
+            );
+            const colonosLab = Math.round((pctLab / 100) * colonosTot);
+            const skillLab = estado?.skillsDistribuicao?.laboratorio ? 1 : 0;
+
+            const centros = Number(estado?.construcoes?.centroDePesquisa || 0);
+            const labsAv = Number(
+              estado?.construcoes?.laboratorioAvancado || 0
+            );
+
+            // ===== cálculos (colonos são usados só para o total, não exibidos) =====
+            let cienciaColonos = Math.floor(colonosLab * LAB_SCI_PER_COLONIST);
+            if (skillLab === 1) cienciaColonos *= 2;
+
+            const cienciaPredios =
+              centros * CENTRO_SCI + labsAv * LAB_AVANCADO_SCI;
+
+            // Bônus percentual: 3% por Centro + 10% por Lab Avançado (máx 50%)
+            const bonusPct = Math.min(0.03 * centros + 0.1 * labsAv, 0.5);
+
+            // Aplica o bônus APENAS sobre a parcela dos colonos
+            const cienciaTurno =
+              Math.floor(cienciaColonos * (1 + bonusPct)) + cienciaPredios;
+
+            const energiaCustoLabsAv = labsAv * LAB_AVANCADO_ENERGY_COST;
+            const integridadeBonus = labsAv * 1; // +1 por Lab Avançado
+
+            return (
+              <div className="text-sm space-y-2">
+                <div className="font-semibold text-slate-200">Produção</div>
+
+                {/* Prédios */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🏛️</span>
+                    <span>Centro de Pesquisa (x{centros}):</span>
+                  </div>
+                  <span>
+                    +{centros * CENTRO_SCI}
+                    <span className="text-slate-400 ml-1 text-xs">
+                      ({centros}×{CENTRO_SCI})
+                    </span>
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🧪</span>
+                    <span>Lab. Avançado (x{labsAv}):</span>
+                  </div>
+                  <span>
+                    +{labsAv * LAB_AVANCADO_SCI}
+                    <span className="text-slate-400 ml-1 text-xs">
+                      ({labsAv}×{LAB_AVANCADO_SCI})
+                    </span>
+                  </span>
+                </div>
+
+                {/* Bônus percentual (explicação) */}
+                <div className="flex items-start justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">％</span>
+                    <span>Bônus percentual:</span>
+                  </div>
+                  <div className="text-right">
+                    <div>+{Math.round(bonusPct * 100)}%</div>
+                    <div className="text-xs text-slate-400">
+                      3% × Centros + 10% × Labs Av.
+                      <br /> (aplica só nos pontos dos colonos, máx +50%)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between text-slate-200">
+                  <span>Total/turno:</span>
+                  <span>+{cienciaTurno}</span>
+                </div>
+
+                {/* Efeitos colaterais */}
+                <div className="border-t border-gray-600 pt-2 mt-1" />
+                <div className="font-semibold text-slate-200">
+                  Efeitos Colaterais
+                </div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">⚡</span>
+                    <span>Energia (Lab. Avançado):</span>
+                  </div>
+                  <span className="text-red-400">-{energiaCustoLabsAv}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🛡️</span>
+                    <span>Integridade (Lab. Avançado):</span>
+                  </div>
+                  <span className="text-green-400">+{integridadeBonus}</span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ),
+    },
+
     {
       label: "Saúde",
       value: `${estado.saude}%`,

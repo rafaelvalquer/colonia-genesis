@@ -107,7 +107,7 @@
   "centroDePesquisa": {
     "nome": "Centro de Pesquisa",
     "categoria": "laboratorio",
-    "descricao": "Permite avanços científicos para melhorar a eficiência da colônia.",
+    "descricao": "🔬 +4 Ciência/turno • +3% (acumulativo, máx. +50%) sobre a ciência gerada por colonos no laboratório.",
     "imagem": "/images/centro-pesquisa.png",
     "tempo": 3,
     "custo": {
@@ -122,7 +122,7 @@
   "laboratorioAvancado": {
     "nome": "Laboratório Avançado",
     "categoria": "laboratorio",
-    "descricao": "Oferece pesquisas de ponta com grandes impactos tecnológicos.",
+    "descricao": "🧪 +10 Ciência/turno • 📈 +10% (acumulativo, máx. +50%) sobre a ciência gerada por colonos no laboratório • ⚡ −25 Energia/turno por unidade • 🛡️ +1 Integridade/turno (até 100).",
     "imagem": "/images/laboratorio-avancado.png",
     "tempo": 5,
     "custo": {
