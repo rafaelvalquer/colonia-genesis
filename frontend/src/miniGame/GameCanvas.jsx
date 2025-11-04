@@ -73,6 +73,31 @@ tileImages.chao.src = chao;
 tileImages.chaoD.src = chaoD;
 tileImages.chaoE.src = chaoE;
 
+// ====== Particle budget (adaptativo) ======
+const PARTICLE_LIMITS = {
+  high: { maxActive: 1400, perFrame: 110 },
+  mid: { maxActive: 950, perFrame: 70 },
+  low: { maxActive: 650, perFrame: 45 },
+  ultra: { maxActive: 450, perFrame: 28 }, // modo "sobrevivência" quando o FPS despenca
+};
+
+// peso relativo por tipo (mais caros gastam orçamento mais rápido)
+const PARTICLE_WEIGHT = {
+  ring: 2,
+  spark: 1,
+  beam: 6,
+  flame: 3,
+  snow: 1,
+  default: 1,
+};
+
+function pickBudgetByFps(fps) {
+  if (fps >= 55) return PARTICLE_LIMITS.high;
+  if (fps >= 40) return PARTICLE_LIMITS.mid;
+  if (fps >= 28) return PARTICLE_LIMITS.low;
+  return PARTICLE_LIMITS.ultra;
+}
+
 const GameCanvasWithLoader = (props) => {
   const [ready, setReady] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -339,6 +364,8 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     inimigos: [],
     projectilePool: [],
     particles: [],
+    __particleFrameEmitted: 0, // << novo
+    __particleActiveWeight: 0, // << novo
   });
 
   function tryPushEnemyBack(row, col) {
@@ -364,7 +391,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
     // FX simples
     const cy = row * tileH + tileH / 2;
-    gameRef.current.particles.push({
+    pEmit({
       kind: "ring",
       x: toX,
       y: cy,
@@ -375,7 +402,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     for (let i = 0; i < 8; i++) {
       const ang = Math.random() * Math.PI - Math.PI / 2;
       const spd = 1 + Math.random() * 1.8;
-      gameRef.current.particles.push({
+      pEmit({
         kind: "spark",
         x: toX,
         y: cy,
@@ -398,7 +425,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     const cy = row * tileH + tileH / 2;
 
     // anéis (branco + azul)
-    gameRef.current.particles.push({
+    pEmit({
       kind: "ring",
       x: cx,
       y: cy,
@@ -406,7 +433,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       max: 12,
       cor: "rgba(255,255,255,0.95)",
     });
-    gameRef.current.particles.push({
+    pEmit({
       kind: "ring",
       x: cx,
       y: cy,
@@ -419,7 +446,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
     for (let i = 0; i < 10; i++) {
       const ang = Math.random() * Math.PI * 2;
       const spd = 0.8 + Math.random() * 1.6;
-      gameRef.current.particles.push({
+      pEmit({
         kind: "spark",
         x: cx,
         y: cy,
@@ -431,6 +458,41 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         cor: "rgba(96,165,250,1)",
       });
     }
+  }
+
+  function pEmit(obj) {
+    if (!obj) return;
+
+    const fps = fpsRef.current?.ema || 60;
+    const budget = pickBudgetByFps(fps);
+
+    const w = PARTICLE_WEIGHT[obj.kind] ?? PARTICLE_WEIGHT.default;
+    if (gameRef.current.__particleActiveWeight + w > budget.maxActive) return;
+    if (gameRef.current.__particleFrameEmitted >= budget.perFrame) return;
+
+    if (fps < 40) {
+      if (obj.kind === "flame") {
+        obj.max = Math.min(obj.max ?? 16, 10);
+        obj.shrink = Math.max(0.45, obj.shrink ?? 0.3);
+        obj.sparkChance = Math.min(0.06, obj.sparkChance ?? 0.06);
+      } else if (obj.kind === "ring") {
+        obj.lineWidth = Math.min(2, obj.lineWidth ?? 2);
+        obj.max = Math.min(obj.max ?? 18, 12);
+      } else if (obj.kind === "beam") {
+        obj.branches = Math.min(1, obj.branches ?? 1);
+        obj.segs = Math.min(6, obj.segs ?? 6);
+        obj.w = Math.min(8, obj.w ?? 8);
+      }
+    }
+
+    gameRef.current.__particleFrameEmitted++;
+    gameRef.current.__particleActiveWeight += w;
+
+    // ✅ empilha a partícula na cena (sem recursão)
+    if (!Array.isArray(gameRef.current.particles)) {
+      gameRef.current.particles = [];
+    }
+    gameRef.current.particles.push(obj);
   }
 
   const missionId = estadoAtual?.battleCampaign?.currentMissionId ?? "fase_01";
@@ -1985,6 +2047,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
         }
       }
 
+      // >>> reseta orçamento por quadro
+      gameRef.current.__particleFrameEmitted = 0;
+      gameRef.current.__particleActiveWeight = 0;
+
+      const fpsNow = fpsRef.current?.ema || 60;
+      const budget = pickBudgetByFps(fpsNow);
+
       // TROPAS
       gameRef.current.tropas.forEach((t) => {
         t.updateAnimation?.();
@@ -2216,99 +2285,124 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
       });
 
       // PARTICULAS (faísca de impacto)
-      const parts = gameRef.current.particles ?? [];
-      gameRef.current.particles = parts.filter((pt) => {
-        ctx.save();
-        const a = 1 - pt.t / pt.max; // fade-out
-        ctx.globalAlpha = Math.max(0, a);
+      // usa gameRef.current.particles como fonte e atualiza no próprio array
+      const parts = Array.isArray(gameRef.current.particles)
+        ? gameRef.current.particles
+        : [];
 
+      // processa só até o limite ativo; descarta o excesso antigo (mais barato do que desenhar tudo)
+      if (parts.length > budget.maxActive) {
+        parts.splice(0, parts.length - budget.maxActive); // remove as mais antigas
+      }
+
+      const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+      const easeInOutCubic = (x) =>
+        x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+
+      gameRef.current.particles = parts.filter((pt, idx) => {
+        // limite "hard" de desenho por frame (não gasta CPU com o resto)
+        if (idx >= budget.maxActive) return false;
+
+        if (pt.max == null || pt.max <= 0) pt.max = 24;
+        if (pt.t == null) pt.t = 0;
+
+        const life = clamp01(pt.t / pt.max);
+        const a = clamp01(1 - life);
+        const alpha = clamp01((pt.a ?? 1) * a);
+
+        // Desenho/atualização por tipo
         if (!pt.kind || pt.kind === "ring") {
-          // anel que cresce (seu comportamento original)
+          // anel que cresce
+          const r = (pt.r ?? 2) + pt.t * (pt.grow ?? 1);
+          ctx.save();
+          ctx.globalAlpha = alpha;
           ctx.strokeStyle = pt.cor || "#fff";
-          ctx.lineWidth = 2;
+          ctx.lineWidth = pt.lineWidth ?? 2;
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 2 + pt.t, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
           ctx.stroke();
+          ctx.restore();
         } else if (pt.kind === "spark") {
-          // faísca com leve gravidade
+          // faísca com leve gravidade + arrasto
+          const drag = pt.drag ?? 0.98;
+          const gx = pt.gx ?? 0;
+          const gy = pt.gy ?? 0.05;
+
+          pt.vx = (pt.vx ?? 0) * drag + gx;
+          pt.vy = (pt.vy ?? 0) * drag + gy;
+          pt.x += pt.vx;
+          pt.y += pt.vy;
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
           ctx.fillStyle = pt.cor || "#fff";
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 1.6, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, pt.size ?? 1.6, 0, Math.PI * 2);
           ctx.fill();
-          pt.x += pt.vx || 0;
-          pt.y += pt.vy || 0;
-          pt.vy = (pt.vy || 0) + (pt.g || 0.05);
+          ctx.restore();
         } else if (pt.kind === "snow") {
-          // draw
-          const life = 1 - pt.t / pt.max;
+          // floco com "sway" senoidal e leve aceleração
+          pt.phase =
+            (pt.phase ?? Math.random() * Math.PI * 2) + (pt.phaseSpeed ?? 0.12);
+          const sway = pt.sway ?? 0.4;
+          pt.vx = (pt.vx ?? 0) + Math.sin(pt.phase) * sway * 0.002;
+          pt.vy = (pt.vy ?? 0) + (pt.g ?? 0.02);
+          pt.x += pt.vx;
+          pt.y += pt.vy;
+
           ctx.save();
-          ctx.globalAlpha = (pt.a ?? 1) * Math.max(0, life);
-          ctx.fillStyle = "#fff";
+          ctx.globalAlpha = alpha * (pt.opacity ?? 1);
+          ctx.fillStyle = pt.color ?? "#fff";
           ctx.beginPath();
           ctx.arc(pt.x, pt.y, pt.r ?? 2, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
-
-          // update
-          pt.vx +=
-            Math.sin((pt.phase || 0) + pt.t * 0.12) * (pt.sway || 0) * 0.002;
-          pt.vy += pt.g || 0;
-          pt.x += pt.vx;
-          pt.y += pt.vy;
         } else if (pt.kind === "beam") {
-          // Envelope temporal: afina -> engorda -> afina
-          const life = pt.t / pt.max; // 0..1
-          const easeInOut = (x) =>
-            x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-          const k = easeInOut(life);
-          const wMax = pt.w || 10;
-          const w = Math.max(1.5, wMax * (0.35 + 0.65 * k)); // largura do “glow”
+          // feixe com glow e ramificações
+          const k = easeInOutCubic(life);
+          const wMax = pt.w ?? 10;
+          const w = Math.max(1.5, wMax * (0.35 + 0.65 * k)); // largura do glow
           const core = Math.max(1, w * 0.35); // núcleo branco
 
-          // Vetores do feixe
-          const dx = pt.x1 - pt.x0,
-            dy = pt.y1 - pt.y0;
+          const dx = pt.x1 - pt.x0;
+          const dy = pt.y1 - pt.y0;
           const len = Math.hypot(dx, dy) || 1;
           const ux = dx / len,
-            uy = dy / len; // direção
+            uy = dy / len;
           const nx = -uy,
-            ny = ux; // normal
+            ny = ux;
 
-          // Taper nas pontas: w0 (início) < wMid > w1 (fim)
           const w0 = Math.max(0.6, w * 0.45);
           const wMid = w;
           const w1 = Math.max(0.6, w * 0.45);
-
-          // Pontos ao longo do feixe (0, 0.5, 1) com larguras diferentes
           const xMid = pt.x0 + dx * 0.5,
             yMid = pt.y0 + dy * 0.5;
 
-          // Polígono do “glow” com taper
           ctx.save();
           ctx.globalCompositeOperation = "lighter";
-          ctx.globalAlpha = 0.55 * (1 - life); // desvanece no fim
 
+          // Glow (polígono com gradiente)
           const grad = ctx.createLinearGradient(pt.x0, pt.y0, pt.x1, pt.y1);
-          grad.addColorStop(0, pt.cor || "#6cf");
-          grad.addColorStop(0.5, pt.cor || "#6cf");
-          grad.addColorStop(1, pt.cor || "#6cf");
+          const c = pt.cor || "#6cf";
+          grad.addColorStop(0, c);
+          grad.addColorStop(0.5, c);
+          grad.addColorStop(1, c);
           ctx.fillStyle = grad;
+          ctx.globalAlpha = 0.55 * alpha;
 
           ctx.beginPath();
-          // lado esquerdo
           ctx.moveTo(pt.x0 + nx * w0, pt.y0 + ny * w0);
           ctx.lineTo(xMid + nx * wMid, yMid + ny * wMid);
           ctx.lineTo(pt.x1 + nx * w1, pt.y1 + ny * w1);
-          // lado direito
           ctx.lineTo(pt.x1 - nx * w1, pt.y1 - ny * w1);
           ctx.lineTo(xMid - nx * wMid, yMid - ny * wMid);
           ctx.lineTo(pt.x0 - nx * w0, pt.y0 - ny * w0);
           ctx.closePath();
           ctx.fill();
 
-          // Núcleo fino
-          ctx.globalAlpha = 0.9 * (1 - life);
-          ctx.strokeStyle = "#ffffff";
+          // Núcleo
+          ctx.globalAlpha = 0.9 * alpha;
+          ctx.strokeStyle = "#fff";
           ctx.lineWidth = core;
           ctx.lineCap = "round";
           ctx.beginPath();
@@ -2329,26 +2423,24 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             return (s >>> 0) / 4294967296;
           };
 
-          const branches = 2; // quantidade de raios
-          const segs = 10; // segmentos por raio
-          const ampBase = w * 0.55 * (0.4 + 0.6 * k); // amplitude cresce no meio
+          const branches = pt.branches ?? 2;
+          const segs = pt.segs ?? 10;
+          const ampBase = w * 0.55 * (0.4 + 0.6 * k);
 
           ctx.lineJoin = "round";
           for (let b = 0; b < branches; b++) {
             const sign = rnd() < 0.5 ? -1 : 1;
-            const alpha = 0.38 * (1 - life);
             const lw = Math.max(1, core * 0.55);
 
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = pt.cor || "#6cf";
+            ctx.globalAlpha = 0.38 * alpha;
+            ctx.strokeStyle = c;
             ctx.lineWidth = lw;
             ctx.beginPath();
 
             for (let i = 0; i <= segs; i++) {
-              const t = i / segs; // 0..1 ao longo do feixe
+              const t = i / segs;
               const bx = pt.x0 + dx * t;
               const by = pt.y0 + dy * t;
-              // envelope de jitter: 0 nas pontas, pico no meio
               const env = Math.sin(Math.PI * t);
               const j = (rnd() * 2 - 1) * ampBase * env;
               const x = bx + nx * j * sign;
@@ -2369,14 +2461,13 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
           ctx.restore();
         } else if (pt.kind === "flame") {
-          // update
-          pt.x += pt.vx || 0;
-          pt.y += pt.vy || 0;
-          pt.r = Math.max(1, (pt.r || 8) - (pt.shrink || 0.4));
-          const life = pt.t / (pt.max || 24);
-          const alpha = Math.max(0, (pt.a ?? 0.9) * (1 - life));
+          // “brasa” com gradiente quente e cintilância sutil
+          pt.vx = pt.vx ?? 0;
+          pt.vy = pt.vy ?? 0;
+          pt.x += pt.vx;
+          pt.y += pt.vy;
 
-          // gradiente “núcleo quente” → “borda fogo”
+          pt.r = Math.max(1, (pt.r ?? 8) - (pt.shrink ?? 0.4));
           const [r1, g1, b1] = pt.rgb1 || [255, 230, 120];
           const [r2, g2, b2] = pt.rgb2 || [255, 140, 40];
 
@@ -2384,34 +2475,40 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
           const grd = ctx.createRadialGradient(
             pt.x,
             pt.y,
-            (pt.r || 8) * 0.2,
+            pt.r * 0.2,
             pt.x,
             pt.y,
-            pt.r || 8
+            pt.r
           );
           grd.addColorStop(0.0, `rgba(${r1},${g1},${b1},${alpha})`);
-          grd.addColorStop(0.4, `rgba(${r2},${g2},${b2},${alpha * 0.9})`);
+          grd.addColorStop(0.4, `rgba(${r2},${b2 ?? g2},${b2},${alpha * 0.9})`);
           grd.addColorStop(1.0, `rgba(${r2},${g2},${b2},0)`);
           ctx.fillStyle = grd;
+          ctx.globalAlpha = 1; // alpha já aplicado no gradiente
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.r || 8, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
           ctx.fill();
 
-          // leve cintilância
-          if (Math.random() < 0.15) {
+          if (Math.random() < (pt.sparkChance ?? 0.15)) {
             ctx.globalCompositeOperation = "lighter";
-            ctx.fillStyle = `rgba(255,255,255,${alpha * 0.35})`;
-            ctx.fillRect(pt.x - 1.5, pt.y - 1.5, 3, 3);
+            ctx.fillStyle = `rgba(255,255,255,${
+              alpha * (pt.sparkAlpha ?? 0.35)
+            })`;
+            const s = pt.sparkSize ?? 3;
+            ctx.fillRect(pt.x - s * 0.5, pt.y - s * 0.5, s, s);
           }
           ctx.restore();
-
-          pt.t++;
+        } else {
+          // fallback genérico: pequeno ponto
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = pt.cor || "#fff";
+          ctx.fillRect((pt.x ?? 0) - 1, (pt.y ?? 0) - 1, 2, 2);
           ctx.restore();
-          return pt.t < (pt.max || 24);
         }
 
-        ctx.restore();
-        pt.t++;
+        // avanço do tempo e regra de vida
+        pt.t += 1;
         return pt.t < pt.max;
       });
 
@@ -3316,7 +3413,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
 
               const cy = e.row * mapGeom.tileHeight + mapGeom.tileHeight / 2;
               for (let i = 0; i < 3; i++) {
-                gameRef.current.particles.push({
+                pEmit({
                   kind: "ring",
                   x: e.x,
                   y: cy,
@@ -3328,7 +3425,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
               for (let i = 0; i < 14; i++) {
                 const ang = Math.random() * Math.PI * 2;
                 const spd = 1 + Math.random() * 2.2;
-                gameRef.current.particles.push({
+                pEmit({
                   kind: "spark",
                   x: e.x,
                   y: cy,
@@ -3384,7 +3481,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             enemy.opacity = 0;
             enemy.__spawn = { t0: performance.now(), dur: 450 };
             for (let i = 0; i < 3; i++) {
-              gameRef.current.particles.push({
+              pEmit({
                 kind: "ring",
                 x: enemy.x,
                 y: cy,
@@ -3396,7 +3493,7 @@ const GameCanvas = ({ estadoAtual, onEstadoChange }) => {
             for (let i = 0; i < 12; i++) {
               const ang = Math.random() * Math.PI * 2;
               const spd = 1 + Math.random() * 2;
-              gameRef.current.particles.push({
+              pEmit({
                 kind: "spark",
                 x: enemy.x,
                 y: cy,

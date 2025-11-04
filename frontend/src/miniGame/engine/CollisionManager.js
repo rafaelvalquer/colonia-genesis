@@ -675,85 +675,154 @@ export const CollisionManager = {
     function fireFlameStream(t) {
       const tileW = gameRef.view?.tileWidth ?? 64;
       const tileH = gameRef.view?.tileHeight ?? 64;
+
       const muzzle = gameRef.getMuzzleWorldPos?.(t) ?? {
         x: t.col * tileW + tileW / 2,
         y: (t.row + 0.5) * tileH,
       };
 
-      // ===== ALCANCE (mais longo) =====
+      // ===== ALCANCE HORIZONTAL (visual + dano) =====
       const alcanceCols = t.config.alcance | 0;
-      const range = Math.max(
+      const rangeH = Math.max(
         tileW,
         alcanceCols * tileW * (t.config.flameRangeScale ?? 1.8)
       );
-      const x0 = muzzle.x,
-        x1 = muzzle.x + range;
+      const x0 = muzzle.x;
+      const x1 = muzzle.x + rangeH;
 
-      // ===== EMISSÃO CONTÍNUA =====
-      const cone = t.config.flameCone ?? 0.28; // cone ligeiramente mais fechado
-      const base = t.config.flameSpeed ?? 5.0; // chamas “empurram” mais
-      const count = t.config.flamePpt ?? 12; // mais partículas por tick
+      // ===== EMISSÃO =====
+      const base = t.config.flameSpeed ?? 5.0;
+      const flameCount = t.config.flamePpt ?? 14; // partículas "flame" (corpo)
+      const emberCount = t.config.emberPpt ?? 24; // partículas "spark" (embers)
 
-      for (let i = 0; i < count; i++) {
-        const a = Math.random() * cone - cone / 2;
+      // — corpo da chama (horizontal com onda no Y)
+      for (let i = 0; i < flameCount; i++) {
         const spd = base + Math.random() * 2.2;
-        const life = 18 + ((Math.random() * 12) | 0); // vida maior
+        const life = 18 + ((Math.random() * 12) | 0);
+
+        // parâmetros de onda para o update: y += sin(t*freq+phase)*amp
+        const phase = Math.random() * Math.PI * 2;
+        const amp = 2.5 + Math.random() * 3.5;
+        const freq = 0.12 + Math.random() * 0.18;
+
         (gameRef.particles ||= []).push({
           kind: "flame",
           x: muzzle.x,
-          y: muzzle.y,
-          vx: Math.cos(a) * (spd * (0.95 + Math.random() * 0.1)),
-          vy: Math.sin(a) * spd * 0.45 - 0.1, // menos queda vertical
-          r: 14 + Math.random() * 16, // “linguas” mais largas
-          shrink: 0.28 + Math.random() * 0.18, // encolhe mais devagar
-          a: 0.95,
+          y: muzzle.y + (Math.random() * 6 - 3),
+          vx: Math.abs(spd), // para a direita
+          vy: Math.random() * 0.6 - 0.3, // leve drift vertical
+          r: 13 + Math.random() * 16, // tamanho da “língua” de fogo
+          shrink: 0.24 + Math.random() * 0.18,
+          a: 0.92,
           t: 0,
           max: life,
-          // Núcleo bem claro e borda laranja avermelhada (como a imagem)
-          rgb1: [255, 245, 140], // quase branco-amarelado
+          waveAmp: amp,
+          waveFreq: freq,
+          wavePhase: phase,
+          // paleta quente (núcleo → borda)
+          rgb1: [255, 245, 160], // quase branco/amarelado
           rgb2: [
             255,
             120 + ((Math.random() * 40) | 0),
-            30 + ((Math.random() * 30) | 0),
+            32 + ((Math.random() * 28) | 0),
           ],
+          blend: "add", // use em seu renderer como 'lighter'
+        });
+
+        // halo macio (glow) — grande, baixa opacidade
+        if (Math.random() < 0.6) {
+          (gameRef.particles ||= []).push({
+            kind: "flame",
+            x: muzzle.x + Math.random() * 8,
+            y: muzzle.y + (Math.random() * 8 - 4),
+            vx: spd * (0.65 + Math.random() * 0.2),
+            vy: Math.random() * 0.4 - 0.2,
+            r: 24 + Math.random() * 22, // bem maior que o núcleo
+            shrink: 0.12 + Math.random() * 0.08,
+            a: 0.22, // baixinha (glow)
+            t: 0,
+            max: life + 6,
+            waveAmp: amp * 0.6,
+            waveFreq: freq * 0.8,
+            wavePhase: phase,
+            rgb1: [255, 180, 80],
+            rgb2: [255, 90, 30],
+            blend: "add",
+            soft: true, // flag opcional para seu renderer
+          });
+        }
+      }
+
+      // — embers (pontos brilhantes “bokeh” ao redor do rastro)
+      for (let i = 0; i < emberCount; i++) {
+        const speed = 1.6 + Math.random() * 2.6;
+        const life = 18 + ((Math.random() * 18) | 0);
+        (gameRef.particles ||= []).push({
+          kind: "spark", // reuso do seu tipo existente
+          x: muzzle.x + Math.random() * 12,
+          y: muzzle.y + (Math.random() * 10 - 5),
+          vx: speed * (0.9 + Math.random() * 0.6), // maioria segue p/ direita
+          vy: (Math.random() - 0.5) * 0.7, // leve flutuação
+          r: 1 + Math.random() * 2.2, // pequeno!
+          a: 0.95,
+          t: 0,
+          max: life,
+          g: -0.005 + Math.random() * 0.01, // um sobe, outro desce
+          flicker: 0.25 + Math.random() * 0.35, // cintilar no render
+          blend: "add",
+          // cores muito brilhantes (quase branco no centro)
+          cor: `rgba(${250 + ((Math.random() * 5) | 0)}, ${
+            210 + ((Math.random() * 30) | 0)
+          }, ${120 + ((Math.random() * 30) | 0)}, 1)`,
         });
       }
 
-      // brilho de base (faixa amarela) – dá a sensação de chama forte na saída
+      // — “ribbon” central piscando (mini feixes horizontais)
+      if (Math.random() < 0.85) {
+        const segs = (2 + Math.random() * 2) | 0; // 2–3 segmentos
+        for (let s = 0; s < segs; s++) {
+          const segLen = 12 + Math.random() * 22;
+          const xLeft = muzzle.x + (8 + s * segLen) + Math.random() * 8;
+          const yJitter0 = Math.random() * 4 - 2;
+          const yJitter1 = Math.random() * 4 - 2;
+          (gameRef.particles ||= []).push({
+            kind: "beam",
+            x0: xLeft,
+            y0: muzzle.y + yJitter0,
+            x1: xLeft + (8 + Math.random() * 12),
+            y1: muzzle.y + yJitter1,
+            w: 6,
+            t: 0,
+            max: 10 + ((Math.random() * 6) | 0),
+            cor:
+              Math.random() < 0.5
+                ? "rgba(255,235,150,0.9)"
+                : "rgba(255,180,90,0.85)",
+            seed: (Math.random() * 1e9) | 0,
+            blend: "add",
+          });
+        }
+      }
+
+      // — fumaça muito discreta (deixa a chama reinar)
       if (Math.random() < 0.5) {
         (gameRef.particles ||= []).push({
-          kind: "beam",
-          x0: muzzle.x,
-          y0: muzzle.y,
-          x1: muzzle.x + 18 + Math.random() * 16,
-          y1: muzzle.y + (Math.random() * 6 - 3),
-          w: 6,
-          t: 0,
-          max: 10,
-          cor: "rgba(255,235,150,0.9)",
-          seed: (Math.random() * 1e9) | 0,
-        });
-      }
-
-      // fumaça quente sutil subindo
-      if (Math.random() < 0.85) {
-        (gameRef.particles ||= []).push({
           kind: "smoke",
-          x: muzzle.x + 6,
-          y: muzzle.y - 2,
-          vx: 0.25 + Math.random() * 0.35,
-          vy: -0.45 - Math.random() * 0.35,
-          r: 7 + Math.random() * 9,
-          a: 0.45,
+          x: muzzle.x + 2,
+          y: muzzle.y + (Math.random() * 6 - 3),
+          vx: 0.4 + Math.random() * 0.3,
+          vy: -0.12 + Math.random() * 0.2,
+          r: 6 + Math.random() * 8,
+          a: 0.25,
           t: 0,
-          max: 30 + ((Math.random() * 12) | 0),
-          rgb: [150, 140, 140],
-          drift: 0.3,
-          rise: -0.18,
+          max: 24 + ((Math.random() * 10) | 0),
+          rgb: [140, 130, 130],
+          drift: 0.25,
+          rise: -0.08,
         });
       }
 
-      // ===== DANO por tick (inalterado; já usa alcance) =====
+      // ===== DANO por tick (horizontal, mesma row) =====
       const dpt = t.config.flameDpsPerTick ?? t.config.flameDps ?? 2;
       const hits = gameRef.inimigos.filter(
         (e) => !e.__death && e.row === t.row && e.x >= x0 && e.x <= x1
@@ -764,12 +833,13 @@ export const CollisionManager = {
           kind: "spark",
           x: e.x,
           y: muzzle.y,
-          vx: 0.4 + Math.random() * 0.4,
+          vx: 0.25 + Math.random() * 0.35,
           vy: -0.15 + Math.random() * 0.2,
           g: 0.02,
           t: 0,
           max: 10,
           cor: "rgba(255,210,120,1)",
+          blend: "add",
         });
       }
     }
