@@ -1,4 +1,5 @@
-// src/minigames/explorador-fov/GameCanvas.jsx
+// src/explorador/GameCanvas.jsx
+
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { buildWorldFromLevel } from "./mapLoader";
@@ -51,6 +52,20 @@ const CFG = {
   bulletMaxDist: 650,
   bulletDamage: 4,
   enemyHitChaseMs: 4500, // quanto tempo o inimigo persegue/investiga após levar tiro sem ver
+  searchArcDeg: 180, // abertura da “olhada” (180°)
+  searchTurnDegPerSec: 45, // menos giro (estava alto)
+  searchMaxTimeMs: 5000, // limite de segurança (mantém)
+  searchDwellMs: 700, // PAUSA no fim de cada lado (novo)
+
+  emote: {
+    lifeMs: 750, // duração total
+    riseV0: -185, // velocidade inicial para cima
+    gravity: 520, // gravidade da “quicada”
+    hoverMs: 150, // tempo de hover no topo
+    fadeMs: 160, // fade final
+    offsetY: 18, // distância acima da cabeça
+    minCooldownMs: 180, // evita spam
+  },
 };
 
 /** Ajusta o canvas ao CSS e DPR */
@@ -177,6 +192,13 @@ const angleBetween = (a, b) => {
   while (d < -Math.PI) d += 2 * Math.PI;
   return d;
 };
+
+function normalizeAngle(a) {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+
 function hasLineOfSight(x1, y1, x2, y2, segs) {
   for (const s of segs) {
     if (segIntersect(x1, y1, x2, y2, s.x1, s.y1, s.x2, s.y2)) return false;
@@ -399,6 +421,113 @@ function sumRewardsFromCollected(rewards = [], collectedSet) {
     },
     { colonos: 0, comida: 0, minerais: 0 }
   );
+}
+
+function rotateTowards(current, target, maxStep) {
+  const d = angleBetween(current, target); // b - a normalizado
+  if (Math.abs(d) <= maxStep) return normalizeAngle(target);
+  return normalizeAngle(current + Math.sign(d) * maxStep);
+}
+
+function spawnEmote(e, kind = "?") {
+  const now = performance.now();
+  if ((e.__emoteCooldown || 0) > now) return; // anti-spam
+
+  e.__emote = {
+    kind,
+    y: 0,
+    vy: CFG.emote.riseV0,
+    bornAt: now,
+    phase: "rise", // rise -> hover -> fall -> done
+    alpha: 1,
+  };
+  e.__emoteCooldown = now + CFG.emote.minCooldownMs;
+}
+
+function stepEmote(e, dt) {
+  const emo = e.__emote;
+  if (!emo) return;
+
+  const now = performance.now();
+  const age = now - emo.bornAt;
+
+  // fases simples: sobe um pouco, para, cai, some
+  if (emo.phase === "rise") {
+    emo.vy += CFG.emote.gravity * dt;
+    emo.y += emo.vy * dt;
+    if (emo.vy >= 0) {
+      // começou a “parar”
+      emo.phase = "hover";
+      emo.hoverUntil = now + CFG.emote.hoverMs;
+      emo.vy = 0;
+    }
+  } else if (emo.phase === "hover") {
+    if (now >= emo.hoverUntil) {
+      emo.phase = "fall";
+      emo.vy = 60; // cai suave
+    }
+  } else if (emo.phase === "fall") {
+    emo.vy += CFG.emote.gravity * 0.6 * dt;
+    emo.y += emo.vy * dt;
+  }
+
+  // fade out perto do fim
+  const t =
+    1 -
+    Math.max(0, age - (CFG.emote.lifeMs - CFG.emote.fadeMs)) / CFG.emote.fadeMs;
+  emo.alpha = Math.max(0, Math.min(1, t));
+
+  if (age >= CFG.emote.lifeMs || emo.alpha <= 0) {
+    e.__emote = null; // terminou
+  }
+}
+
+function drawEmote(ctx, e) {
+  const emo = e.__emote;
+  if (!emo) return;
+
+  const x = e.x;
+  const y = e.y - e.r - CFG.emote.offsetY + emo.y;
+
+  ctx.save();
+  ctx.globalAlpha = emo.alpha;
+
+  // Balão simples
+  const w = 20,
+    h = 18,
+    r = 6;
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2 + r, y - h / 2);
+  ctx.arcTo(x + w / 2, y - h / 2, x + w / 2, y + h / 2, r);
+  ctx.arcTo(x + w / 2, y + h / 2, x - w / 2, y + h / 2, r);
+  ctx.arcTo(x - w / 2, y + h / 2, x - w / 2, y - h / 2, r);
+  ctx.arcTo(x - w / 2, y - h / 2, x + w / 2, y - h / 2, r);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
+  ctx.stroke();
+
+  // “rabinho” do balão
+  ctx.beginPath();
+  ctx.moveTo(x, y + h / 2);
+  ctx.lineTo(x - 4, y + h / 2 + 6);
+  ctx.lineTo(x + 2, y + h / 2);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
+  ctx.stroke();
+
+  // “?” central
+  ctx.font = "bold 14px Arial";
+  ctx.fillStyle = "#111827";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(emo.kind, x, y + 1);
+
+  ctx.restore();
 }
 
 // #region Inicio do Jogo
@@ -1056,23 +1185,197 @@ export default function ExplorerGameCanvas({
         }
 
         case "chase": {
-          // só persegue se LOS verdadeiro; caso contrário, volta ao “return”
-          if (!hasLineOfSight(e.x, e.y, p.x, p.y, world.current.walls)) {
-            e.state = "return";
-            e.targetIdx = nearestWaypointIndex(e);
+          const seesNow = hasLineOfSight(
+            e.x,
+            e.y,
+            p.x,
+            p.y,
+            world.current.walls
+          );
+          if (!seesNow) {
+            // prepara estado de busca
+            const tgt = e.lastSeenPlayerAt || {
+              x: p.x,
+              y: p.y,
+              t: performance.now(),
+            };
+            e.state = "search";
+            e.__search = {
+              x: tgt.x,
+              y: tgt.y,
+              phase: "going", // going -> sweeping
+              baseDir: e.dir, // será ajustado ao chegar
+              sweepDir: 1, // alterna esquerda/direita
+              startedAt: performance.now(),
+              lastFlipAt: performance.now(),
+            };
+            spawnEmote(e, "?");
+            e.__path = planPathForEnemy(e, tgt.x, tgt.y);
+            e.__detourT = 0;
+            e.__detourDir = null;
+            e.__wpBlockedT = 0;
             break;
           }
+
+          // ainda vê -> segue perseguindo normalmente
           const desiredDir = Math.atan2(p.y - e.y, p.x - e.x);
           e.dir = desiredDir;
           moveTowards(e, p.x, p.y, CFG.chaseSpeed, dt);
 
-          // pequeno desvio quando tem parede colada
           if (forwardBlocked(e, world.current.walls, e.r + 10)) {
             const detour = pickDetourDir(desiredDir, e, world.current.walls);
             e.dir = detour;
             e.x += Math.cos(e.dir) * CFG.chaseSpeed * dt;
             e.y += Math.sin(e.dir) * CFG.chaseSpeed * dt;
           }
+          break;
+        }
+
+        case "search": {
+          // se recobrar visão em qualquer momento, volta a chase
+          const seesNow =
+            Math.hypot(p.x - e.x, p.y - e.y) <= CFG.enemyViewDist &&
+            Math.abs(angleBetween(e.dir, Math.atan2(p.y - e.y, p.x - e.x))) <=
+              toRad(CFG.enemyFovDeg) / 2 &&
+            hasLineOfSight(e.x, e.y, p.x, p.y, world.current.walls);
+
+          if (seesNow) {
+            e.state = "chase";
+            e.lastSeenPlayerAt = { x: p.x, y: p.y, t: performance.now() };
+            e.__search = null;
+            e.__path = [];
+            break;
+          }
+
+          const S = e.__search;
+          if (!S) {
+            // fallback de segurança
+            e.state = "return";
+            break;
+          }
+
+          // 1) Ir até o ponto onde perdeu de vista
+          if (S.phase === "going") {
+            const tx = S.x,
+              ty = S.y;
+
+            if (hasLineOfSight(e.x, e.y, tx, ty, world.current.walls)) {
+              e.__path = [];
+              const ndir = Math.atan2(ty - e.y, tx - e.x);
+              e.dir = ndir;
+              moveTowards(e, tx, ty, CFG.enemySpeed, dt);
+            } else {
+              e.__path =
+                e.__path && e.__path.length
+                  ? e.__path
+                  : planPathForEnemy(e, tx, ty);
+
+              const now = performance.now();
+              if (
+                (!e.__path ||
+                  !e.__path.length ||
+                  forwardBlocked(e, world.current.walls, e.r + 10)) &&
+                now - (lastReplanAtRef.current || 0) > 250
+              ) {
+                e.__path = planPathForEnemy(e, tx, ty);
+                lastReplanAtRef.current = now;
+              }
+
+              if (e.__path && e.__path.length) {
+                const node = e.__path[0];
+                const ndir = Math.atan2(node.y - e.y, node.x - e.x);
+                e.dir = ndir;
+                moveTowards(e, node.x, node.y, CFG.enemySpeed, dt);
+                if (Math.hypot(node.x - e.x, node.y - e.y) < 8)
+                  e.__path.shift();
+              } else {
+                const ndir = Math.atan2(ty - e.y, tx - e.x);
+                e.dir = pickDetourDir(ndir, e, world.current.walls);
+                e.x += Math.cos(e.dir) * CFG.enemySpeed * dt;
+                e.y += Math.sin(e.dir) * CFG.enemySpeed * dt;
+              }
+            }
+
+            // Chegou no ponto de perda de vista?
+            if (Math.hypot(S.x - e.x, S.y - e.y) < 10) {
+              S.phase = "sweeping";
+              S.startedAt = performance.now();
+              S.baseDir = e.dir; // centraliza a varredura no olhar atual
+              S.sweepDir = 1;
+              e.__path = [];
+              spawnEmote(e, "?"); // opcional: outro “?”
+            }
+          }
+
+          // 2) Varredura de 180° (olhada)
+          else if (S.phase === "sweeping") {
+            const half = toRad(CFG.searchArcDeg) / 2;
+            const turnStep = toRad(CFG.searchTurnDegPerSec) * dt;
+
+            // Inicializa sequência uma única vez
+            if (!S.seq) {
+              S.seq = [
+                { phase: "sweepL", target: S.baseDir - half },
+                {
+                  phase: "holdL",
+                  until: performance.now() + (CFG.searchDwellMs || 0),
+                },
+                { phase: "sweepR", target: S.baseDir + half },
+                {
+                  phase: "holdR",
+                  until: performance.now() + (CFG.searchDwellMs || 0),
+                },
+              ];
+              S.seqIdx = 0;
+            }
+
+            const step = S.seq[S.seqIdx];
+
+            // 1) varrer para um alvo angular
+            if (step.phase === "sweepL" || step.phase === "sweepR") {
+              const targetDir = step.target;
+              e.dir = rotateTowards(e.dir, targetDir, turnStep);
+
+              // Chegou no alvo? avança para a próxima etapa e cria janela de "hold"
+              if (e.dir === targetDir) {
+                S.seqIdx++;
+                if (
+                  S.seq[S.seqIdx] &&
+                  S.seq[S.seqIdx].phase.startsWith("hold")
+                ) {
+                  S.seq[S.seqIdx].until =
+                    performance.now() + (CFG.searchDwellMs || 0);
+                }
+              }
+            }
+            // 2) pequenas pausas nas extremidades
+            else if (step.phase === "holdL" || step.phase === "holdR") {
+              if (performance.now() >= step.until) {
+                S.seqIdx++;
+              }
+            }
+
+            // 3) terminou a sequência? voltar ao posto
+            if (S.seqIdx >= S.seq.length) {
+              e.__search = null;
+              e.__path = [];
+              // volta ao comportamento base
+              if (e.type === "patrulheiro") {
+                e.state = "return";
+                e.anchorIdx = nearestWaypointIndex(e);
+              } else {
+                e.state = "return"; // sentinela volta ao home no 'return'
+              }
+            }
+
+            // 4) timeout de segurança da busca (mantém seu guarda-chuva)
+            if (performance.now() - S.startedAt > CFG.searchMaxTimeMs) {
+              e.__search = null;
+              e.__path = [];
+              e.state = "return";
+            }
+          }
+
           break;
         }
 
@@ -1154,14 +1457,28 @@ export default function ExplorerGameCanvas({
         }
       }
 
+      // mantém o "?" pulando enquanto estiver em SEARCH
+      if (e.state === "search") {
+        // se a animação terminou (ou nunca começou), tenta respawnar
+        if (!e.__emote) {
+          spawnEmote(e, "?"); // respeita minCooldownMs
+        }
+      } else {
+        // saiu do search => para (limpa qualquer emote pendente)
+        if (e.__emote) e.__emote = null;
+        // (opcional) também pode limpar e.__emoteCooldown se quiser
+      }
+
       // push-out iterativo (3x) para garantir desencaixe
       for (let k = 0; k < 3; k++)
         circleWallPushOut(e, e.r, world.current.walls);
 
       // anti-trava/steering só para quem PODE mover
-      if (!(e.type === "sentinela" && e.state === "guard")) {
-        // anti-trava básico
-        // Steering curto se parede à frente
+      const isSweeping =
+        e.state === "search" && e.__search?.phase === "sweeping";
+
+      // anti-trava/steering só para quem PODE mover (e não está varrendo)
+      if (!(e.type === "sentinela" && e.state === "guard") && !isSweeping) {
         if (forwardBlocked(e, world.current.walls, e.r + 10)) {
           e.dir += (22 * Math.PI) / 180;
           if (forwardBlocked(e, world.current.walls, e.r + 10))
@@ -1592,6 +1909,8 @@ export default function ExplorerGameCanvas({
         ctx.strokeStyle = "rgba(255,255,255,0.35)";
         ctx.strokeRect(e.x + ox, e.y + oy, bw, bh);
       }
+
+      drawEmote(ctx, e); // Emoji em cima do inimigo
 
       // DEBUG: desenhar caminho
       if (e.__path && e.__path.length) {
