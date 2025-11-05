@@ -26,11 +26,11 @@
     "img": "/images/missoes/cratera.png",
     "descricao": "Extraia cristais de energia em crateras instáveis. Radiação intensa e instabilidade geológica representam grandes riscos.",
     "tags": ["Radiação", "Recursos", "Energia"],
-    "turnos": 2,
+    "turnos": 1,
     "recompensas": [
-      { "label": "3500 Créditos", "cor": "text-yellow-400" },
-      { "label": "Cristais Energéticos", "cor": "text-pink-400" },
-      { "label": "+5 Energia Base", "cor": "text-green-400" }
+      { "label": "+10 guarda", "cor": "text-yellow-400", "guarda": 2 },
+      { "label": "+500 energia", "cor": "text-blue-400", "energia": 500 },
+      { "label": "+10 agua", "cor": "text-purple-400", "agua": 10 }
     ]
   },
   {

@@ -411,16 +411,50 @@ function smoothPathToPoints(grid, raw, walls) {
 }
 
 function sumRewardsFromCollected(rewards = [], collectedSet) {
-  return rewards.reduce(
-    (acc, r, idx) => {
-      if (!collectedSet.has(idx)) return acc;
-      if (Number.isFinite(r.colono)) acc.colonos += r.colono;
-      if (Number.isFinite(r.comida)) acc.comida += r.comida;
-      if (Number.isFinite(r.minerais)) acc.minerais += r.minerais;
-      return acc;
-    },
-    { colonos: 0, comida: 0, minerais: 0 }
-  );
+  const KEYS = [
+    "colono",
+    "comida",
+    "minerais",
+    "energia",
+    "agua",
+    "ciencia",
+    "guardas",
+    "marines",
+    "snipers",
+    "rangers",
+  ];
+
+  const acc = {
+    colonos: 0,
+    comida: 0,
+    minerais: 0,
+    energia: 0,
+    agua: 0,
+    ciencia: 0,
+    guardas: 0,
+    marines: 0,
+    snipers: 0,
+    rangers: 0,
+  };
+
+  for (let i = 0; i < rewards.length; i++) {
+    if (!collectedSet.has(i)) continue;
+    const r = rewards[i] || {};
+    if (Number.isFinite(r.colono)) acc.colonos += r.colono;
+    if (Number.isFinite(r.comida)) acc.comida += r.comida;
+    if (Number.isFinite(r.minerais)) acc.minerais += r.minerais;
+
+    if (Number.isFinite(r.energia)) acc.energia += r.energia;
+    if (Number.isFinite(r.agua)) acc.agua += r.agua;
+    if (Number.isFinite(r.ciencia)) acc.ciencia += r.ciencia;
+
+    if (Number.isFinite(r.guarda)) acc.guardas += r.guarda;
+    if (Number.isFinite(r.marine)) acc.marines += r.marine;
+    if (Number.isFinite(r.sniper)) acc.snipers += r.sniper;
+    if (Number.isFinite(r.ranger)) acc.rangers += r.ranger;
+  }
+
+  return acc;
 }
 
 function rotateTowards(current, target, maxStep) {
@@ -1672,9 +1706,21 @@ export default function ExplorerGameCanvas({
                 ...estadoAtual?.populacao,
                 colonos:
                   (estadoAtual?.populacao?.colonos || 0) + rewardTotals.colonos,
+                guardas:
+                  (estadoAtual?.populacao?.guardas || 0) + rewardTotals.guardas,
+                marines:
+                  (estadoAtual?.populacao?.marines || 0) + rewardTotals.marines,
+                snipers:
+                  (estadoAtual?.populacao?.snipers || 0) + rewardTotals.snipers,
+                rangers:
+                  (estadoAtual?.populacao?.rangers || 0) + rewardTotals.rangers,
               },
               comida: (estadoAtual?.comida || 0) + rewardTotals.comida,
               minerais: (estadoAtual?.minerais || 0) + rewardTotals.minerais,
+              energia: (estadoAtual?.energia || 0) + rewardTotals.energia,
+              agua: (estadoAtual?.agua || 0) + rewardTotals.agua,
+              ciencia: (estadoAtual?.ciencia || 0) + rewardTotals.ciencia,
+
               filaMissoes: novaFila,
               updatedAt: Date.now(),
             };
@@ -1708,6 +1754,9 @@ export default function ExplorerGameCanvas({
                   populacao: novoEstado.populacao,
                   comida: novoEstado.comida,
                   minerais: novoEstado.minerais,
+                  energia: novoEstado.energia,
+                  agua: novoEstado.agua,
+                  ciencia: novoEstado.ciencia,
                   filaMissoes: novoEstado.filaMissoes,
                   updatedAt: novoEstado.updatedAt,
                 })
