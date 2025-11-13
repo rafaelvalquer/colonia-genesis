@@ -226,7 +226,7 @@ border border-gray-700 text-white"
               <span className="w-6 text-center">🔍</span>
               <span>Exploradores:</span>
             </div>
-            <span>{estado.populacao.exploradores}</span>
+            <span>{estado.exploradores.length}</span>
           </div>
 
           <div className="flex items-center justify-between">
@@ -779,6 +779,156 @@ border border-gray-700 text-white"
       label: "Sustentabilidade",
       value: `${estado.sustentabilidade}%`,
       icon: <FaLeaf />,
+      tooltip: (
+        <div
+          className="absolute z-20 left-0 mt-2 w-72 p-3 bg-gray-800 rounded-lg shadow-xl
+opacity-0 invisible group-hover:opacity-100 group-hover:visible
+transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+border border-gray-700 text-white"
+        >
+          {(() => {
+            // Construções que impactam sustentabilidade
+            const sol = Number(estado?.construcoes?.geradorSolar || 0);
+            const geo = Number(estado?.construcoes?.reatorGeotermico || 0);
+
+            // Ganhos/perdas por turno (regras do engine)
+            const base = 1; // ganho base do turno
+            const sustSolar = Math.floor(sol / 2); // +1 a cada 2 solares
+            const sustGeo = -geo; // −1 por reator geotérmico
+
+            // Penalidades por faltas de recursos/condições
+            const penAgua = estado.agua <= 0 ? -2 : 0;
+            const penEnergia = estado.energia <= 0 ? -2 : 0;
+            const penComida = estado.comida <= 0 ? -5 : 0;
+            const penSaude = (Number(estado.saude) || 0) <= 0 ? -2 : 0;
+
+            const totalTurno =
+              base +
+              sustSolar +
+              sustGeo +
+              penAgua +
+              penEnergia +
+              penComida +
+              penSaude;
+
+            // Faixas de eficiência (afetam comida, minerais, reparo, energia e saúde)
+            const s = Number(estado.sustentabilidade) || 0;
+            let faixaTxt = "51–99: +5% eficiência";
+            if (s <= 25) faixaTxt = "≤ 25: −10% eficiência";
+            else if (s <= 50) faixaTxt = "26–50: −5% eficiência";
+            else if (s === 100) faixaTxt = "100: +10% eficiência";
+
+            return (
+              <div className="text-sm space-y-2">
+                <div className="font-semibold text-slate-200">
+                  Sustentabilidade por turno
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">➕</span>
+                    <span>Base:</span>
+                  </div>
+                  <span>+{base}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">☀️</span>
+                    <span>Solar (x{sol}) — +1/2 unid.:</span>
+                  </div>
+                  <span>+{sustSolar}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🌋</span>
+                    <span>Geotérmico (x{geo}) — −1/unid.:</span>
+                  </div>
+                  <span>{sustGeo}</span>
+                </div>
+
+                <div className="border-t border-gray-600 pt-2 mt-1" />
+                <div className="font-semibold text-slate-200">Penalidades</div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">💧</span>
+                    <span>Falta de água:</span>
+                  </div>
+                  <span className={penAgua ? "text-red-400" : ""}>
+                    {penAgua}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">⚡</span>
+                    <span>Falta de energia:</span>
+                  </div>
+                  <span className={penEnergia ? "text-red-400" : ""}>
+                    {penEnergia}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🌾</span>
+                    <span>Falta de comida:</span>
+                  </div>
+                  <span className={penComida ? "text-red-400" : ""}>
+                    {penComida}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-300">
+                  <div className="flex items-center">
+                    <span className="w-6 text-center">🏥</span>
+                    <span>Saúde ≤ 0:</span>
+                  </div>
+                  <span className={penSaude ? "text-red-400" : ""}>
+                    {penSaude}
+                  </span>
+                </div>
+
+                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
+                  <span>Total Sustentabilidade/turno:</span>
+                  <span
+                    className={
+                      totalTurno >= 0 ? "text-green-400" : "text-red-400"
+                    }
+                  >
+                    {totalTurno >= 0 ? "+" : ""}
+                    {totalTurno}
+                  </span>
+                </div>
+
+                <div className="border-t border-gray-600 pt-2 mt-1" />
+                <div className="font-semibold text-slate-200">
+                  Faixas de eficiência
+                </div>
+                <div className="text-xs text-slate-300 leading-5">
+                  ≤ 25: −10% em comida, minerais, reparo, energia e saúde
+                  <br />
+                  26–50: −5% nos mesmos recursos
+                  <br />
+                  51–99: +5% nos mesmos recursos
+                  <br />
+                  100: +10% nos mesmos recursos
+                </div>
+                <div className="text-xs text-slate-200">
+                  Atual: <span className="font-semibold">{faixaTxt}</span>
+                </div>
+
+                <div className="text-[11px] text-slate-400">
+                  Obs.: Reatores geotérmicos podem causar microvazamentos raros
+                  que reduzem a integridade (evento separado).
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ),
     },
   ];
 

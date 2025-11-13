@@ -241,7 +241,15 @@ const MissoesExploracao = ({ estadoAtual, onEstadoChange }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Exploradores disponíveis */}
-        <div className="bg-slate-100 rounded-xl p-5 shadow-inner">
+        <div
+          className="bg-slate-100 rounded-xl p-5 shadow-inner"
+          style={{
+            position: "sticky",
+            top: 12,
+            maxHeight: "calc(100vh - 24px)",
+            overflow: "auto",
+          }}
+        >
           <h4 className="text-lg font-semibold mb-4 flex items-center">
             <span className="w-3 h-3 rounded-full bg-green-500 mr-2" />
             Exploradores Disponíveis

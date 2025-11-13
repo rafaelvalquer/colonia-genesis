@@ -43,10 +43,12 @@ import IconDesenvolvimento from "./icons/IconDesenvolvimento";
 import IconPopulacao from "./icons/IconPopulacao";
 import IconMissoes from "./icons/IconMissoes";
 import IconBatalha from "./icons/IconBatalha";
+import IconTrophy from "./icons/IconTrophy.jsx";
 import MissoesExploracao from "../pages/MissoesExploracao.jsx"; // novo
 import MissoesExploradores from "../pages/MissoesExploradores.jsx"; // novo
 import EstatisticasBatalha from "../pages/EstatisticasBatalha.jsx"; // novo
 import coloniaService from "../services/coloniaService.js";
+import RankingPanel from "../pages/RankingPanel";
 
 const MAX_PONTOS = 3;
 const setoresOrdem = [
@@ -104,8 +106,6 @@ const abas = [
     itens: [
       { id: "exploradores", label: "Exploradores" }, // preparar e enviar expedicionário
       { id: "exploracao", label: "Exploração" }, // preparar e enviar expedicionário
-      { id: "expedicoes", label: "Em Andamento" }, // fila + status/tempo de retorno
-      { id: "relatorios", label: "Relatórios" }, // histórico de missões concluídas
     ],
   },
   {
@@ -114,6 +114,11 @@ const abas = [
     itens: [
       { id: "estatisticas", label: "Estatísticas" }, // preparar e enviar expedicionário
     ],
+  },
+  {
+    grupo: "Ranking",
+    icone: <IconTrophy />,
+    itens: [{ id: "ranking", label: "Ranking" }],
   },
 ];
 
@@ -325,7 +330,7 @@ function ParameterPanel({
     agricultura: "Aumenta a produção de alimentos para sua população",
     mineracao: "Extrair mais recursos minerais para construção",
     laboratorio: "Pesquisa tecnológica para avanços científicos",
-    construcao: "Acelera a construção de novas estruturas",
+    construcao: "Dobra a velocidade de reparo da colônia",
     saude: "Melhora a qualidade de vida e produtividade dos cidadãos",
     energia: "Gera mais energia para alimentar suas estruturas",
   };
@@ -796,7 +801,7 @@ function ParameterPanel({
                                 <span className="w-6 text-center">🔍</span>
                                 <span>Exploradores:</span>
                               </div>
-                              <span>{estadoAtual.populacao.exploradores}</span>
+                              <span>{estadoAtual.exploradores.length}</span>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
@@ -1398,8 +1403,232 @@ function ParameterPanel({
                         </div>
                       </li>
 
-                      <li>
-                        🌿 Sustentabilidade: {estadoAtual.sustentabilidade}%
+                      <li className="group relative block w-full mt-2">
+                        <div className="flex items-center cursor-pointer hover:text-blue-200 transition-colors duration-200">
+                          <span className="mr-1">🌿</span>
+                          Sustentabilidade: {estadoAtual.sustentabilidade}%
+                        </div>
+
+                        {/* Tooltip Sustentabilidade */}
+                        <div
+                          className="absolute z-20 left-0 mt-2 w-80 p-3 bg-gray-800 rounded-lg shadow-xl
+    opacity-0 invisible group-hover:opacity-100 group-hover:visible
+    transition-all duration-300 transform -translate-y-1 group-hover:translate-y-0
+    border border-gray-700 text-white"
+                        >
+                          {(() => {
+                            const s = Math.floor(
+                              estadoAtual?.sustentabilidade ?? 0
+                            );
+
+                            // Construções
+                            const sol = Number(
+                              estadoAtual?.construcoes?.geradorSolar || 0
+                            );
+                            const geo = Number(
+                              estadoAtual?.construcoes?.reatorGeotermico || 0
+                            );
+
+                            // Regras do motor
+                            const base = 1; // +1 base/turno
+                            const bonusSolar = Math.floor(sol / 2); // +1 a cada 2 solares
+                            const penGeo = geo; // -1 por reator
+                            const penAgua =
+                              (estadoAtual?.agua ?? 0) <= 0 ? 2 : 0;
+                            const penEnergia =
+                              (estadoAtual?.energia ?? 0) <= 0 ? 2 : 0;
+                            const penComida =
+                              (estadoAtual?.comida ?? 0) <= 0 ? 5 : 0;
+                            const penSaude =
+                              (estadoAtual?.saude ?? 0) <= 0 ? 2 : 0;
+
+                            const deltaTurno =
+                              base +
+                              bonusSolar -
+                              penGeo -
+                              penAgua -
+                              penEnergia -
+                              penComida -
+                              penSaude;
+
+                            // Faixas de eficiência global
+                            let faixa = "Boa (51–99)";
+                            let effPct = 5;
+                            if (s <= 25) {
+                              faixa = "Baixa (≤25)";
+                              effPct = -10;
+                            } else if (s <= 50) {
+                              faixa = "Moderada (≤50)";
+                              effPct = -5;
+                            } else if (s === 100) {
+                              faixa = "Máxima (100)";
+                              effPct = 10;
+                            }
+
+                            // Impacto no ganho de Saúde do turno
+                            const saudeAdj = s <= 25 ? -2 : s <= 50 ? -1 : 0;
+
+                            // Classe helper
+                            const sign = (n) => (n > 0 ? `+${n}` : `${n}`);
+
+                            return (
+                              <div className="text-sm space-y-2">
+                                {/* Ganhos e perdas por turno */}
+                                <div className="font-semibold text-slate-200">
+                                  Variação por Turno
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">➕</span>
+                                    <span>Base:</span>
+                                  </div>
+                                  <span className="text-green-400">
+                                    +{base}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">☀️</span>
+                                    <span>Solar (+1 / 2 unid.) (x{sol}):</span>
+                                  </div>
+                                  <span
+                                    className={
+                                      bonusSolar >= 0
+                                        ? "text-green-400"
+                                        : "text-red-400"
+                                    }
+                                  >
+                                    {sign(bonusSolar)}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <span className="w-6 text-center">🌋</span>
+                                    <span>
+                                      Geotérmico (−1 / unid.) (x{geo}):
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={
+                                      penGeo === 0 ? "" : "text-red-400"
+                                    }
+                                  >
+                                    -{penGeo}
+                                  </span>
+                                </div>
+
+                                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                                {/* Penalidades contextuais */}
+                                <div className="font-semibold text-slate-200">
+                                  Penalidades de Falta
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span>Água ≤ 0:</span>
+                                  <span
+                                    className={penAgua ? "text-red-400" : ""}
+                                  >
+                                    {penAgua ? "-2" : "—"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span>Energia ≤ 0:</span>
+                                  <span
+                                    className={penEnergia ? "text-red-400" : ""}
+                                  >
+                                    {penEnergia ? "-2" : "—"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span>Comida ≤ 0:</span>
+                                  <span
+                                    className={penComida ? "text-red-400" : ""}
+                                  >
+                                    {penComida ? "-5" : "—"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span>Saúde ≤ 0:</span>
+                                  <span
+                                    className={penSaude ? "text-red-400" : ""}
+                                  >
+                                    {penSaude ? "-2" : "—"}
+                                  </span>
+                                </div>
+
+                                <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between">
+                                  <span>Total Sustentabilidade/turno:</span>
+                                  <span
+                                    className={
+                                      deltaTurno >= 0
+                                        ? "text-green-400"
+                                        : "text-red-400"
+                                    }
+                                  >
+                                    {deltaTurno >= 0 ? "+" : ""}
+                                    {deltaTurno}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs text-slate-400">
+                                  * Eventos de “pesquisa acelerada” podem
+                                  conceder +5 no turno.
+                                  <br />* Valor é limitado entre 0 e 100.
+                                </div>
+
+                                <div className="border-t border-gray-600 pt-2 mt-1" />
+
+                                {/* Efeitos atuais da faixa */}
+                                <div className="font-semibold text-slate-200">
+                                  Efeitos Atuais
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <span>Faixa de Sustentabilidade:</span>
+                                  <span className="text-slate-200">
+                                    {faixa}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <span>Eficiência global:</span>
+                                  <span
+                                    className={
+                                      effPct >= 0
+                                        ? "text-green-400"
+                                        : "text-red-400"
+                                    }
+                                  >
+                                    {effPct >= 0 ? "+" : ""}
+                                    {effPct}%
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <span>Ganho de Saúde (ajuste):</span>
+                                  <span
+                                    className={
+                                      saudeAdj < 0
+                                        ? "text-red-400"
+                                        : "text-slate-300"
+                                    }
+                                  >
+                                    {saudeAdj === 0 ? "0" : saudeAdj}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs text-slate-400">
+                                  Eficiência aplica-se em comida, minerais,
+                                  reparo, energia, saúde e água do turno.
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </li>
                     </ul>
                   </>
@@ -2366,6 +2595,10 @@ function ParameterPanel({
 
         {abaSelecionada === "estatisticas" && (
           <EstatisticasBatalha bc={estadoAtual?.battleCampaign} />
+        )}
+
+        {abaSelecionada === "ranking" && (
+          <RankingPanel bc={estadoAtual?.battleCampaign} />
         )}
 
         {loading && (

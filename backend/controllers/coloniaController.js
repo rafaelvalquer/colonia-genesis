@@ -372,3 +372,76 @@ exports.gastarAgua = async (req, res) => {
     res.status(500).json({ erro: "Erro ao gastar água." });
   }
 };
+
+// GET /colonia/ranking?campo=turno&dir=desc&limit=10
+exports.getRanking = async (req, res) => {
+  try {
+    const allowed = new Set([
+      "turno",
+      "energia",
+      "comida",
+      "minerais",
+      "ciencia",
+      "populacaoTotal", // opcional: ordenar por soma da população
+    ]);
+
+    let campo = String(req.query.campo || "turno");
+    if (!allowed.has(campo)) campo = "turno";
+
+    const dir =
+      String(req.query.dir || "desc").toLowerCase() === "asc" ? 1 : -1;
+    const limitReq = Number(req.query.limit);
+    const limit = Number.isFinite(limitReq)
+      ? Math.max(1, Math.min(50, limitReq))
+      : 10;
+
+    // Campos projetados no retorno
+    const projectBase = {
+      _id: 1,
+      nomeColonia: "$nome",
+      turno: 1,
+      populacao: 1,
+      energia: 1,
+      comida: 1,
+      minerais: 1,
+      ciencia: 1,
+    };
+
+    if (campo === "populacaoTotal") {
+      // pipeline com campo derivado
+      const pipeline = [
+        {
+          $addFields: {
+            populacaoTotal: {
+              $add: [
+                { $ifNull: ["$populacao.colonos", 0] },
+                { $ifNull: ["$populacao.guardas", 0] },
+                { $ifNull: ["$populacao.exploradores", 0] },
+                { $ifNull: ["$populacao.marines", 0] },
+                { $ifNull: ["$populacao.snipers", 0] },
+                { $ifNull: ["$populacao.rangers", 0] },
+              ],
+            },
+          },
+        },
+        { $sort: { populacaoTotal: dir, _id: 1 } },
+        { $limit: limit },
+        { $project: { ...projectBase, populacaoTotal: 1 } },
+      ];
+
+      const rows = await Colonia.aggregate(pipeline);
+      return res.json(rows);
+    }
+
+    // Demais campos: find/sort/limit simples
+    const rows = await Colonia.find({}, projectBase)
+      .sort({ [campo]: dir, _id: 1 })
+      .limit(limit)
+      .lean();
+
+    return res.json(rows);
+  } catch (e) {
+    console.error("Erro em getRanking:", e);
+    return res.status(500).json({ erro: "Erro ao obter ranking." });
+  }
+};

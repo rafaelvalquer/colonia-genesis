@@ -26,6 +26,7 @@ const coloniaService = {
   },
 
   buscarColonia: async (nome) => (await api.get(`/buscar/${nome}`)).data,
+  getRanking: async (params) => (await api.get(`/ranking`, { params })).data,
   atualizarColonia: async (id, dados) => (await api.put(`/${id}`, dados)).data,
   atualizarExplorador: async (coloniaId, explorerId, dados) =>
     (await api.patch(`/${coloniaId}/exploradores/${explorerId}`, dados)).data,

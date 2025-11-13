@@ -24,4 +24,7 @@ router.get("/:id/estado", coloniaController.getEstadoPorId);
 // POST gastar água
 router.post("/:id/gastar-agua", coloniaController.gastarAgua);
 
+// GET Ranking
+router.get("/ranking", coloniaController.getRanking);
+
 module.exports = router;
