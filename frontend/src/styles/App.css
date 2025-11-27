@@ -1,7 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* src/styles/App.css */
 
+/* Avançar: entra da direita */
 @keyframes introImgNext {
   from {
     opacity: 0;
