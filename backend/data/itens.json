@@ -1,0 +1,42 @@
+[
+  {
+    "nome": "Pistola Padrão",
+    "tipo": "arma",
+    "raridade": "comum",
+    "nivelRequerido": 1,
+    "tags": ["pistola", "balistica"],
+    "versaoItem": 1,
+    "icone": "icons/pistola_padrao.png",
+    "descricao": "Pistola básica.",
+    "arma": {
+      "stats": {
+        "dano": { "base": 4, "min": 3, "max": 6 },
+        "cadencia": 3.5,
+        "alcance": 450,
+        "chanceCritico": 0.05,
+        "multiplicadorCritico": 1.5,
+        "velocidadeProjetil": 560,
+        "custoStamina": 0.5
+      }
+    }
+  },
+  {
+    "nome": "Colete de Fibra",
+    "tipo": "armadura",
+    "raridade": "incomum",
+    "nivelRequerido": 2,
+    "tags": ["leve"],
+    "versaoItem": 1,
+    "icone": "icons/colete_fibra.png",
+    "descricao": "Proteção leve.",
+    "armadura": {
+      "stats": {
+        "bonusHp": 4,
+        "bonusStamina": 2,
+        "reducaoDano": 0.06,
+        "multVelocidadeMovimento": 0.98,
+        "bonusFovGraus": 0
+      }
+    }
+  }
+]

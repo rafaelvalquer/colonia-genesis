@@ -91,9 +91,17 @@ const skillsSchema = new mongoose.Schema(
 
 const equipmentSchema = new mongoose.Schema(
   {
-    arma: { type: String, default: null },
-    armadura: { type: String, default: null },
-    gadget: { type: String, default: null },
+    arma: { type: mongoose.Schema.Types.ObjectId, ref: "Item", default: null },
+    armadura: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Item",
+      default: null,
+    },
+    gadget: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Item",
+      default: null,
+    },
   },
   { _id: false }
 );

@@ -1,6 +1,8 @@
 //backend/controllers/coloniaController.js
 const bcrypt = require("bcryptjs");
 const Colonia = require("../models/colonia");
+const Item = require("../models/item");
+const { Types } = require("mongoose");
 
 /* ===== Helpers de água ===== */
 
@@ -443,5 +445,38 @@ exports.getRanking = async (req, res) => {
   } catch (e) {
     console.error("Erro em getRanking:", e);
     return res.status(500).json({ erro: "Erro ao obter ranking." });
+  }
+};
+
+exports.getExploradorDetalhado = async (req, res) => {
+  try {
+    const { coloniaId, explorerId } = req.params;
+    const col = await Colonia.findById(coloniaId).lean();
+    if (!col) return res.status(404).json({ error: "Colônia não encontrada" });
+    const ex = (col.exploradores || []).find((e) => e.id === explorerId);
+    if (!ex)
+      return res.status(404).json({ error: "Explorador não encontrado" });
+
+    // carrega itens (se existirem)
+    const ids = ["arma", "armadura", "gadget"]
+      .map((k) => ex.equipment?.[k])
+      .filter((v) => Types.ObjectId.isValid(v));
+
+    const itens = ids.length
+      ? await Item.find({ _id: { $in: ids } }).lean()
+      : [];
+
+    const porId = new Map(itens.map((i) => [String(i._id), i]));
+    const equipment = {
+      arma: porId.get(String(ex.equipment?.arma)) || null,
+      armadura: porId.get(String(ex.equipment?.armadura)) || null,
+      gadget: porId.get(String(ex.equipment?.gadget)) || null,
+    };
+
+    res.json({ ...ex, equipment });
+  } catch (e) {
+    res
+      .status(500)
+      .json({ error: "Falha ao carregar explorador", details: e.message });
   }
 };
