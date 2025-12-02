@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const coloniaController = require("../controllers/coloniaController");
 const exploradorCtrl = require("../controllers/exploradorController");
+const invCtrl = require("../controllers/inventarioController");
 
 // POST: Criar nova colônia
 router.post("/", coloniaController.criarColonia);
@@ -37,6 +38,21 @@ router.put(
 router.get(
   "/:coloniaId/exploradores/:explorerId/detalhe",
   coloniaController.getExploradorDetalhado
+);
+
+// Inventário global da colônia
+router.get("/:coloniaId/inventario", invCtrl.listar);
+router.post("/:coloniaId/inventario/adicionar", invCtrl.adicionar);
+router.post("/:coloniaId/inventario/remover", invCtrl.remover);
+
+// Equipar direto do inventário global
+router.post(
+  "/:coloniaId/exploradores/:explorerId/equipar",
+  invCtrl.equiparDoInventario
+);
+router.post(
+  "/:coloniaId/exploradores/:explorerId/desequipar",
+  invCtrl.desequiparParaInventario
 );
 
 module.exports = router;

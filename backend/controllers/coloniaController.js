@@ -156,6 +156,8 @@ exports.criarColonia = async (req, res) => {
       sustentabilidade: 100,
       ciencia: 100,
 
+      inventario: { type: [invItemSchema], default: [] }, // depósito global
+
       construcoes: baseBuildings,
 
       hospital: { fila: [], internados: [], historicoAltas: [] },

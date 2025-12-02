@@ -106,6 +106,21 @@ const equipmentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const invItemSchema = new mongoose.Schema(
+  {
+    itemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Item",
+      required: true,
+      index: true,
+    },
+    quantidade: { type: Number, min: 1, default: 1 },
+    durabilidade: { type: Number, min: 0, default: null }, // opcional
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} }, // afixos/rolls
+  },
+  { _id: false }
+);
+
 const exploradorSchema = new mongoose.Schema(
   {
     id: { type: String, required: true }, // ex: "exp_001"
@@ -269,6 +284,8 @@ const coloniaSchema = new mongoose.Schema({
   saude: { type: Number, required: true },
   sustentabilidade: { type: Number, default: 100 },
   ciencia: { type: Number, default: 100 },
+
+  inventario: { type: [invItemSchema], default: [] }, // depósito global
 
   construcoes: {
     fazenda: { type: Number, default: 0 },
